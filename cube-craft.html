@@ -1144,6 +1144,7 @@ const skyDome=new THREE.Mesh(
 scene.add(skyDome);
 
 const camera=new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 500);
+scene.add(camera); // needed for hand mesh (camera child) to render
 
 // Lighting — only needed for non-voxel objects (clouds, sun billboard)
 // Voxel chunks use MeshBasicMaterial with baked directional shading.
@@ -1372,6 +1373,40 @@ const foliageMat = new THREE.MeshBasicMaterial({
   side: THREE.DoubleSide
 });
 
+// ── FIRST-PERSON HAND ─────────────────────────────────────
+const handGroup = new THREE.Group();
+camera.add(handGroup);
+
+const handGeo = new THREE.BoxGeometry(0.35, 0.35, 0.35);
+const handMat = new THREE.MeshBasicMaterial({map: atlasTexture, depthTest: false});
+const handMesh = new THREE.Mesh(handGeo, handMat);
+handMesh.renderOrder = 999;
+handGroup.add(handMesh);
+
+// Resting position: bottom-right corner of view, block tilted at isometric angle
+const HAND_REST = {px:0.58, py:-0.46, pz:-0.70, rx:0.12, ry:-0.38, rz:0.07};
+handGroup.position.set(HAND_REST.px, HAND_REST.py, HAND_REST.pz);
+handGroup.rotation.set(HAND_REST.rx, HAND_REST.ry, HAND_REST.rz);
+handGroup.visible = false;
+
+function updateHandUVs(){
+  const id = player ? player.selectedBlock : GRASS;
+  const ti = TEX_IDX[id];
+  if(!ti) return;
+  // BoxGeometry face order: +X,-X,+Y,-Y,+Z,-Z → use side/side/top/bottom/side/side tiles
+  const tiles = [ti[2], ti[2], ti[0], ti[1], ti[2], ti[2]];
+  const uv = handGeo.attributes.uv;
+  for(let face = 0; face < 6; face++){
+    const ci = tiles[face];
+    const b = face * 4;
+    uv.setXY(b,   ci/N_TILES, 1);
+    uv.setXY(b+1, (ci+1)/N_TILES, 1);
+    uv.setXY(b+2, ci/N_TILES, 0);
+    uv.setXY(b+3, (ci+1)/N_TILES, 0);
+  }
+  uv.needsUpdate = true;
+}
+
 // ── BLOCK BREAK SOUNDS (Web Audio synthesis) ──────────────
 let _actx = null;
 function getActx(){
@@ -1419,6 +1454,34 @@ function playBreakSound(blockId){
   }
 }
 
+const PLACE_SND = {
+  [GRASS]:   {f:'lowpass',  hz:300, q:0.6, v:0.36, d:0.09},
+  [DIRT]:    {f:'lowpass',  hz:220, q:0.5, v:0.33, d:0.08},
+  [STONE]:   {f:'bandpass', hz:900, q:2.5, v:0.40, d:0.07},
+  [WOOD]:    {f:'bandpass', hz:580, q:1.8, v:0.38, d:0.08},
+  [LEAVES]:  {f:'bandpass', hz:430, q:0.9, v:0.22, d:0.07},
+  [SAND]:    {f:'lowpass',  hz:150, q:0.4, v:0.25, d:0.11},
+  [BEDROCK]: {f:'bandpass', hz:900, q:2.5, v:0.40, d:0.07},
+};
+function playPlaceSound(blockId){
+  const sp = PLACE_SND[blockId] || PLACE_SND[STONE];
+  const ctx = getActx();
+  const now = ctx.currentTime;
+  const len = Math.ceil(ctx.sampleRate * sp.d);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const ch = buf.getChannelData(0);
+  for(let i=0;i<len;i++) ch[i]=Math.random()*2-1;
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const filt = ctx.createBiquadFilter();
+  filt.type = sp.f; filt.frequency.value = sp.hz; filt.Q.value = sp.q;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(sp.v, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now+sp.d);
+  src.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
+  src.start(now); src.stop(now+sp.d+0.01);
+}
+
 // ── GAME STATE ────────────────────────────────────────────
 const world=new World(scene);
 const player=new Player(camera,world);
@@ -1427,6 +1490,8 @@ let locked=false, gameReady=false, gameStarted=false, paused=false;
 let showDbg=false;
 // Mining
 let mining=false, mineTarget=null, mineProg=0;
+let handBobPhase=0, handSwingT=-1, handPlaceT=-1;
+const HAND_SWING_SPD=5.5, HAND_PLACE_SPD=7.0;
 
 // ── MENU BACKGROUND — pre-generate terrain so the main menu looks at ground ──
 {
@@ -1480,6 +1545,7 @@ function buildHotbar(){
     hotbarEl.append(slot);
   });
   blockHint.textContent=BLOCK_NAME[player.selectedBlock];
+  updateHandUVs();
 }
 
 function buildHealth(){
@@ -1617,6 +1683,7 @@ canvas.addEventListener('mousedown',e=>{
   if(e.button===0){
     // Start mining
     mining=true; mineProg=0; mineTarget=null;
+    handSwingT=0; // start swing animation
   } else if(e.button===2){
     // Instant place
     const t=getAim(); if(!t) return;
@@ -1628,6 +1695,8 @@ canvas.addEventListener('mousedown',e=>{
        py>=Math.floor(p.y)&&py<Math.ceil(p.y+PLR_H)&&
        pz>=Math.floor(p.z-hw)&&pz<Math.ceil(p.z+hw)) return;
     world.setBlock(px,py,pz,player.selectedBlock);
+    playPlaceSound(player.selectedBlock);
+    handPlaceT=0; // start place animation
     buildHotbar();
   }
 });
@@ -1686,6 +1755,7 @@ function loop(t){
   prevT=t;
 
   if(!gameStarted||paused){
+    handGroup.visible = false;
     renderer.render(scene,camera);
     return;
   }
@@ -1717,6 +1787,40 @@ function loop(t){
 
   // Sky dome follows camera so horizon is always centered
   skyDome.position.copy(camera.position);
+
+  // Hand animation
+  {
+    handGroup.visible = true;
+    const spd = Math.sqrt(player.vel.x*player.vel.x + player.vel.z*player.vel.z);
+    if(spd > 0.5 && player.onGround) handBobPhase += dt * 9;
+    const bob = Math.sin(handBobPhase);
+
+    let hpx = HAND_REST.px + bob * 0.012;
+    let hpy = HAND_REST.py - Math.abs(bob) * 0.010;
+    let hpz = HAND_REST.pz;
+    let hrx = HAND_REST.rx, hry = HAND_REST.ry, hrz = HAND_REST.rz;
+
+    // Mining swing: rotate hand down then back (loops while holding LMB)
+    if(handSwingT >= 0){
+      handSwingT = Math.min(handSwingT + dt * HAND_SWING_SPD, 1);
+      const s = Math.sin(handSwingT * Math.PI);
+      hrx += s * 1.1;
+      hpy -= s * 0.06;
+      if(handSwingT >= 1) handSwingT = mining ? 0 : -1;
+    }
+
+    // Place animation: lift hand forward briefly
+    if(handPlaceT >= 0){
+      handPlaceT = Math.min(handPlaceT + dt * HAND_PLACE_SPD, 1);
+      const s = Math.sin(handPlaceT * Math.PI);
+      hrx -= s * 0.55;
+      hpz -= s * 0.07;
+      if(handPlaceT >= 1) handPlaceT = -1;
+    }
+
+    handGroup.position.set(hpx, hpy, hpz);
+    handGroup.rotation.set(hrx, hry, hrz);
+  }
 
   // Sun billboard — always faces camera, sits far away in sun direction
   {
