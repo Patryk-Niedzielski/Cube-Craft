@@ -309,7 +309,7 @@ html,body{width:100%;height:100%;background:#87ceeb;overflow:hidden;font-family:
   <span class="footer-r">Copyright Copilot &amp; Patryk. Nie kopiować!</span>
 </div>
 
-<div id="click-hint" style="display:none!important"></div>
+<div id="click-hint"><p>CLICK TO CAPTURE MOUSE</p></div>
 
 <div id="pause-screen">
   <div id="pause-title">Menu Gry</div>
@@ -1227,6 +1227,7 @@ document.addEventListener('pointerlockchange',()=>{
   if(locked){
     paused=false;
     pauseScreen.style.display='none';
+    clickHint.style.display='none';
     if(gameStarted) showHUD(true);
   } else {
     showHUD(false);
@@ -1312,6 +1313,7 @@ document.getElementById('play-btn').addEventListener('click', async()=>{
   gameStarted=true;
   prevT=performance.now();
   showHUD(true); buildHotbar(); buildHealth();
+  if(!locked) clickHint.style.display='flex';
 });
 
 // ── MAIN LOOP ────────────────────────────────────────────
