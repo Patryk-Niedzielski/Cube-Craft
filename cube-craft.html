@@ -124,9 +124,10 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
   border:3px solid;
   border-top-color:#fff;border-left-color:#fff;
   border-bottom-color:#555;border-right-color:#555;
-  min-width:300px;image-rendering:pixelated;
+  min-width:380px;image-rendering:pixelated;
   font-family:'Press Start 2P',monospace;
 }
+#inv-main-grid{display:flex;flex-wrap:wrap;gap:3px}
 #inv-title{font-size:9px;color:#333;margin-bottom:10px;text-shadow:1px 1px 0 rgba(255,255,255,0.6)}
 .inv-label{font-size:7px;color:#333;margin:8px 0 4px;text-shadow:1px 1px 0 rgba(255,255,255,0.5)}
 #inv-blocks-grid{display:flex;flex-wrap:wrap;gap:3px}
@@ -486,7 +487,9 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
       <div class="inv-label">BLOCKS</div>
       <div id="inv-blocks-grid"></div>
     </div>
-    <div class="inv-label">HOTBAR <span style="font-size:6px;opacity:0.6">(right-click to remove)</span></div>
+    <div class="inv-label">INVENTORY <span style="font-size:6px;opacity:0.6">(right-click to clear)</span></div>
+    <div id="inv-main-grid"></div>
+    <div class="inv-label">HOTBAR</div>
     <div id="inv-hotbar-row"></div>
     <div style="margin-top:10px;display:flex;justify-content:flex-end">
       <button class="mc-btn" style="width:100px;font-size:7px" onclick="closeInventory()">Close [E]</button>
@@ -1123,7 +1126,8 @@ class Player{
     this.air=10; this.maxAir=10;
     this.drownTimer=0;
     this.inWater=false; this.headInWater=false;
-    this.hotbar=[GRASS,DIRT,STONE,WOOD,LEAVES,SAND];
+    this.hotbar=[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,AIR,AIR,AIR];
+    this.inventory=new Array(27).fill(AIR);
     this.slot=0;
   }
   get selectedBlock(){ return this.hotbar[this.slot]; }
@@ -1610,7 +1614,7 @@ const keys={};
 let locked=false, gameReady=false, gameStarted=false, paused=false;
 let gamemode='survival', inventoryOpen=false, chatOpen=false;
 const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,WATER,FOLIAGE];
-const DEFAULT_HOTBAR=[GRASS,DIRT,STONE,WOOD,LEAVES,SAND];
+const DEFAULT_HOTBAR=[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,AIR,AIR,AIR];
 let showDbg=false;
 // Mining
 let mining=false, mineTarget=null, mineProg=0;
@@ -1769,6 +1773,7 @@ function setGamemode(mode){
     addChatMsg('Gamemode set to Creative','ok');
   } else {
     player.hotbar=[...DEFAULT_HOTBAR];
+    player.inventory=new Array(27).fill(AIR);
     player.slot=0;
     gmBadge.style.display='none';
     addChatMsg('Gamemode set to Survival','ok');
@@ -1805,14 +1810,23 @@ function processCommand(raw){
 function openChat(){
   if(!gameStarted) return;
   chatOpen=true;
+  // exitPointerLock triggers showHUD(false) which hides chatAreaEl;
+  // override it immediately after so the area stays visible
+  chatAreaEl.style.display='flex';
   chatInputWrap.style.display='flex';
   chatInput.value='';
-  chatInput.focus();
+  // focus must happen after pointer lock actually releases (async)
+  const tryFocus=()=>{
+    if(!document.pointerLockElement){ chatInput.focus(); }
+    else requestAnimationFrame(tryFocus);
+  };
+  tryFocus();
 }
 
 function closeChat(relock=true){
   chatOpen=false;
   chatInputWrap.style.display='none';
+  chatAreaEl.style.display='none';
   if(relock) requestLock();
 }
 
@@ -1840,6 +1854,31 @@ function buildInvHotbar(){
   });
 }
 
+const invMainGridEl = document.getElementById('inv-main-grid');
+
+function buildInvMainGrid(){
+  invMainGridEl.innerHTML='';
+  player.inventory.forEach((id,i)=>{
+    const s=document.createElement('div');
+    s.className='inv-slot';
+    if(id!==AIR){
+      const img=document.createElement('img'); img.src=makeBlockIcon(id);
+      const tip=document.createElement('div'); tip.className='inv-slot-tip';
+      tip.textContent=BLOCK_NAME[id];
+      s.append(img,tip);
+    }
+    s.addEventListener('click',()=>{
+      // Swap with active hotbar slot
+      const hb=player.hotbar[player.slot];
+      player.hotbar[player.slot]=player.inventory[i];
+      player.inventory[i]=hb;
+      buildHotbar(); buildInvMainGrid(); buildInvHotbar();
+    });
+    s.addEventListener('contextmenu',e=>{ e.preventDefault(); player.inventory[i]=AIR; buildInvMainGrid(); });
+    invMainGridEl.append(s);
+  });
+}
+
 function buildInvScreen(){
   const cr=gamemode==='creative';
   invTitleEl.textContent=cr?'CREATIVE INVENTORY':'INVENTORY';
@@ -1860,6 +1899,7 @@ function buildInvScreen(){
       invBlocksGrid.append(s);
     });
   }
+  buildInvMainGrid();
   buildInvHotbar();
 }
 
@@ -1965,6 +2005,11 @@ document.addEventListener('pointerlockchange',()=>{
     showHUD(false);
     hlMesh.visible=false;
     mining=false; mineProg=0;
+    if(chatOpen){
+      // Keep chat area visible and try to focus input now that lock released
+      chatAreaEl.style.display='flex';
+      chatInput.focus();
+    }
     if(gameStarted && !inventoryOpen && !chatOpen){
       paused=true;
       clickHint.style.display='none';
@@ -2027,9 +2072,9 @@ document.addEventListener('keydown',e=>{
     return;
   }
   if(e.code==='KeyE' && locked && gameStarted){ e.preventDefault(); openInventory(); return; }
-  if(e.code==='KeyT' && locked && gameStarted){ e.preventDefault(); document.exitPointerLock(); openChat(); return; }
+  if(e.code==='KeyT' && locked && gameStarted){ e.preventDefault(); openChat(); document.exitPointerLock(); return; }
   if(e.code==='F3'){ showDbg=!showDbg; dbgEl.style.display=(locked&&showDbg)?'block':'none'; }
-  if(e.code>='Digit1'&&e.code<='Digit6'){
+  if(e.code>='Digit1'&&e.code<='Digit9'){
     player.slot=parseInt(e.code[5])-1; buildHotbar();
   }
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
