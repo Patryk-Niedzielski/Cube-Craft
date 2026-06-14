@@ -438,10 +438,8 @@ const FACES=[
 const worldSeed = (Math.random()*1e9)|0;
 const PERM=new Uint8Array(512);
 {
-  let r=worldSeed;
-  const lcg=()=>{ r=(r*1664525+1013904223)&0xffffffff; return (r>>>0)/0xffffffff; };
   const s=[...Array(256)].map((_,i)=>i);
-  for(let i=255;i>0;i--){const j=(lcg()*(i+1))|0;[s[i],s[j]]=[s[j],s[i]];}
+  for(let i=255;i>0;i--){const j=(Math.random()*(i+1))|0;[s[i],s[j]]=[s[j],s[i]];}
   for(let i=0;i<512;i++) PERM[i]=s[i&255];
 }
 const fade=t=>t*t*t*(t*(t*6-15)+10);
@@ -1086,6 +1084,18 @@ let showDbg=false;
 // Mining
 let mining=false, mineTarget=null, mineProg=0;
 
+// ── MENU BACKGROUND — pre-generate terrain so the main menu looks at ground ──
+{
+  for(let dx=-3;dx<=3;dx++) for(let dz=-3;dz<=3;dz++){
+    const c=world.getChunk(dx,dz,true);
+    world.buildMesh(c);
+  }
+  const sy=world.surfaceY(8,8);
+  camera.position.set(12, sy+10, 12);
+  camera.rotation.order='YXZ';
+  camera.rotation.set(-0.55, -0.6, 0);
+}
+
 // ── UI ELEMENTS ───────────────────────────────────────────
 const loadingEl    = document.getElementById('loading');
 const progEl       = document.getElementById('prog');
@@ -1217,13 +1227,7 @@ document.addEventListener('pointerlockchange',()=>{
   if(locked){
     paused=false;
     pauseScreen.style.display='none';
-    if(gameReady){
-      showHUD(true); buildHotbar(); buildHealth();
-      if(!gameStarted){
-        gameStarted=true;
-        prevT=performance.now();
-      }
-    }
+    if(gameStarted) showHUD(true);
   } else {
     showHUD(false);
     hlMesh.visible=false;
@@ -1305,13 +1309,9 @@ document.getElementById('play-btn').addEventListener('click', async()=>{
   canvas.requestPointerLock();
   await generateWorld();
   gameReady=true;
-  if(locked){
-    showHUD(true); buildHotbar(); buildHealth();
-    if(!gameStarted){
-      gameStarted=true;
-      prevT=performance.now();
-    }
-  }
+  gameStarted=true;
+  prevT=performance.now();
+  showHUD(true); buildHotbar(); buildHealth();
 });
 
 // ── MAIN LOOP ────────────────────────────────────────────
