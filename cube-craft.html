@@ -265,6 +265,20 @@ html,body{width:100%;height:100%;background:#87ceeb;overflow:hidden;font-family:
   color:#ccc;font-size:clamp(0.3rem,0.88vw,0.44rem);line-height:2.3;flex:1;
 }
 .opt-sub-back{display:flex;justify-content:center;padding-top:12px}
+.opt-video-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 4px;border-bottom:1px solid #444;
+  color:#ccc;font-size:clamp(0.28rem,0.82vw,0.42rem);
+}
+.opt-val-picker{display:flex;align-items:center;gap:6px}
+.opt-val-picker button{
+  padding:5px 10px;font-family:'Press Start 2P',monospace;background:#5a5a5a;
+  font-size:clamp(0.28rem,0.8vw,0.4rem);color:#fff;cursor:pointer;border:none;
+  border-top:2px solid #7a7a7a;border-left:2px solid #7a7a7a;
+  border-right:2px solid #2a2a2a;border-bottom:2px solid #2a2a2a;
+}
+.opt-val-picker button:hover{background:#7a8fc7}
+.opt-val-picker span{color:#ffff55;min-width:130px;text-align:center}
 /* Language grid */
 #lang-grid{
   display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:4px;
@@ -358,9 +372,28 @@ html,body{width:100%;height:100%;background:#87ceeb;overflow:hidden;font-family:
       <div id="opt-main" class="opt-panel">
         <div class="opt-btn-row">
           <button class="mc-btn" onclick="showOptPanel('controls')" data-i18n="tab_controls">🎮 Controls</button>
-          <button class="mc-btn" onclick="showOptPanel('lang')" data-i18n="tab_language">🌐 Language</button>
+          <button class="mc-btn" onclick="showOptPanel('video')" data-i18n="tab_video">🖥️ Video</button>
         </div>
-        <button class="mc-btn" style="width:100%;margin-top:5px" onclick="showOptPanel('about')" data-i18n="tab_about">ℹ️ About</button>
+        <div class="opt-btn-row" style="margin-top:5px">
+          <button class="mc-btn" onclick="showOptPanel('lang')" data-i18n="tab_language">🌐 Language</button>
+          <button class="mc-btn" onclick="showOptPanel('about')" data-i18n="tab_about">ℹ️ About</button>
+        </div>
+      </div>
+
+      <!-- Video sub-panel -->
+      <div id="opt-video" class="opt-panel opt-sub-panel" style="display:none">
+        <div class="opt-sub-heading">🖥️ Video</div>
+        <div class="opt-video-row">
+          <span data-i18n="opt_render_dist">Render Distance</span>
+          <div class="opt-val-picker">
+            <button onclick="changeRdist(-1)">◀</button>
+            <span id="rdist-label"></span>
+            <button onclick="changeRdist(1)">▶</button>
+          </div>
+        </div>
+        <div class="opt-sub-back">
+          <button class="mc-btn" style="width:160px" onclick="showOptPanel('main')" data-i18n="btn_back_opts">← Back</button>
+        </div>
       </div>
 
       <!-- Controls sub-panel -->
@@ -434,7 +467,11 @@ import * as THREE from 'three';
 const CHUNK  = 16;
 const HEIGHT = 64;
 const SEA    = 32;
-const RDIST  = 4;
+const RDIST_VALS  = [2,3,4,5,6,8];
+const RDIST_NAMES = ['Tiny','Short','Normal','Far','Farther','Extreme'];
+let rdistIdx = Math.max(0, RDIST_VALS.indexOf(parseInt(localStorage.getItem('cubecraft_rdist')||'4')));
+if(rdistIdx<0) rdistIdx=2;
+let rdist = RDIST_VALS[rdistIdx];
 
 const GRAVITY  = -26;
 const JUMP_V   = 9.2;
@@ -851,7 +888,7 @@ class World{
   loadAround(px,pz){
     const [cx,cz]=this.worldToChunk(px,pz);
     const keep=new Set();
-    for(let dx=-RDIST;dx<=RDIST;dx++) for(let dz=-RDIST;dz<=RDIST;dz++){
+    for(let dx=-rdist;dx<=rdist;dx++) for(let dz=-rdist;dz<=rdist;dz++){
       const ccx=cx+dx, ccz=cz+dz, k=this.key(ccx,ccz);
       keep.add(k);
       const c=this.getChunk(ccx,ccz,true);
@@ -1037,7 +1074,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setClearColor(0xb8d8ff);
 
 const scene=new THREE.Scene();
-scene.fog=new THREE.Fog(0xb8d8ff, RDIST*CHUNK*0.50, RDIST*CHUNK*0.98);
+scene.fog=new THREE.Fog(0xb8d8ff, rdist*CHUNK*0.50, rdist*CHUNK*0.98);
 
 const camera=new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 500);
 
@@ -1399,10 +1436,10 @@ function showHUD(on){
 // ── WORLD GENERATION ─────────────────────────────────────
 async function generateWorld(){
   loadingEl.style.display='flex';
-  const total=(RDIST*2+1)**2;
+  const total=(rdist*2+1)**2;
   let done=0;
-  for(let dx=-RDIST;dx<=RDIST;dx++){
-    for(let dz=-RDIST;dz<=RDIST;dz++){
+  for(let dx=-rdist;dx<=rdist;dx++){
+    for(let dz=-rdist;dz<=rdist;dz++){
       const c=world.getChunk(dx,dz,true);
       world.buildMesh(c);
       done++;
@@ -1691,7 +1728,7 @@ requestAnimationFrame(loop);
 
 const LANGUAGES = {
   pl:{ name:'Polski',         flag:'🇵🇱', strings:{
-    options_title:'OPCJE', tab_language:'🌐 Język', tab_controls:'🎮 Sterowanie', tab_about:'ℹ️ O grze',
+    options_title:'OPCJE', tab_language:'🌐 Język', tab_controls:'🎮 Sterowanie', tab_about:'ℹ️ O grze', tab_video:'🖥️ Grafika', opt_render_dist:'Dystans widzenia',
     btn_done:'Gotowe', btn_play:'Jednoosobowa', btn_quit:'Zakończ grę', btn_back:'Wróć do Gry',
     btn_new_world:'Nowy Świat', btn_save_quit:'Zapisz i Wyjdź', btn_options:'Opcje...', btn_controls_lbl:'Sterowanie',
     btn_seed:'Seed Świata', pause_title:'Menu Gry', click_to_play:'KLIKNIJ ABY PRZECHWYCIĆ MYSZ',
@@ -1729,7 +1766,7 @@ const LANGUAGES = {
     "Świat czeka, a ty wciąż czytasz tagline.",
   ]},
   en:{ name:'English',        flag:'🇬🇧', strings:{
-    options_title:'OPTIONS', tab_language:'🌐 Language', tab_controls:'🎮 Controls', tab_about:'ℹ️ About',
+    options_title:'OPTIONS', tab_language:'🌐 Language', tab_controls:'🎮 Controls', tab_about:'ℹ️ About', tab_video:'🖥️ Video', opt_render_dist:'Render Distance',
     btn_done:'Done', btn_play:'Singleplayer', btn_quit:'Quit Game', btn_back:'Back to Game',
     btn_new_world:'New World', btn_save_quit:'Save and Quit', btn_options:'Options...', btn_controls_lbl:'Controls',
     btn_seed:'World Seed', pause_title:'Game Menu', click_to_play:'CLICK TO CAPTURE MOUSE',
@@ -2077,6 +2114,19 @@ function showOptPanel(name){
   const el = document.getElementById('opt-'+name);
   el.style.display = (name==='main') ? 'flex' : '';
   if(name==='lang') buildLangGrid();
+  if(name==='video') updateRdistLabel();
+}
+
+function updateRdistLabel(){
+  const el=document.getElementById('rdist-label');
+  if(el) el.textContent=`${RDIST_NAMES[rdistIdx]} (${rdist})`;
+}
+function changeRdist(dir){
+  rdistIdx=Math.max(0,Math.min(RDIST_VALS.length-1,rdistIdx+dir));
+  rdist=RDIST_VALS[rdistIdx];
+  localStorage.setItem('cubecraft_rdist',rdist);
+  updateRdistLabel();
+  if(scene.fog){ scene.fog.near=rdist*CHUNK*0.5; scene.fog.far=rdist*CHUNK*0.98; }
 }
 function openOptions(){
   document.getElementById('options-screen').style.display='flex';
@@ -2097,6 +2147,7 @@ window.closeOptions     = closeOptions;
 window.showOptPanel     = showOptPanel;
 window.openControlsTab  = openControlsTab;
 window.showSeed         = showSeed;
+window.changeRdist      = changeRdist;
 
 // Wire "Opcje..." buttons
 document.querySelectorAll('.open-options').forEach(b=>b.onclick=openOptions);
