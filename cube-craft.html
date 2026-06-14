@@ -24,34 +24,49 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
 #xhair::before{width:2px;height:100%;left:50%;transform:translateX(-50%)}
 #xhair::after{width:100%;height:2px;top:50%;transform:translateY(-50%)}
 
-/* HUD */
+/* ── MINECRAFT HUD ── */
 #hud{
   position:fixed;bottom:0;left:0;right:0;display:none;
-  flex-direction:column;align-items:center;padding-bottom:14px;gap:5px;
-  pointer-events:none;
+  flex-direction:column;align-items:center;padding-bottom:4px;gap:0;
+  pointer-events:none;image-rendering:pixelated;
 }
-#health{display:flex;gap:3px;font-size:18px;line-height:1}
-#hotbar{display:flex;gap:3px}
+#hud-bars{display:flex;align-items:flex-end;gap:8px;margin-bottom:2px}
+#health{display:flex;flex-wrap:wrap;gap:0;width:182px}
+.mc-heart{width:9px;height:9px;image-rendering:pixelated;display:block}
+#air-bar{display:none;gap:0;line-height:1}
+.mc-bubble{width:9px;height:9px;image-rendering:pixelated;display:block}
+#xp-bar-wrap{
+  width:364px;height:5px;background:#262626;margin-bottom:2px;
+  outline:1px solid #000;
+}
+#xp-bar{height:100%;width:0%;background:#7eff00}
+#hotbar{
+  display:flex;gap:0;
+  background:#8b8b8b;
+  outline:2px solid #000;
+  padding:2px;
+}
 .slot{
-  width:50px;height:50px;background:rgba(30,20,10,0.75);
-  border:2px solid rgba(255,255,255,0.25);border-radius:5px;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
-  pointer-events:auto;cursor:pointer;transition:border-color .1s,background .1s;
-  position:relative;
+  width:40px;height:40px;background:#8b8b8b;
+  border:2px solid;
+  border-top-color:#fff;border-left-color:#fff;
+  border-bottom-color:#373737;border-right-color:#373737;
+  display:flex;align-items:center;justify-content:center;
+  position:relative;cursor:pointer;pointer-events:auto;
 }
-.slot.active{border-color:rgba(255,255,255,0.95);background:rgba(60,40,20,0.85)}
-.slot-icon{
-  width:30px;height:30px;border-radius:3px;
-  box-shadow:inset -2px -3px 0 rgba(0,0,0,0.25),inset 2px 2px 0 rgba(255,255,255,0.12);
+.slot.active{
+  background:#5f5f5f;
+  border-top-color:#373737;border-left-color:#373737;
+  border-bottom-color:#fff;border-right-color:#fff;
 }
-.slot-num{font-size:9px;color:rgba(255,255,255,0.45);font-family:monospace}
+.slot-icon{width:32px;height:32px;image-rendering:pixelated;display:block}
 
 /* Block name hint */
 #block-hint{
-  position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
-  font-size:12px;color:rgba(255,255,255,0.9);pointer-events:none;display:none;
-  text-shadow:1px 1px 3px rgba(0,0,0,0.9);letter-spacing:0.12em;font-family:monospace;font-weight:bold;
-  background:rgba(0,0,0,0.35);padding:3px 10px;border-radius:3px;
+  position:fixed;bottom:76px;left:50%;transform:translateX(-50%);
+  font-size:10px;color:#fff;pointer-events:none;display:none;
+  text-shadow:1px 1px 0 #000;letter-spacing:0.08em;
+  font-family:'Press Start 2P',monospace;
 }
 
 /* Underwater overlay */
@@ -64,12 +79,9 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
   0%,100%{opacity:0.7} 50%{opacity:1}
 }
 
-/* Air bubbles bar */
-#air-bar{display:none;gap:2px;font-size:16px;line-height:1}
-
 /* Break progress bar */
 #break-bar-wrap{
-  position:fixed;bottom:75px;left:50%;transform:translateX(-50%);
+  position:fixed;bottom:72px;left:50%;transform:translateX(-50%);
   width:120px;height:5px;background:rgba(0,0,0,0.4);border-radius:3px;display:none;overflow:hidden;
 }
 #break-bar{height:100%;width:0%;background:#fff;border-radius:3px;transition:width 0.05s linear}
@@ -347,8 +359,13 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
 <div id="xhair"></div>
 <div id="underwater-overlay"></div>
 <div id="hud">
-  <div id="health"></div>
-  <div id="air-bar"></div>
+  <div id="hud-bars">
+    <div>
+      <div id="air-bar"></div>
+      <div id="health"></div>
+    </div>
+  </div>
+  <div id="xp-bar-wrap"><div id="xp-bar"></div></div>
   <div id="hotbar"></div>
 </div>
 <div id="block-hint"></div>
@@ -1523,24 +1540,70 @@ const airBarEl          = document.getElementById('air-bar');
 const underwaterOverlay = document.getElementById('underwater-overlay');
 
 // ── HUD ───────────────────────────────────────────────────
-const SLOT_CLR={
-  [AIR]:'#444',[GRASS]:'#52aa40',[DIRT]:'#8b5e30',[STONE]:'#8a8a8a',
-  [WOOD]:'#c8a464',[LEAVES]:'#38a030',[SAND]:'#d8c07a',[BEDROCK]:'#3c3c3c',
-  [WATER]:'#3a80d0'
-};
+
+// ── MC ICON HELPERS (run after atlasCvs is populated) ─────
+const HEART_PAT=[
+  [0,1,1,0,1,1,0],
+  [1,1,1,1,1,1,1],
+  [1,1,1,1,1,1,1],
+  [1,1,1,1,1,1,1],
+  [0,1,1,1,1,1,0],
+  [0,0,1,1,1,0,0],
+  [0,0,0,1,0,0,0],
+];
+function _heartUrl(fill){
+  const c=document.createElement('canvas'); c.width=c.height=9;
+  const x=c.getContext('2d');
+  x.fillStyle='#3f0000';
+  HEART_PAT.forEach((r,y)=>r.forEach((v,px)=>{
+    if(!v) return;
+    for(const[dx,dy]of[[-1,0],[1,0],[0,-1],[0,1]])
+      if(!((HEART_PAT[y+dy]||[])[px+dx])) x.fillRect(px+1+dx,y+1+dy,1,1);
+  }));
+  x.fillStyle=fill;
+  HEART_PAT.forEach((r,y)=>r.forEach((v,px)=>{ if(v) x.fillRect(px+1,y+1,1,1); }));
+  return c.toDataURL();
+}
+const HEART_FULL=_heartUrl('#ff2222');
+const HEART_HALF=_heartUrl('#ff7700');
+const HEART_EMPTY=_heartUrl('#3a1111');
+
+function makeBlockIcon(id){
+  const ti=TEX_IDX[id]; if(!ti) return '';
+  const c=document.createElement('canvas'); c.width=c.height=32;
+  const ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=false;
+  const N=16;
+  // TOP face (brightest) — isometric parallelogram
+  ctx.save();
+  ctx.transform(1,0.5,-1,0.5,16,0);
+  ctx.drawImage(atlasCvs, ti[0]*TS, 0, TS, TS, 0, 0, N, N);
+  ctx.restore();
+  // LEFT face (darkest)
+  ctx.save();
+  ctx.transform(1,0.5,0,1,0,8);
+  ctx.drawImage(atlasCvs, ti[2]*TS, 0, TS, TS, 0, 0, N, N);
+  ctx.fillStyle='rgba(0,0,0,0.30)';
+  ctx.fillRect(0,0,N,N);
+  ctx.restore();
+  // RIGHT face (medium)
+  ctx.save();
+  ctx.transform(1,-0.5,0,1,16,16);
+  ctx.drawImage(atlasCvs, ti[2]*TS, 0, TS, TS, 0, 0, N, N);
+  ctx.fillStyle='rgba(0,0,0,0.15)';
+  ctx.fillRect(0,0,N,N);
+  ctx.restore();
+  return c.toDataURL();
+}
 
 function buildHotbar(){
   hotbarEl.innerHTML='';
   player.hotbar.forEach((id,i)=>{
     const slot=document.createElement('div');
     slot.className='slot'+(i===player.slot?' active':'');
-    const icon=document.createElement('div');
-    icon.className='slot-icon';
-    icon.style.background=SLOT_CLR[id]||'#555';
-    const num=document.createElement('div');
-    num.className='slot-num';
-    num.textContent=i+1;
-    slot.append(icon,num);
+    const img=document.createElement('img');
+    img.className='slot-icon';
+    img.src=makeBlockIcon(id);
+    slot.append(img);
     slot.onclick=()=>{ player.slot=i; buildHotbar(); };
     hotbarEl.append(slot);
   });
@@ -1550,20 +1613,24 @@ function buildHotbar(){
 
 function buildHealth(){
   healthEl.innerHTML='';
+  const hp=player.hp;
   for(let i=0;i<10;i++){
-    const s=document.createElement('span');
-    s.textContent=(i<Math.ceil(player.hp/2))?'❤️':'🖤';
-    healthEl.append(s);
+    const pts=hp-i*2;
+    const img=document.createElement('img');
+    img.className='mc-heart';
+    img.src=pts>=2?HEART_FULL:pts>=1?HEART_HALF:HEART_EMPTY;
+    healthEl.append(img);
   }
 }
 
 function buildAir(){
   airBarEl.innerHTML='';
   for(let i=0;i<player.maxAir;i++){
-    const s=document.createElement('span');
-    s.textContent=(i<Math.floor(player.air))?'🫧':'○';
-    s.style.opacity=(i<Math.floor(player.air))?'1':'0.35';
-    airBarEl.append(s);
+    const img=document.createElement('img');
+    img.className='mc-bubble';
+    img.src=i<Math.floor(player.air)?HEART_FULL:HEART_EMPTY; // reuse small icon
+    img.style.opacity=i<Math.floor(player.air)?'1':'0.4';
+    airBarEl.append(img);
   }
 }
 
