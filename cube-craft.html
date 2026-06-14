@@ -332,17 +332,13 @@ html,body{width:100%;height:100%;background:#87ceeb;overflow:hidden;font-family:
   <div id="options-box">
     <div id="options-title" data-i18n="options_title">OPCJE</div>
     <div id="options-tabs">
-      <button class="opt-tab active" onclick="switchOptTab('lang',event)" data-i18n="tab_language">🌐 Język</button>
-      <button class="opt-tab" onclick="switchOptTab('controls',event)" data-i18n="tab_controls">🎮 Sterowanie</button>
-      <button class="opt-tab" onclick="switchOptTab('about',event)" data-i18n="tab_about">ℹ️ O grze</button>
+      <button id="opt-tab-controls" class="opt-tab active" onclick="switchOptTab('controls',event)" data-i18n="tab_controls">🎮 Controls</button>
+      <button id="opt-tab-lang" class="opt-tab" onclick="switchOptTab('lang',event)" data-i18n="tab_language">🌐 Language</button>
+      <button id="opt-tab-about" class="opt-tab" onclick="switchOptTab('about',event)" data-i18n="tab_about">ℹ️ About</button>
     </div>
     <div id="options-content">
-      <!-- Language tab -->
-      <div id="opt-lang" class="opt-panel">
-        <div id="lang-grid"></div>
-      </div>
-      <!-- Controls tab -->
-      <div id="opt-controls" class="opt-panel" style="display:none;color:#ccc;font-size:clamp(0.3rem,0.9vw,0.45rem);line-height:2.4">
+      <!-- Controls tab (default) -->
+      <div id="opt-controls" class="opt-panel" style="color:#ccc;font-size:clamp(0.3rem,0.9vw,0.45rem);line-height:2.4">
         <div data-i18n="ctrl_move">WASD — Ruch</div>
         <div data-i18n="ctrl_jump">SPACE — Skok</div>
         <div data-i18n="ctrl_sprint">SHIFT — Sprint</div>
@@ -351,6 +347,10 @@ html,body{width:100%;height:100%;background:#87ceeb;overflow:hidden;font-family:
         <div data-i18n="ctrl_hotbar">1-6 / Scroll — Hotbar</div>
         <div data-i18n="ctrl_pause">ESC — Pauza</div>
         <div data-i18n="ctrl_debug">F3 — Debug info</div>
+      </div>
+      <!-- Language tab -->
+      <div id="opt-lang" class="opt-panel" style="display:none">
+        <div id="lang-grid"></div>
       </div>
       <!-- About tab -->
       <div id="opt-about" class="opt-panel" style="display:none;color:#ccc;font-size:clamp(0.3rem,0.85vw,0.42rem);line-height:2.2">
@@ -1821,7 +1821,7 @@ function openControlsTab(){
   document.querySelectorAll('.opt-panel').forEach(p=>p.style.display='none');
   document.querySelectorAll('.opt-tab').forEach(b=>b.classList.remove('active'));
   document.getElementById('opt-controls').style.display='';
-  document.querySelectorAll('.opt-tab')[1].classList.add('active');
+  document.getElementById('opt-tab-controls').classList.add('active');
 }
 function showSeed(){
   alert(t('btn_seed') + ': ' + worldSeed);
