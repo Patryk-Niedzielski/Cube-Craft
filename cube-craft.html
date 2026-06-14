@@ -632,19 +632,18 @@ class Chunk{
       const riverCarve = Math.abs(rv)<0.014 && cont>0.04 && cont<0.30;
 
       let h;
-      if(cont < -0.18){
-        // ─── OCEAN — głęboka woda
+      if(cont < -0.30){
+        // ─── OCEAN
         h = SEA - 4 + Math.floor(hill*3);
 
-      } else if(cont < 0.02){
-        // ─── WĄSKA PLAŻA — płynne przejście
-        const t = (cont + 0.18) / 0.20;              // 0..1
-        h = Math.floor(SEA - 1 + t * 4 + hill * t);  // SEA-1 .. SEA+4
+      } else if(cont < -0.18){
+        // ─── NARROW BEACH — thin sand strip around water
+        const t = (cont + 0.30) / 0.12;              // 0..1
+        h = Math.floor(SEA - 1 + t * 5 + hill * t);
 
       } else {
-        // ─── LĄD — dużo płaski teren, łagodne wzgórza
-        // hill*7 = bardzo małe wzgórza, mt*12 = góry tylko przy dużym cont
-        h = Math.max(SEA+4, SEA + 4 + Math.floor(hill*7 + mt*12 + (cont-0.02)*8 + det*4));
+        // ─── LAND — grass, hills, mountains
+        h = Math.max(SEA+4, SEA + 4 + Math.floor(hill*7 + mt*12 + (cont+0.18)*6 + det*4));
         if(riverCarve) h = Math.max(h - 8, SEA - 4);
       }
       hmap[x*CHUNK+z] = Math.max(1, Math.min(HEIGHT-3, h));
