@@ -879,7 +879,7 @@ class World{
     for(let i=0;i<64;i++){
       if(dist>maxDist) break;
       const id=this.getBlock(x,y,z);
-      if(SOLID[id]) return {bx:x,by:y,bz:z,nx,ny,nz};
+      if(SOLID[id]||id===FOLIAGE) return {bx:x,by:y,bz:z,nx,ny,nz};
       if(tmx<tmy&&tmx<tmz){dist=tmx;tmx+=tdx;nx=-sx;ny=0;nz=0;x+=sx;}
       else if(tmy<tmz)    {dist=tmy;tmy+=tdy;nx=0;ny=-sy;nz=0;y+=sy;}
       else                {dist=tmz;tmz+=tdz;nx=0;ny=0;nz=-sz;z+=sz;}
