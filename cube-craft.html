@@ -226,7 +226,7 @@ html,body{width:100%;height:100%;background:#87ceeb;overflow:hidden;font-family:
 #options-box{
   background:#3c3c3c;border-top:3px solid #6a6a6a;border-left:3px solid #6a6a6a;
   border-right:3px solid #1a1a1a;border-bottom:3px solid #1a1a1a;
-  width:min(640px,92vw);max-height:82vh;display:flex;flex-direction:column;
+  width:min(560px,92vw);max-height:82vh;display:flex;flex-direction:column;
 }
 #options-title{
   text-align:center;padding:14px 0 10px;color:#fff;
@@ -234,22 +234,28 @@ html,body{width:100%;height:100%;background:#87ceeb;overflow:hidden;font-family:
   text-shadow:2px 2px 0 rgba(0,0,0,0.6);border-bottom:2px solid #1a1a1a;
   flex-shrink:0;
 }
-#options-tabs{
-  display:flex;border-bottom:2px solid #1a1a1a;flex-shrink:0;
+#options-content{flex:1;overflow-y:auto;min-height:0}
+/* Main options panel */
+#opt-main{flex-direction:column;align-items:center;gap:5px;padding:18px 20px}
+.opt-btn-row{display:grid;grid-template-columns:1fr 1fr;gap:5px;width:100%}
+/* Sub-panel shared */
+.opt-sub-panel{display:flex;flex-direction:column;padding:14px 16px}
+.opt-sub-heading{
+  color:#fff;font-size:clamp(0.4rem,1.1vw,0.58rem);text-align:center;
+  padding-bottom:10px;margin-bottom:6px;letter-spacing:0.08em;
+  text-shadow:2px 2px 0 rgba(0,0,0,0.5);border-bottom:1px solid #555;
 }
-.opt-tab{
-  flex:1;padding:8px 4px;font-family:'Press Start 2P',monospace;
-  font-size:clamp(0.35rem,1vw,0.5rem);color:#aaa;background:#2a2a2a;
-  border:none;cursor:pointer;border-right:1px solid #1a1a1a;
-  border-top:2px solid #555;transition:background .1s,color .1s;
+.opt-controls-list{
+  color:#ccc;font-size:clamp(0.3rem,0.9vw,0.45rem);line-height:2.5;flex:1;
 }
-.opt-tab:last-child{border-right:none}
-.opt-tab.active{background:#3c3c3c;color:#fff;border-top-color:#7a7a7a}
-.opt-tab:hover:not(.active){background:#343434;color:#ccc}
-#options-content{flex:1;overflow-y:auto;padding:10px 12px;min-height:0}
+.opt-about-content{
+  color:#ccc;font-size:clamp(0.3rem,0.88vw,0.44rem);line-height:2.3;flex:1;
+}
+.opt-sub-back{display:flex;justify-content:center;padding-top:12px}
 /* Language grid */
 #lang-grid{
   display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:4px;
+  padding:10px 16px 0;
 }
 .lang-btn{
   padding:7px 4px;font-family:'Press Start 2P',monospace;
@@ -330,39 +336,62 @@ html,body{width:100%;height:100%;background:#87ceeb;overflow:hidden;font-family:
 <!-- ── OPTIONS SCREEN ── -->
 <div id="options-screen">
   <div id="options-box">
-    <div id="options-title" data-i18n="options_title">OPCJE</div>
-    <div id="options-tabs">
-      <button id="opt-tab-controls" class="opt-tab active" onclick="switchOptTab('controls',event)" data-i18n="tab_controls">🎮 Controls</button>
-      <button id="opt-tab-lang" class="opt-tab" onclick="switchOptTab('lang',event)" data-i18n="tab_language">🌐 Language</button>
-      <button id="opt-tab-about" class="opt-tab" onclick="switchOptTab('about',event)" data-i18n="tab_about">ℹ️ About</button>
-    </div>
+    <div id="options-title" data-i18n="options_title">OPTIONS</div>
     <div id="options-content">
-      <!-- Controls tab (default) -->
-      <div id="opt-controls" class="opt-panel" style="color:#ccc;font-size:clamp(0.3rem,0.9vw,0.45rem);line-height:2.4">
-        <div data-i18n="ctrl_move">WASD — Ruch</div>
-        <div data-i18n="ctrl_jump">SPACE — Skok</div>
-        <div data-i18n="ctrl_sprint">SHIFT — Sprint</div>
-        <div data-i18n="ctrl_break">LMB (trzymaj) — Kopanie</div>
-        <div data-i18n="ctrl_place">RMB — Stawianie bloku</div>
-        <div data-i18n="ctrl_hotbar">1-6 / Scroll — Hotbar</div>
-        <div data-i18n="ctrl_pause">ESC — Pauza</div>
-        <div data-i18n="ctrl_debug">F3 — Debug info</div>
+
+      <!-- Main options menu -->
+      <div id="opt-main" class="opt-panel">
+        <div class="opt-btn-row">
+          <button class="mc-btn" onclick="showOptPanel('controls')" data-i18n="tab_controls">🎮 Controls</button>
+          <button class="mc-btn" onclick="showOptPanel('lang')" data-i18n="tab_language">🌐 Language</button>
+        </div>
+        <button class="mc-btn" style="width:100%;margin-top:5px" onclick="showOptPanel('about')" data-i18n="tab_about">ℹ️ About</button>
       </div>
-      <!-- Language tab -->
+
+      <!-- Controls sub-panel -->
+      <div id="opt-controls" class="opt-panel opt-sub-panel" style="display:none">
+        <div class="opt-sub-heading" data-i18n="tab_controls">🎮 Controls</div>
+        <div class="opt-controls-list">
+          <div data-i18n="ctrl_move">WASD — Move</div>
+          <div data-i18n="ctrl_jump">SPACE — Jump</div>
+          <div data-i18n="ctrl_sprint">SHIFT — Sprint</div>
+          <div data-i18n="ctrl_break">LMB (hold) — Break block</div>
+          <div data-i18n="ctrl_place">RMB — Place block</div>
+          <div data-i18n="ctrl_hotbar">1-6 / Scroll — Hotbar</div>
+          <div data-i18n="ctrl_pause">ESC — Pause</div>
+          <div data-i18n="ctrl_debug">F3 — Debug info</div>
+        </div>
+        <div class="opt-sub-back">
+          <button class="mc-btn" style="width:160px" onclick="showOptPanel('main')" data-i18n="btn_back_opts">← Back</button>
+        </div>
+      </div>
+
+      <!-- Language sub-panel -->
       <div id="opt-lang" class="opt-panel" style="display:none">
         <div id="lang-grid"></div>
+        <div class="opt-sub-back" style="padding:10px 16px">
+          <button class="mc-btn" style="width:160px" onclick="showOptPanel('main')" data-i18n="btn_back_opts">← Back</button>
+        </div>
       </div>
-      <!-- About tab -->
-      <div id="opt-about" class="opt-panel" style="display:none;color:#ccc;font-size:clamp(0.3rem,0.85vw,0.42rem);line-height:2.2">
-        <div style="color:#fff;margin-bottom:8px" data-i18n="about_title">CUBE CRAFT v0.2</div>
-        <div data-i18n="about_author">Autor: Patryk Niedzielski</div>
-        <div data-i18n="about_engine">Silnik: Three.js r160</div>
-        <div data-i18n="about_ai">AI: Claude Sonnet 4.6</div>
-        <div style="margin-top:8px;color:#aaa" data-i18n="about_desc">Gra voxelowa inspirowana Minecraftem. Proceduralny teren, woda, lasy, plaże.</div>
+
+      <!-- About sub-panel -->
+      <div id="opt-about" class="opt-panel opt-sub-panel" style="display:none">
+        <div class="opt-sub-heading" data-i18n="tab_about">ℹ️ About</div>
+        <div class="opt-about-content">
+          <div style="color:#fff;margin-bottom:8px" data-i18n="about_title">CUBE CRAFT v0.2</div>
+          <div data-i18n="about_author">Author: Patryk Niedzielski</div>
+          <div data-i18n="about_engine">Engine: Three.js r160</div>
+          <div data-i18n="about_ai">AI: Claude Sonnet 4.6</div>
+          <div style="margin-top:8px;color:#aaa" data-i18n="about_desc">Voxel game inspired by Minecraft.</div>
+        </div>
+        <div class="opt-sub-back">
+          <button class="mc-btn" style="width:160px" onclick="showOptPanel('main')" data-i18n="btn_back_opts">← Back</button>
+        </div>
       </div>
+
     </div>
     <div id="options-footer">
-      <button class="mc-btn" style="width:180px" onclick="closeOptions()" data-i18n="btn_done">Gotowe</button>
+      <button class="mc-btn" style="width:180px" onclick="closeOptions()" data-i18n="btn_done">Done</button>
     </div>
   </div>
 </div>
@@ -1425,7 +1454,7 @@ const LANGUAGES = {
     btn_done:'Gotowe', btn_play:'Jednoosobowa', btn_quit:'Zakończ grę', btn_back:'Wróć do Gry',
     btn_new_world:'Nowy Świat', btn_save_quit:'Zapisz i Wyjdź', btn_options:'Opcje...', btn_controls_lbl:'Sterowanie',
     btn_seed:'Seed Świata', pause_title:'Menu Gry', click_to_play:'KLIKNIJ ABY PRZECHWYCIĆ MYSZ',
-    loading_txt:'GENEROWANIE ŚWIATA...', dbg_hand:'Blok w ręce:',
+    loading_txt:'GENEROWANIE ŚWIATA...', dbg_hand:'Blok w ręce:', btn_back_opts:'← Powrót',
     ctrl_move:'WASD — Ruch', ctrl_jump:'SPACE — Skok', ctrl_sprint:'SHIFT — Sprint',
     ctrl_break:'LMB (trzymaj) — Kopanie', ctrl_place:'RMB — Stawianie bloku',
     ctrl_hotbar:'1-6 / Scroll — Hotbar', ctrl_pause:'ESC — Pauza', ctrl_debug:'F3 — Debug info',
@@ -1463,7 +1492,7 @@ const LANGUAGES = {
     btn_done:'Done', btn_play:'Singleplayer', btn_quit:'Quit Game', btn_back:'Back to Game',
     btn_new_world:'New World', btn_save_quit:'Save and Quit', btn_options:'Options...', btn_controls_lbl:'Controls',
     btn_seed:'World Seed', pause_title:'Game Menu', click_to_play:'CLICK TO CAPTURE MOUSE',
-    loading_txt:'GENERATING WORLD...', dbg_hand:'Block in hand:',
+    loading_txt:'GENERATING WORLD...', dbg_hand:'Block in hand:', btn_back_opts:'← Back',
     ctrl_move:'WASD — Move', ctrl_jump:'SPACE — Jump', ctrl_sprint:'SHIFT — Sprint',
     ctrl_break:'LMB (hold) — Break block', ctrl_place:'RMB — Place block',
     ctrl_hotbar:'1-6 / Scroll — Hotbar', ctrl_pause:'ESC — Pause', ctrl_debug:'F3 — Debug info',
@@ -1802,33 +1831,29 @@ function buildLangGrid(){
   });
 }
 
-function switchOptTab(tab, ev){
+function showOptPanel(name){
   document.querySelectorAll('.opt-panel').forEach(p=>p.style.display='none');
-  document.querySelectorAll('.opt-tab').forEach(btn=>btn.classList.remove('active'));
-  document.getElementById('opt-'+tab).style.display='';
-  ev.currentTarget.classList.add('active');
+  const el = document.getElementById('opt-'+name);
+  el.style.display = (name==='main') ? 'flex' : '';
+  if(name==='lang') buildLangGrid();
 }
-
 function openOptions(){
-  buildLangGrid();
   document.getElementById('options-screen').style.display='flex';
+  showOptPanel('main');
 }
 function closeOptions(){
   document.getElementById('options-screen').style.display='none';
 }
 function openControlsTab(){
   openOptions();
-  document.querySelectorAll('.opt-panel').forEach(p=>p.style.display='none');
-  document.querySelectorAll('.opt-tab').forEach(b=>b.classList.remove('active'));
-  document.getElementById('opt-controls').style.display='';
-  document.getElementById('opt-tab-controls').classList.add('active');
+  showOptPanel('controls');
 }
 function showSeed(){
   alert(t('btn_seed') + ': ' + worldSeed);
 }
 window.openOptions      = openOptions;
 window.closeOptions     = closeOptions;
-window.switchOptTab     = switchOptTab;
+window.showOptPanel     = showOptPanel;
 window.openControlsTab  = openControlsTab;
 window.showSeed         = showSeed;
 
