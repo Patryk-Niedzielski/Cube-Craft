@@ -1,0 +1,1834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CUBE CRAFT</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;background:#87ceeb;overflow:hidden;font-family:'Segoe UI',sans-serif}
+#c{display:block;width:100%;height:100%}
+
+/* Crosshair */
+#xhair{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:24px;height:24px;pointer-events:none;display:none;
+}
+#xhair::before,#xhair::after{
+  content:'';position:absolute;background:rgba(255,255,255,0.9);
+  box-shadow:0 0 0 1px rgba(0,0,0,0.6);
+}
+#xhair::before{width:2px;height:100%;left:50%;transform:translateX(-50%)}
+#xhair::after{width:100%;height:2px;top:50%;transform:translateY(-50%)}
+
+/* HUD */
+#hud{
+  position:fixed;bottom:0;left:0;right:0;display:none;
+  flex-direction:column;align-items:center;padding-bottom:14px;gap:5px;
+  pointer-events:none;
+}
+#health{display:flex;gap:3px;font-size:18px;line-height:1}
+#hotbar{display:flex;gap:3px}
+.slot{
+  width:50px;height:50px;background:rgba(30,20,10,0.75);
+  border:2px solid rgba(255,255,255,0.25);border-radius:5px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  pointer-events:auto;cursor:pointer;transition:border-color .1s,background .1s;
+  position:relative;
+}
+.slot.active{border-color:rgba(255,255,255,0.95);background:rgba(60,40,20,0.85)}
+.slot-icon{
+  width:30px;height:30px;border-radius:3px;
+  box-shadow:inset -2px -3px 0 rgba(0,0,0,0.25),inset 2px 2px 0 rgba(255,255,255,0.12);
+}
+.slot-num{font-size:9px;color:rgba(255,255,255,0.45);font-family:monospace}
+
+/* Block name hint */
+#block-hint{
+  position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+  font-size:12px;color:rgba(255,255,255,0.9);pointer-events:none;display:none;
+  text-shadow:1px 1px 3px rgba(0,0,0,0.9);letter-spacing:0.12em;font-family:monospace;font-weight:bold;
+  background:rgba(0,0,0,0.35);padding:3px 10px;border-radius:3px;
+}
+
+/* Break progress bar */
+#break-bar-wrap{
+  position:fixed;bottom:75px;left:50%;transform:translateX(-50%);
+  width:120px;height:5px;background:rgba(0,0,0,0.4);border-radius:3px;display:none;overflow:hidden;
+}
+#break-bar{height:100%;width:0%;background:#fff;border-radius:3px;transition:width 0.05s linear}
+
+/* Debug info */
+#dbg{
+  position:fixed;top:8px;left:8px;color:rgba(255,255,255,0.9);font-size:11px;
+  font-family:monospace;line-height:1.75;pointer-events:none;display:none;
+  text-shadow:1px 1px 2px rgba(0,0,0,1);
+  background:rgba(0,0,0,0.35);padding:6px 10px;border-radius:4px;
+}
+
+/* Loading screen */
+#loading{
+  position:fixed;inset:0;background:#0a0a0a;display:none;flex-direction:column;
+  align-items:center;justify-content:center;gap:20px;z-index:30;
+}
+#loading h2{color:#fff;font-size:1.4rem;letter-spacing:0.15em;font-weight:400}
+.prog-wrap{width:260px;height:10px;background:#1a1a1a;border-radius:5px;overflow:hidden;border:1px solid #333}
+#prog{height:100%;background:linear-gradient(90deg,#4a9c3c,#7ed05a);width:0%;transition:width 0.12s;border-radius:5px}
+#loading p{color:#555;font-size:0.72rem;letter-spacing:0.15em}
+
+/* ── MAIN MENU (Minecraft style) ── */
+#overlay{
+  position:fixed;inset:0;
+  background:linear-gradient(to bottom, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.0) 25%, rgba(0,0,0,0.0) 70%, rgba(0,0,0,0.35) 100%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding-top:0;
+  gap:0;z-index:20;
+  font-family:'Press Start 2P',monospace;
+}
+
+/* TYTUŁ — efekt 3D jak w MC: żółty cień + ciemny cień */
+#mc-logo{
+  margin-bottom:32px;
+  text-align:center;
+  line-height:1;
+  user-select:none;
+}
+#mc-logo .logo-main{
+  display:block;
+  font-family:'Press Start 2P',monospace;
+  font-size:clamp(2.2rem,7vw,4.8rem);
+  color:#fff;
+  /* Cień: najpierw żółty offset, potem ciemny — jak w MC */
+  text-shadow:
+    4px  4px 0 #5a5a00,
+    8px  8px 0 rgba(0,0,0,0.6),
+    -2px -2px 0 rgba(0,0,0,0.3);
+  letter-spacing:0.05em;
+  image-rendering:pixelated;
+}
+#mc-logo .logo-sub{
+  display:block;
+  font-family:'Press Start 2P',monospace;
+  font-size:clamp(0.5rem,1.6vw,0.9rem);
+  color:#ffff55;
+  text-shadow:2px 2px 0 rgba(0,0,0,0.6);
+  margin-top:8px;
+  letter-spacing:0.12em;
+}
+/* Losowy żółty napis po prawej jak "It came from space" w MC */
+#mc-tagline{
+  font-family:'Press Start 2P',monospace;
+  font-size:clamp(0.35rem,1vw,0.55rem);
+  color:#ffff55;
+  text-shadow:1px 1px 0 #888800;
+  transform:rotate(-15deg) translateY(-8px);
+  display:inline-block;
+  white-space:nowrap;
+}
+
+/* Przyciski menu głównego */
+#main-menu{
+  display:flex;flex-direction:column;align-items:center;
+  gap:5px;width:min(400px,80vw);
+}
+
+/* Dolny pasek */
+#overlay-footer{
+  position:fixed;bottom:0;left:0;right:0;
+  display:flex;justify-content:space-between;align-items:flex-end;
+  padding:8px 12px;
+  z-index:21;pointer-events:none;
+  font-family:'Press Start 2P',monospace;
+  font-size:clamp(0.3rem,0.9vw,0.45rem);
+}
+#overlay-footer .footer-l{ color:rgba(255,255,255,0.75);text-shadow:1px 1px 0 rgba(0,0,0,0.8); }
+#overlay-footer .footer-r{ color:rgba(255,255,255,0.5);text-shadow:1px 1px 0 rgba(0,0,0,0.8);text-align:right; }
+
+/* Click to lock */
+#click-hint{
+  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+  background:rgba(0,0,0,0.45);z-index:10;cursor:pointer;
+}
+#click-hint p{
+  color:#fff;font-size:1.1rem;letter-spacing:0.18em;
+  font-family:'Press Start 2P',monospace;
+  text-shadow:0 0 20px rgba(100,220,70,0.5);
+}
+
+/* ── MINECRAFT-STYLE PAUSE MENU ── */
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+#pause-screen{
+  position:fixed;inset:0;
+  background:rgba(0,0,0,0.55);
+  backdrop-filter:blur(2px);
+  display:none;flex-direction:column;align-items:center;justify-content:center;
+  gap:0;z-index:15;
+  font-family:'Press Start 2P',monospace;
+}
+#pause-title{
+  color:#fff;
+  font-size:clamp(0.9rem,2.5vw,1.3rem);
+  text-shadow:3px 3px 0 rgba(0,0,0,0.5);
+  margin-bottom:22px;
+  letter-spacing:0.04em;
+}
+#pause-menu{
+  display:flex;flex-direction:column;align-items:center;
+  gap:5px;width:min(420px,85vw);
+}
+.mc-btn{
+  width:100%;padding:10px 0;
+  font-family:'Press Start 2P',monospace;
+  font-size:clamp(0.45rem,1.3vw,0.62rem);
+  color:#fff;
+  text-shadow:1px 1px 0 rgba(0,0,0,0.6);
+  background:#6b6b6b;
+  border:none;cursor:pointer;
+  outline:none;
+  /* Minecraft 3D button border */
+  border-top:   3px solid #9a9a9a;
+  border-left:  3px solid #9a9a9a;
+  border-right: 3px solid #3a3a3a;
+  border-bottom:3px solid #3a3a3a;
+  transition:filter .08s;
+  image-rendering:pixelated;
+}
+.mc-btn:hover{
+  background:#7a8fc7;
+  border-top-color:#aab8e8;
+  border-left-color:#aab8e8;
+  border-right-color:#4a5a9a;
+  border-bottom-color:#4a5a9a;
+  color:#ffffa0;
+  text-shadow:1px 1px 0 rgba(0,0,0,0.5),0 0 8px rgba(255,255,100,0.4);
+}
+.mc-btn:active{
+  background:#5a5a5a;
+  border-top-color:#3a3a3a;
+  border-left-color:#3a3a3a;
+  border-right-color:#8a8a8a;
+  border-bottom-color:#8a8a8a;
+}
+.mc-btn-row{
+  display:grid;grid-template-columns:1fr 1fr;gap:5px;width:100%;
+}
+
+/* Version */
+#ver{display:none}
+
+/* ── OPTIONS SCREEN ── */
+#options-screen{
+  position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(3px);
+  display:none;flex-direction:column;align-items:center;justify-content:center;
+  z-index:25;font-family:'Press Start 2P',monospace;
+}
+#options-box{
+  background:#3c3c3c;border-top:3px solid #6a6a6a;border-left:3px solid #6a6a6a;
+  border-right:3px solid #1a1a1a;border-bottom:3px solid #1a1a1a;
+  width:min(640px,92vw);max-height:82vh;display:flex;flex-direction:column;
+}
+#options-title{
+  text-align:center;padding:14px 0 10px;color:#fff;
+  font-size:clamp(0.55rem,1.6vw,0.8rem);letter-spacing:0.1em;
+  text-shadow:2px 2px 0 rgba(0,0,0,0.6);border-bottom:2px solid #1a1a1a;
+  flex-shrink:0;
+}
+#options-tabs{
+  display:flex;border-bottom:2px solid #1a1a1a;flex-shrink:0;
+}
+.opt-tab{
+  flex:1;padding:8px 4px;font-family:'Press Start 2P',monospace;
+  font-size:clamp(0.35rem,1vw,0.5rem);color:#aaa;background:#2a2a2a;
+  border:none;cursor:pointer;border-right:1px solid #1a1a1a;
+  border-top:2px solid #555;transition:background .1s,color .1s;
+}
+.opt-tab:last-child{border-right:none}
+.opt-tab.active{background:#3c3c3c;color:#fff;border-top-color:#7a7a7a}
+.opt-tab:hover:not(.active){background:#343434;color:#ccc}
+#options-content{flex:1;overflow-y:auto;padding:10px 12px;min-height:0}
+/* Language grid */
+#lang-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:4px;
+}
+.lang-btn{
+  padding:7px 4px;font-family:'Press Start 2P',monospace;
+  font-size:clamp(0.3rem,0.85vw,0.42rem);color:#fff;
+  background:#5a5a5a;border:none;cursor:pointer;
+  border-top:2px solid #7a7a7a;border-left:2px solid #7a7a7a;
+  border-right:2px solid #2a2a2a;border-bottom:2px solid #2a2a2a;
+  text-align:center;transition:background .08s;
+}
+.lang-btn:hover{background:#7a8fc7;color:#ffffa0}
+.lang-btn.selected{
+  background:#4a7a3c;border-top-color:#6aaa5a;border-left-color:#6aaa5a;
+  border-right-color:#1a3a14;border-bottom-color:#1a3a14;color:#fff;
+}
+#options-footer{
+  padding:10px 12px;display:flex;justify-content:center;gap:6px;
+  border-top:2px solid #1a1a1a;flex-shrink:0;
+}
+
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <h2>CUBE CRAFT</h2>
+  <div class="prog-wrap"><div id="prog"></div></div>
+  <p id="loading-txt">GENERATING WORLD...</p>
+</div>
+
+<canvas id="c"></canvas>
+<div id="xhair"></div>
+<div id="hud">
+  <div id="health"></div>
+  <div id="hotbar"></div>
+</div>
+<div id="block-hint"></div>
+<div id="break-bar-wrap"><div id="break-bar"></div></div>
+<div id="dbg"></div>
+<div id="ver">v0.2 — iter.2</div>
+
+<div id="overlay">
+  <div id="mc-logo">
+    <span class="logo-main">CUBE CRAFT</span>
+    <span class="logo-sub">By Patryk Niedzielski [with the help of claude] <span id="mc-tagline"></span></span>
+  </div>
+  <div id="main-menu">
+    <button class="mc-btn" id="play-btn">Jednoosobowa</button>
+    <div class="mc-btn-row">
+      <button class="mc-btn" class='mc-btn open-options' onclick='openOptions()'>Opcje...</button>
+      <button class="mc-btn" onclick="alert('Sterowanie:\nWASD — ruch\nSpace — skok\nShift — sprint\nLMB — kopanie\nRMB — stawianie\n1-6 / scroll — hotbar\nF3 — debug')">Sterowanie</button>
+    </div>
+    <button class="mc-btn" style="margin-top:4px;background:#5a3a3a;border-top-color:#8a5a5a;border-left-color:#8a5a5a;border-right-color:#2a1a1a;border-bottom-color:#2a1a1a" onclick="location.reload()">Zakończ grę</button>
+  </div>
+</div>
+<div id="overlay-footer">
+  <span class="footer-l">Cube Craft v0.2</span>
+  <span class="footer-r">Copyright Copilot &amp; Patryk. Nie kopiować!</span>
+</div>
+
+<div id="click-hint"><p>KLIKNIJ ABY GRAĆ</p></div>
+
+<div id="pause-screen">
+  <div id="pause-title">Menu Gry</div>
+  <div id="pause-menu">
+    <button class="mc-btn" id="resume-btn">Wróć do Gry</button>
+    <div class="mc-btn-row">
+      <button class="mc-btn" id="btn-options" class='mc-btn open-options' onclick='openOptions()'>Opcje...</button>
+      <button class="mc-btn" id="btn-controls" onclick="alert('Sterowanie:\nWASD — ruch\nSpace — skok\nShift — sprint\nLMB — kopanie\nRMB — stawianie\n1-6 / scroll — hotbar\nF3 — debug')">Sterowanie</button>
+    </div>
+    <div class="mc-btn-row">
+      <button class="mc-btn" id="btn-seed" onclick="alert('Seed świata: ' + (typeof worldSeed !== \'undefined\' ? worldSeed : \'losowy\'))">Seed Świata</button>
+      <button class="mc-btn" onclick="location.reload()">Nowy Świat</button>
+    </div>
+    <button class="mc-btn" style="margin-top:4px;background:#5a3a3a;border-top-color:#8a5a5a;border-left-color:#8a5a5a;border-right-color:#2a1a1a;border-bottom-color:#2a1a1a" onclick="location.reload()">Zapisz i Wyjdź do Menu</button>
+  </div>
+</div>
+
+<!-- ── OPTIONS SCREEN ── -->
+<div id="options-screen">
+  <div id="options-box">
+    <div id="options-title" data-i18n="options_title">OPCJE</div>
+    <div id="options-tabs">
+      <button class="opt-tab active" onclick="switchOptTab('lang')" data-i18n="tab_language">🌐 Język</button>
+      <button class="opt-tab" onclick="switchOptTab('controls')" data-i18n="tab_controls">🎮 Sterowanie</button>
+      <button class="opt-tab" onclick="switchOptTab('about')" data-i18n="tab_about">ℹ️ O grze</button>
+    </div>
+    <div id="options-content">
+      <!-- Language tab -->
+      <div id="opt-lang" class="opt-panel">
+        <div id="lang-grid"></div>
+      </div>
+      <!-- Controls tab -->
+      <div id="opt-controls" class="opt-panel" style="display:none;color:#ccc;font-size:clamp(0.3rem,0.9vw,0.45rem);line-height:2.4">
+        <div data-i18n="ctrl_move">WASD — Ruch</div>
+        <div data-i18n="ctrl_jump">SPACE — Skok</div>
+        <div data-i18n="ctrl_sprint">SHIFT — Sprint</div>
+        <div data-i18n="ctrl_break">LMB (trzymaj) — Kopanie</div>
+        <div data-i18n="ctrl_place">RMB — Stawianie bloku</div>
+        <div data-i18n="ctrl_hotbar">1-6 / Scroll — Hotbar</div>
+        <div data-i18n="ctrl_pause">ESC — Pauza</div>
+        <div data-i18n="ctrl_debug">F3 — Debug info</div>
+      </div>
+      <!-- About tab -->
+      <div id="opt-about" class="opt-panel" style="display:none;color:#ccc;font-size:clamp(0.3rem,0.85vw,0.42rem);line-height:2.2">
+        <div style="color:#fff;margin-bottom:8px" data-i18n="about_title">CUBE CRAFT v0.2</div>
+        <div data-i18n="about_author">Autor: Patryk Niedzielski</div>
+        <div data-i18n="about_engine">Silnik: Three.js r160</div>
+        <div data-i18n="about_ai">AI: Claude Sonnet 4.6</div>
+        <div style="margin-top:8px;color:#aaa" data-i18n="about_desc">Gra voxelowa inspirowana Minecraftem. Proceduralny teren, woda, lasy, plaże.</div>
+      </div>
+    </div>
+    <div id="options-footer">
+      <button class="mc-btn" style="width:180px" onclick="closeOptions()" data-i18n="btn_done">Gotowe</button>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+
+// ══════════════════════════════════════════════════════════
+//  CUBE CRAFT  v0.2  —  Iteration 2: Playability
+//
+//  FIXES vs v0.1:
+//  · DDA voxel raycast (replaces broken Three.js raycaster)
+//  · Hold LMB to mine (hardness system)
+//  · Correct spawn on terrain surface
+//  · Game loop always running (shows world before pointer lock)
+//  · Block highlight box
+//  · Pause / resume (Esc)
+//  · Polish UI text
+//  · Break progress bar
+//  · Reliable chunk loading without per-frame full rebuild
+// ══════════════════════════════════════════════════════════
+
+// ── CONSTANTS ─────────────────────────────────────────────
+const CHUNK  = 16;
+const HEIGHT = 64;
+const SEA    = 32;
+const RDIST  = 4;
+
+const GRAVITY  = -26;
+const JUMP_V   = 9.2;
+const WALK_SPD = 4.5;
+const RUN_SPD  = 7.5;
+const PLR_H    = 1.75;
+const PLR_W    = 0.5;
+
+// ── BLOCK IDs ─────────────────────────────────────────────
+const AIR=0,GRASS=1,DIRT=2,STONE=3,WOOD=4,LEAVES=5,SAND=6,BEDROCK=7,WATER=8;
+
+const BLOCK_NAME=['Air','Grass','Dirt','Stone','Wood','Leaves','Sand','Bedrock','Water'];
+const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity];
+const TEX_IDX={
+  [GRASS]:  [0,2,1],
+  [DIRT]:   [2,2,2],
+  [STONE]:  [3,3,3],
+  [WOOD]:   [4,4,5],
+  [LEAVES]: [6,6,6],
+  [SAND]:   [7,7,7],
+  [BEDROCK]:[8,8,8],
+  [WATER]:  [9,9,9],
+};
+// SOLID: player collides with these
+const SOLID=new Uint8Array(256);
+[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK].forEach(id=>SOLID[id]=1);
+// OPAQUE: completely hides adjacent faces (no leaves, no water)
+const OPAQUE=new Uint8Array(256);
+[GRASS,DIRT,STONE,WOOD,SAND,BEDROCK].forEach(id=>OPAQUE[id]=1);
+
+// ── FACE GEOMETRY ─────────────────────────────────────────
+// 't': 0=top,1=bottom,2=side  'sh': directional shade multiplier
+// 'uv': per-vertex local UV [u,v] in [0,1]
+// flipY=true (default CanvasTexture): canvas y=0 → UV V=1 (top of face)
+const FACES=[
+  {d:[0,1,0],  v:[[1,1,0],[0,1,0],[0,1,1],[1,1,1]], t:0, sh:1.00, uv:[[1,0],[0,0],[0,1],[1,1]]}, // +Y
+  {d:[0,-1,0], v:[[0,0,0],[1,0,0],[1,0,1],[0,0,1]], t:1, sh:0.65, uv:[[0,0],[1,0],[1,1],[0,1]]}, // -Y
+  {d:[1,0,0],  v:[[1,0,0],[1,1,0],[1,1,1],[1,0,1]], t:2, sh:0.85, uv:[[0,0],[0,1],[1,1],[1,0]]}, // +X
+  {d:[-1,0,0], v:[[0,0,1],[0,1,1],[0,1,0],[0,0,0]], t:2, sh:0.75, uv:[[1,0],[1,1],[0,1],[0,0]]}, // -X
+  {d:[0,0,1],  v:[[1,0,1],[1,1,1],[0,1,1],[0,0,1]], t:2, sh:0.92, uv:[[1,0],[1,1],[0,1],[0,0]]}, // +Z
+  {d:[0,0,-1], v:[[0,0,0],[0,1,0],[1,1,0],[1,0,0]], t:2, sh:0.80, uv:[[0,0],[0,1],[1,1],[1,0]]}, // -Z
+];
+
+// ── PERLIN NOISE ──────────────────────────────────────────
+const PERM=new Uint8Array(512);
+{
+  const s=[...Array(256)].map((_,i)=>i);
+  for(let i=255;i>0;i--){const j=(Math.random()*(i+1))|0;[s[i],s[j]]=[s[j],s[i]];}
+  for(let i=0;i<512;i++) PERM[i]=s[i&255];
+}
+const fade=t=>t*t*t*(t*(t*6-15)+10);
+const lerp=(t,a,b)=>a+t*(b-a);
+const grad2=(h,x,y)=>{const v=h&3,u=v<2?x:y,w=v<2?y:x;return((v&1)?-u:u)+((v&2)?-w:w);};
+function noise2(x,y){
+  const X=Math.floor(x)&255, Y=Math.floor(y)&255;
+  x-=Math.floor(x); y-=Math.floor(y);
+  const u=fade(x),v=fade(y);
+  const a=PERM[X]+Y, b=PERM[X+1]+Y;
+  return lerp(v,lerp(u,grad2(PERM[a],x,y),grad2(PERM[b],x-1,y)),
+                 lerp(u,grad2(PERM[a+1],x,y-1),grad2(PERM[b+1],x-1,y-1)));
+}
+function fbm(x,z){
+  let v=0,a=0.5,f=0.009,mx=0;
+  for(let i=0;i<6;i++){v+=noise2(x*f,z*f)*a;mx+=a;a*=0.5;f*=2.1;}
+  return v/mx;
+}
+
+// ── CHUNK CLASS ───────────────────────────────────────────
+class Chunk{
+  constructor(cx,cz){
+    this.cx=cx; this.cz=cz;
+    this.data=new Uint8Array(CHUNK*HEIGHT*CHUNK);
+    this.mesh=null; this.dirty=true;
+  }
+  idx(x,y,z){return (x*HEIGHT+y)*CHUNK+z;}
+  get(x,y,z){
+    if(x<0||x>=CHUNK||y<0||y>=HEIGHT||z<0||z>=CHUNK) return -1;
+    return this.data[this.idx(x,y,z)];
+  }
+  set(x,y,z,v){
+    if(x<0||x>=CHUNK||y<0||y>=HEIGHT||z<0||z>=CHUNK) return;
+    this.data[this.idx(x,y,z)]=v; this.dirty=true;
+  }
+  generate(){
+    const ox=this.cx*CHUNK, oz=this.cz*CHUNK;
+    const hmap=new Int32Array(CHUNK*CHUNK);
+
+    // ── HEIGHT MAP ────────────────────────────────────────
+    for(let x=0;x<CHUNK;x++) for(let z=0;z<CHUNK;z++){
+      const wx=ox+x, wz=oz+z;
+
+      // Continental: skala 0.012 = cykl ~83 bloki → ocean na pewno w promieniu renderu
+      // Offset 37.3/61.7 żeby uniknąć cont=0 przy spawnie (noise2(0,0) zawsze = 0)
+      const cont = noise2(wx*0.012 + 37.3, wz*0.012 + 61.7);
+      const hill  = fbm(wx, wz);
+      const det   = noise2(wx*0.10,  wz*0.10)*0.06;
+      const mt    = Math.max(0, cont)*Math.max(0, hill)*3.2;
+      const rv    = noise2(wx*0.007+500.3, wz*0.007+300.7);
+      const riverCarve = Math.abs(rv)<0.026 && cont>0.04 && cont<0.30;
+
+      let h;
+      if(cont < -0.05){
+        // ─── OCEAN — głęboka woda
+        h = SEA - 4 + Math.floor(hill*3);
+
+      } else if(cont < 0.02){
+        // ─── WĄSKA PLAŻA — płynne przejście
+        const t = (cont + 0.05) / 0.07;              // 0..1
+        h = Math.floor(SEA - 1 + t * 4 + hill * t);  // SEA-1 .. SEA+4
+
+      } else {
+        // ─── LĄD — dużo płaski teren, łagodne wzgórza
+        // hill*7 = bardzo małe wzgórza, mt*12 = góry tylko przy dużym cont
+        h = Math.max(SEA+4, SEA + 4 + Math.floor(hill*7 + mt*12 + (cont-0.02)*8 + det*4));
+        if(riverCarve) h = Math.max(h - 8, SEA - 4);
+      }
+      hmap[x*CHUNK+z] = Math.max(1, Math.min(HEIGHT-3, h));
+    }
+
+    // ── WYGŁADZANIE MAPY WYSOKOŚCI (3 przebiegi) ──────────────
+    // Każdy przebieg: każdy punkt = średnia z sąsiadów → łagodne zbocza
+    for(let pass=0;pass<6;pass++){
+      const tmp=new Int32Array(hmap);
+      for(let x=1;x<CHUNK-1;x++) for(let z=1;z<CHUNK-1;z++){
+        const h=hmap[x*CHUNK+z];
+        // Nie wygładzaj obszarów oceanu — tylko ląd i plażę
+        if(h < SEA-2) continue;
+        const avg=Math.round((
+          hmap[(x-1)*CHUNK+z]+hmap[(x+1)*CHUNK+z]+
+          hmap[x*CHUNK+(z-1)]+hmap[x*CHUNK+(z+1)]+h*2
+        )/6);
+        tmp[x*CHUNK+z]=avg;
+      }
+      hmap.set(tmp);
+    }
+
+    // ── LOCAL SLOPE (cliff detection) ─────────────────────────
+    const slope=new Float32Array(CHUNK*CHUNK);
+    for(let x=0;x<CHUNK;x++) for(let z=0;z<CHUNK;z++){
+      const h=hmap[x*CHUNK+z];
+      let dm=0;
+      if(x>0)       dm=Math.max(dm,Math.abs(h-hmap[(x-1)*CHUNK+z]));
+      if(x<CHUNK-1) dm=Math.max(dm,Math.abs(h-hmap[(x+1)*CHUNK+z]));
+      if(z>0)       dm=Math.max(dm,Math.abs(h-hmap[x*CHUNK+(z-1)]));
+      if(z<CHUNK-1) dm=Math.max(dm,Math.abs(h-hmap[x*CHUNK+(z+1)]));
+      slope[x*CHUNK+z]=dm;
+    }
+
+    // ── FILL BLOCKS ──────────────────────────────────────────
+    for(let x=0;x<CHUNK;x++) for(let z=0;z<CHUNK;z++){
+      const h  = hmap[x*CHUNK+z];
+      const sl = slope[x*CHUNK+z];
+      // Klif tylko przy bardzo stromym nachyleniu — rzadkie zdarzenie
+      const cliff = sl >= 11;
+      // Skała na szczycie tylko przy bardzo wysokich górach
+      const peak  = h > SEA+22;
+      // Plaża: od dna wody (h<=SEA) po linię brzegową (h<=SEA+2) — piasek dotyka wody
+      const beach = (h <= SEA+2);
+
+      for(let y=0;y<HEIGHT;y++){
+        let b=AIR;
+        if(y===0){
+          b=BEDROCK;
+        } else if(y < h-5){
+          b=STONE;
+        } else if(y < h){
+          b=(cliff||peak) ? STONE : DIRT;
+        } else if(y===h){
+          if(beach)            b=SAND;
+          else if(cliff||peak) b=STONE;
+          else                 b=GRASS;
+        }
+        this.data[this.idx(x,y,z)]=b;
+      }
+      if(h < SEA){
+        for(let y=h+1; y<=SEA; y++) this.data[this.idx(x,y,z)]=WATER;
+      }
+    }
+
+    // ── TREES (flat grass only, away from cliffs) ───────────────
+    for(let x=2;x<=CHUNK-3;x++) for(let z=2;z<=CHUNK-3;z++){
+      const h  = hmap[x*CHUNK+z];
+      const sl = slope[x*CHUNK+z];
+      // No trees on water, beach, cliffs, mountain peaks
+      if(h<=SEA+2 || h>SEA+18 || sl>3) continue;
+      if(this.data[this.idx(x,h,z)]!==GRASS) continue;
+      if(noise2((ox+x)*0.22,(oz+z)*0.22)<0.50) continue;
+      const treeH=5+Math.floor(noise2((ox+x)*1.3,(oz+z)*1.7)*3);
+      for(let ty=h+1;ty<=h+treeH&&ty<HEIGHT;ty++)
+        this.data[this.idx(x,ty,z)]=WOOD;
+      for(let ly=h+treeH-2;ly<=h+treeH+1;ly++){
+        if(ly>=HEIGHT) continue;
+        const rad=(ly<=h+treeH-1)?3:2;
+        for(let lx=-rad;lx<=rad;lx++) for(let lz=-rad;lz<=rad;lz++){
+          if(Math.abs(lx)===rad&&Math.abs(lz)===rad) continue;
+          const nx=x+lx, nz=z+lz;
+          if(nx<0||nx>=CHUNK||nz<0||nz>=CHUNK) continue;
+          if(this.data[this.idx(nx,ly,nz)]===AIR)
+            this.data[this.idx(nx,ly,nz)]=LEAVES;
+        }
+      }
+      if(h+treeH+2<HEIGHT) this.data[this.idx(x,h+treeH+2,z)]=LEAVES;
+    }
+  }
+}
+
+// ── WORLD CLASS ───────────────────────────────────────────
+class World{
+  constructor(scene){this.scene=scene; this.chunks=new Map();}
+  key(cx,cz){return `${cx},${cz}`;}
+  worldToChunk(wx,wz){return [Math.floor(wx/CHUNK), Math.floor(wz/CHUNK)];}
+  worldToLocal(wx,wz){return [((wx%CHUNK)+CHUNK)%CHUNK, ((wz%CHUNK)+CHUNK)%CHUNK];}
+
+  getChunk(cx,cz,create=false){
+    const k=this.key(cx,cz);
+    if(!this.chunks.has(k)){
+      if(!create) return null;
+      const c=new Chunk(cx,cz); c.generate(); this.chunks.set(k,c);
+    }
+    return this.chunks.get(k);
+  }
+
+  getBlock(wx,wy,wz){
+    if(wy<0||wy>=HEIGHT) return AIR;
+    const [cx,cz]=this.worldToChunk(wx,wz);
+    const [lx,lz]=this.worldToLocal(wx,wz);
+    const c=this.getChunk(cx,cz);
+    return c ? c.get(lx,wy,lz) : AIR;
+  }
+
+  setBlock(wx,wy,wz,id){
+    if(wy<0||wy>=HEIGHT) return;
+    const [cx,cz]=this.worldToChunk(wx,wz);
+    const [lx,lz]=this.worldToLocal(wx,wz);
+    const c=this.getChunk(cx,cz,true);
+    c.set(lx,wy,lz,id);
+    this.buildMesh(c);
+    if(lx===0)        { const n=this.getChunk(cx-1,cz); if(n) this.buildMesh(n); }
+    if(lx===CHUNK-1)  { const n=this.getChunk(cx+1,cz); if(n) this.buildMesh(n); }
+    if(lz===0)        { const n=this.getChunk(cx,cz-1); if(n) this.buildMesh(n); }
+    if(lz===CHUNK-1)  { const n=this.getChunk(cx,cz+1); if(n) this.buildMesh(n); }
+  }
+
+  buildMesh(chunk){
+    if(chunk.mesh){
+      this.scene.remove(chunk.mesh);
+      chunk.mesh.geometry.dispose();
+      chunk.mesh.material.dispose();
+      chunk.mesh=null;
+    }
+    if(chunk.waterMesh){
+      this.scene.remove(chunk.waterMesh);
+      chunk.waterMesh.geometry.dispose();
+      chunk.waterMesh.material.dispose();
+      chunk.waterMesh=null;
+    }
+
+    // Dwie geometrie: nieprzezroczyste bloki + woda (przezroczysta osobno)
+    const pos=[],uv=[],col=[],idx=[];
+    const wpos=[],wuv=[],wcol=[],widx=[];
+    let vi=0, wvi=0;
+    const ox=chunk.cx*CHUNK, oz=chunk.cz*CHUNK;
+
+    for(let x=0;x<CHUNK;x++) for(let y=0;y<HEIGHT;y++) for(let z=0;z<CHUNK;z++){
+      const id=chunk.get(x,y,z);
+      if(id===AIR || !TEX_IDX[id]) continue;
+      const ti=TEX_IDX[id];
+      const isWater=(id===WATER);
+
+      for(const f of FACES){
+        const [dx,dy,dz]=f.d;
+        const nx=x+dx, ny=y+dy, nz=z+dz;
+        let nb;
+        if(nx>=0&&nx<CHUNK&&nz>=0&&nz<CHUNK) nb=chunk.get(nx,ny,nz);
+        else nb=this.getBlock(ox+nx,ny,oz+nz);
+        if(nb<0) nb=AIR;
+        if(OPAQUE[nb]) continue;
+        if(nb===id && (id===LEAVES||id===WATER)) continue;
+        // Woda nie rysuje dolnej ściany (niewidoczna)
+        if(isWater && f.t===1) continue;
+
+        const ci = f.t===0 ? ti[0] : f.t===1 ? ti[1] : ti[2];
+        const sh = f.sh;
+
+        if(isWater){
+          widx.push(wvi,wvi+1,wvi+2, wvi,wvi+2,wvi+3);
+          for(let k=0;k<4;k++){
+            const [vx,vy,vz]=f.v[k];
+            const [lu,lv]=f.uv[k];
+            // Woda lekko obniżona (0.12 bloku) — wygląda jak lustro wody
+            wpos.push(ox+x+vx, y+vy-(vy>0?0.12:0), oz+z+vz);
+            wuv.push((ci+lu)/N_TILES, lv);
+            wcol.push(sh,sh,sh);
+          }
+          wvi+=4;
+        } else {
+          idx.push(vi,vi+1,vi+2, vi,vi+2,vi+3);
+          for(let k=0;k<4;k++){
+            const [vx,vy,vz]=f.v[k];
+            const [lu,lv]=f.uv[k];
+            pos.push(ox+x+vx, y+vy, oz+z+vz);
+            uv.push((ci+lu)/N_TILES, lv);
+            col.push(sh,sh,sh);
+          }
+          vi+=4;
+        }
+      }
+    }
+
+    if(pos.length){
+      const geo=new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+      geo.setAttribute('uv',       new THREE.Float32BufferAttribute(uv, 2));
+      geo.setAttribute('color',    new THREE.Float32BufferAttribute(col,3));
+      geo.setIndex(idx);
+      const mat=new THREE.MeshBasicMaterial({map:atlasTexture, vertexColors:true});
+      chunk.mesh=new THREE.Mesh(geo,mat);
+      this.scene.add(chunk.mesh);
+    }
+
+    if(wpos.length){
+      const wgeo=new THREE.BufferGeometry();
+      wgeo.setAttribute('position', new THREE.Float32BufferAttribute(wpos,3));
+      wgeo.setAttribute('uv',       new THREE.Float32BufferAttribute(wuv, 2));
+      wgeo.setAttribute('color',    new THREE.Float32BufferAttribute(wcol,3));
+      wgeo.setIndex(widx);
+      const wmat=new THREE.MeshBasicMaterial({
+        map:atlasTexture, vertexColors:true,
+        transparent:true, opacity:0.72,
+        depthWrite:false,           // przezroczyste obiekty nie piszą do depth
+        side:THREE.FrontSide
+      });
+      chunk.waterMesh=new THREE.Mesh(wgeo,wmat);
+      this.scene.add(chunk.waterMesh);
+    }
+
+    chunk.dirty=false;
+  }
+
+  loadAround(px,pz){
+    const [cx,cz]=this.worldToChunk(px,pz);
+    const keep=new Set();
+    for(let dx=-RDIST;dx<=RDIST;dx++) for(let dz=-RDIST;dz<=RDIST;dz++){
+      const ccx=cx+dx, ccz=cz+dz, k=this.key(ccx,ccz);
+      keep.add(k);
+      const c=this.getChunk(ccx,ccz,true);
+      if(c.dirty) this.buildMesh(c);
+    }
+    for(const [k,c] of this.chunks){
+      if(!keep.has(k)){
+        if(c.mesh){this.scene.remove(c.mesh);c.mesh.geometry.dispose();c.mesh.material.dispose();c.mesh=null;}
+        if(c.waterMesh){this.scene.remove(c.waterMesh);c.waterMesh.geometry.dispose();c.waterMesh.material.dispose();c.waterMesh=null;}
+        this.chunks.delete(k);
+      }
+    }
+  }
+
+  // DDA voxel raycast
+  raycast(origin, dir, maxDist=5.5){
+    let x=Math.floor(origin.x), y=Math.floor(origin.y), z=Math.floor(origin.z);
+    const sx=dir.x>0?1:-1, sy=dir.y>0?1:-1, sz=dir.z>0?1:-1;
+    const tdx=Math.abs(1/dir.x), tdy=Math.abs(1/dir.y), tdz=Math.abs(1/dir.z);
+    let tmx=dir.x>0?(x+1-origin.x)*tdx:(origin.x-x)*tdx;
+    let tmy=dir.y>0?(y+1-origin.y)*tdy:(origin.y-y)*tdy;
+    let tmz=dir.z>0?(z+1-origin.z)*tdz:(origin.z-z)*tdz;
+    let nx=0,ny=0,nz=0, dist=0;
+    for(let i=0;i<64;i++){
+      if(dist>maxDist) break;
+      const id=this.getBlock(x,y,z);
+      if(SOLID[id]) return {bx:x,by:y,bz:z,nx,ny,nz};
+      if(tmx<tmy&&tmx<tmz){dist=tmx;tmx+=tdx;nx=-sx;ny=0;nz=0;x+=sx;}
+      else if(tmy<tmz)    {dist=tmy;tmy+=tdy;nx=0;ny=-sy;nz=0;y+=sy;}
+      else                {dist=tmz;tmz+=tdz;nx=0;ny=0;nz=-sz;z+=sz;}
+    }
+    return null;
+  }
+
+  surfaceY(wx,wz){
+    for(let y=HEIGHT-1;y>0;y--) if(SOLID[this.getBlock(wx,y,wz)]) return y;
+    return SEA;
+  }
+}
+
+// ── PLAYER CLASS ──────────────────────────────────────────
+class Player{
+  constructor(cam,world){
+    this.cam=cam; this.world=world;
+    this.pos=new THREE.Vector3(8.5, SEA+6, 8.5);
+    this.vel=new THREE.Vector3();
+    this.yaw=0; this.pitch=0;
+    this.onGround=false;
+    this.hp=20; this.maxHp=20;
+    this.hotbar=[GRASS,DIRT,STONE,WOOD,LEAVES,SAND];
+    this.slot=0;
+  }
+  get selectedBlock(){ return this.hotbar[this.slot]; }
+
+  update(dt,keys){
+    const sprint=keys['ShiftLeft']||keys['ShiftRight'];
+    const spd=sprint?RUN_SPD:WALK_SPD;
+    const s=Math.sin(this.yaw), c=Math.cos(this.yaw);
+    const fwdX=-s, fwdZ=-c, rtX=c, rtZ=-s;
+    let mx=0, mz=0;
+    if(keys['KeyW']||keys['ArrowUp'])    {mx+=fwdX;mz+=fwdZ;}
+    if(keys['KeyS']||keys['ArrowDown'])  {mx-=fwdX;mz-=fwdZ;}
+    if(keys['KeyA']||keys['ArrowLeft'])  {mx-=rtX; mz-=rtZ;}
+    if(keys['KeyD']||keys['ArrowRight']) {mx+=rtX; mz+=rtZ;}
+    const len=Math.sqrt(mx*mx+mz*mz);
+    if(len>0){mx=mx/len*spd; mz=mz/len*spd;}
+    this.vel.x=mx; this.vel.z=mz;
+
+    this.vel.y=Math.max(this.vel.y+GRAVITY*dt, -25);
+    if(keys['Space']&&this.onGround){ this.vel.y=JUMP_V; this.onGround=false; }
+
+    this.onGround=false;
+    this._moveX(this.vel.x*dt);
+    this._moveY(this.vel.y*dt);
+    this._moveZ(this.vel.z*dt);
+
+    if(this.pos.y<-8){ this.pos.set(8.5,SEA+6,8.5); this.vel.set(0,0,0); }
+
+    this.cam.position.set(this.pos.x, this.pos.y+PLR_H-0.08, this.pos.z);
+    this.cam.rotation.order='YXZ';
+    this.cam.rotation.y=this.yaw;
+    this.cam.rotation.x=this.pitch;
+  }
+
+  _sweepX(d){
+    const hw=PLR_W, bx0=Math.floor(this.pos.x-hw), bx1=Math.floor(this.pos.x+hw);
+    const by0=Math.floor(this.pos.y+0.05), by1=Math.floor(this.pos.y+PLR_H-0.05);
+    const bz0=Math.floor(this.pos.z-hw), bz1=Math.floor(this.pos.z+hw);
+    for(let bx=bx0;bx<=bx1;bx++) for(let by=by0;by<=by1;by++) for(let bz=bz0;bz<=bz1;bz++){
+      if(!SOLID[this.world.getBlock(bx,by,bz)]) continue;
+      const ox=Math.min(this.pos.x+hw,bx+1)-Math.max(this.pos.x-hw,bx);
+      const oy=Math.min(this.pos.y+PLR_H,by+1)-Math.max(this.pos.y,by);
+      const oz=Math.min(this.pos.z+hw,bz+1)-Math.max(this.pos.z-hw,bz);
+      if(ox>0&&oy>0&&oz>0){
+        this.pos.x+=(d>0)?-(ox+0.001):(ox+0.001); this.vel.x=0; return;
+      }
+    }
+  }
+  _moveX(d){ if(!d) return; this.pos.x+=d; this._sweepX(d); }
+
+  _sweepY(d){
+    const hw=PLR_W-0.05;
+    const bx0=Math.floor(this.pos.x-hw), bx1=Math.floor(this.pos.x+hw);
+    const by0=Math.floor(this.pos.y), by1=Math.floor(this.pos.y+PLR_H);
+    const bz0=Math.floor(this.pos.z-hw), bz1=Math.floor(this.pos.z+hw);
+    for(let bx=bx0;bx<=bx1;bx++) for(let by=by0;by<=by1;by++) for(let bz=bz0;bz<=bz1;bz++){
+      if(!SOLID[this.world.getBlock(bx,by,bz)]) continue;
+      const ox=Math.min(this.pos.x+hw,bx+1)-Math.max(this.pos.x-hw,bx);
+      const oy=Math.min(this.pos.y+PLR_H,by+1)-Math.max(this.pos.y,by);
+      const oz=Math.min(this.pos.z+hw,bz+1)-Math.max(this.pos.z-hw,bz);
+      if(ox>0&&oy>0&&oz>0){
+        if(d<0){this.pos.y=by+1; this.onGround=true;}
+        else   {this.pos.y=by-PLR_H-0.001;}
+        this.vel.y=0; return;
+      }
+    }
+  }
+  _moveY(d){ if(!d) return; this.pos.y+=d; this._sweepY(d); }
+
+  _sweepZ(d){
+    const hw=PLR_W, bx0=Math.floor(this.pos.x-hw), bx1=Math.floor(this.pos.x+hw);
+    const by0=Math.floor(this.pos.y+0.05), by1=Math.floor(this.pos.y+PLR_H-0.05);
+    const bz0=Math.floor(this.pos.z-hw), bz1=Math.floor(this.pos.z+hw);
+    for(let bx=bx0;bx<=bx1;bx++) for(let by=by0;by<=by1;by++) for(let bz=bz0;bz<=bz1;bz++){
+      if(!SOLID[this.world.getBlock(bx,by,bz)]) continue;
+      const ox=Math.min(this.pos.x+hw,bx+1)-Math.max(this.pos.x-hw,bx);
+      const oy=Math.min(this.pos.y+PLR_H,by+1)-Math.max(this.pos.y,by);
+      const oz=Math.min(this.pos.z+hw,bz+1)-Math.max(this.pos.z-hw,bz);
+      if(ox>0&&oy>0&&oz>0){
+        this.pos.z+=(d>0)?-(oz+0.001):(oz+0.001); this.vel.z=0; return;
+      }
+    }
+  }
+  _moveZ(d){ if(!d) return; this.pos.z+=d; this._sweepZ(d); }
+
+  look(dx,dy){
+    this.yaw-=dx*0.002;
+    this.pitch=Math.max(-Math.PI/2+0.02, Math.min(Math.PI/2-0.02, this.pitch-dy*0.002));
+  }
+}
+
+// ── THREE.JS SETUP ────────────────────────────────────────
+const canvas=document.getElementById('c');
+const renderer=new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0xb8d8ff);
+
+const scene=new THREE.Scene();
+scene.fog=new THREE.Fog(0xb8d8ff, RDIST*CHUNK*0.50, RDIST*CHUNK*0.98);
+
+const camera=new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 500);
+
+// Lighting — only needed for non-voxel objects (clouds, sun billboard)
+// Voxel chunks use MeshBasicMaterial with baked directional shading.
+const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
+scene.add(ambientLight);
+
+// ── SUN (square billboard, always faces camera) ───────────
+const SUN_DIST = 180;
+const sunMat = new THREE.MeshBasicMaterial({color:0xfffce0, side:THREE.DoubleSide, fog:false});
+const sunMesh = new THREE.Mesh(new THREE.PlaneGeometry(22, 22), sunMat);
+scene.add(sunMesh);
+// Sun position direction (matches DirectionalLight)
+const SUN_DIR = new THREE.Vector3(0.5, 1.2, 0.4).normalize();
+
+// ── CLOUDS ────────────────────────────────────────────────
+// Each cloud = several flat white boxes grouped
+const CLOUD_MAT = new THREE.MeshBasicMaterial({color:0xffffff, fog:false});
+const cloudMeshes = [];
+
+function makeCloud(cx, cy, cz){
+  // Random arrangement of 2–5 flat boxes
+  const count = 3 + Math.floor(Math.random()*3);
+  const group = new THREE.Group();
+  for(let i=0;i<count;i++){
+    const w = 8 + Math.random()*12;
+    const d = 6 + Math.random()*10;
+    const h = 2 + Math.random()*2;
+    const bx = (Math.random()-0.5)*14;
+    const bz = (Math.random()-0.5)*10;
+    const geo = new THREE.BoxGeometry(w, h, d);
+    const m   = new THREE.Mesh(geo, CLOUD_MAT);
+    m.position.set(bx, 0, bz);
+    group.add(m);
+  }
+  group.position.set(cx, cy, cz);
+  scene.add(group);
+  cloudMeshes.push(group);
+  return group;
+}
+
+// Spawn initial cloud ring around origin
+const CLOUD_Y = SEA + 28;
+const CLOUD_R = 80;
+const CLOUD_COUNT = 14;
+for(let i=0;i<CLOUD_COUNT;i++){
+  const angle = (i/CLOUD_COUNT)*Math.PI*2;
+  const r = CLOUD_R * (0.5 + Math.random()*0.8);
+  makeCloud(
+    Math.cos(angle)*r,
+    CLOUD_Y + (Math.random()-0.5)*8,
+    Math.sin(angle)*r
+  );
+}
+
+// Block highlight — EdgesGeometry gives clean cube outline (no triangle diagonals)
+const hlMesh=new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.BoxGeometry(1.005,1.005,1.005)),
+  new THREE.LineBasicMaterial({color:0x000000, transparent:true, opacity:0.6, depthTest:true})
+);
+hlMesh.visible=false;
+scene.add(hlMesh);
+
+// ── TEXTURE ATLAS (16×16 pixel art, 16 tiles → 256×16 px, power-of-2) ───────
+const N_TILES = 16;
+const TS      = 16;
+const atlasCvs = document.createElement('canvas');
+atlasCvs.width  = TS * N_TILES;  // 256
+atlasCvs.height = TS;            // 16
+const atx = atlasCvs.getContext('2d', {willReadFrequently:true});
+// Deterministic noise → [0,1)  f(x,y) varies per pixel, same every load
+const th = (x,y) => { const v=Math.sin(x*127.1+y*311.7)*43758.5453; return v-Math.floor(v); };
+const tsp = (c,x,y,r,g,b) => { atx.fillStyle=`rgb(${r|0},${g|0},${b|0})`; atx.fillRect(c*TS+x,y,1,1); };
+const tpal = (c,x,y,pal) => { const [r,g,b]=pal[Math.floor(th(c*TS+x,y)*pal.length)]; tsp(c,x,y,r,g,b); };
+
+// Tile 0 — GRASS TOP  (bright lush green, Minecraft-style variation)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const n=th(0*TS+x,y);
+  // Occasional darker patches for depth
+  if(n<0.06) tsp(0,x,y, 64,130,40);
+  else if(n<0.18) tpal(0,x,y,[[88,162,52],[80,154,46]]);
+  else tpal(0,x,y,[[120,196,74],[108,184,64],[96,172,56]]);
+}
+
+// Tile 1 — GRASS SIDE  (green strip top, dirt below)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  if(y===0)        tpal(1,x,y,[[100,180,60],[88,168,52]]);
+  else if(y===1)   tpal(1,x,y,[[92,165,54],[80,152,44]]);
+  else if(y===2)   tpal(1,x,y,[[140,100,52],[124,86,42]]);
+  else if(y<5)     tpal(1,x,y,[[166,116,60],[152,102,48],[140,92,40]]);
+  else             tpal(1,x,y,[[188,136,76],[172,120,62],[156,106,50],[138,90,40]]);
+}
+
+// Tile 2 — DIRT  (warm earthy brown with subtle grain)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const n=th(2*TS+x,y);
+  if(n<0.08) tsp(2,x,y,120,72,30);
+  else tpal(2,x,y,[[190,138,78],[176,124,66],[162,110,56],[148,96,46]]);
+}
+
+// Tile 3 — STONE  (cool grey, Minecraft crack pattern)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const n=th(3*TS+x,y);
+  const n2=th(3*TS+x+7,y+5);
+  if(n<0.04||n2<0.04) tsp(3,x,y,90,92,90); // dark crack lines
+  else tpal(3,x,y,[
+    [168,170,168],[158,160,158],[148,150,148],[138,140,138]
+  ]);
+}
+
+// Tile 4 — LOG TOP  (visible tree rings: dark core → rings → bark edge)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const d=Math.sqrt((x-7.5)**2+(y-7.5)**2);
+  const j=(th(4*TS+x,y)-0.5)*10;
+  let r,g,b;
+  if(d<2.5)        {r=72; g=46; b=18;}   // heartwood
+  else if(d<3.5)   {r=156;g=104;b=44;}   // ring 1
+  else if(d<4.8)   {r=198;g=152;b=82;}   // ring 2
+  else if(d<5.5)   {r=120;g=76; b=28;}   // ring 3
+  else if(d<6.5)   {r=202;g=158;b=88;}   // outer ring
+  else             {r=130;g=82; b=32;}   // bark
+  tsp(4,x,y,r+j,g+(j*0.6)|0,b);
+}
+
+// Tile 5 — LOG SIDE  (warm bark, clear vertical stripes, highlight/shadow)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const xm=x%4;
+  const yj=(th(5*TS+x,y)-0.5)*14;
+  if(xm===0||xm===1)
+    tpal(5,x,y,[[134,86,30],[120,74,24],[110,66,20]]);
+  else if(xm===2)
+    tpal(5,x,y,[[216,168,92],[202,156,80],[188,144,70]]);
+  else
+    tpal(5,x,y,[[196,150,76],[182,138,66],[170,128,58]]);
+  // Add vertical noise jitter
+  const base=atx.getImageData(5*TS+x,y,1,1).data;
+  tsp(5,x,y,
+    Math.max(0,Math.min(255,base[0]+(yj|0))),
+    Math.max(0,Math.min(255,base[1]+(yj*0.7|0))),
+    Math.max(0,Math.min(255,base[2]))
+  );
+}
+
+// Tile 6 — LEAVES  (rich deep green, irregular bright/dark spots, no alpha needed)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const n=th(6*TS+x,y);
+  const n2=th(6*TS+x+3,y+9);
+  if(n<0.10)       tsp(6,x,y, 28,72,18);  // very dark gap
+  else if(n<0.22)  tpal(6,x,y,[[42,110,28],[36,100,24]]);
+  else if(n<0.55)  tpal(6,x,y,[[64,148,40],[58,140,36],[70,156,44]]);
+  else if(n2<0.35) tpal(6,x,y,[[96,186,58],[88,178,52]]);
+  else             tpal(6,x,y,[[78,166,48],[72,158,44],[84,174,52]]);
+}
+
+// Tile 7 — SAND  (bright yellow, like real Minecraft sand)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const n=th(7*TS+x,y);
+  if(n<0.05) tsp(7,x,y,196,176,100); // occasional dark grain
+  else tpal(7,x,y,[
+    [248,226,108],[240,218,96],[232,210,88],[244,222,102]
+  ]);
+}
+
+// Tile 8 — BEDROCK  (dark mottled rock, indestructible look)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const n=th(8*TS+x,y);
+  if(n<0.15)       tsp(8,x,y,22,22,22);
+  else if(n<0.35)  tsp(8,x,y,44,44,44);
+  else if(n<0.60)  tsp(8,x,y,62,62,62);
+  else             tsp(8,x,y,80,80,80);
+}
+
+// Tile 9 — WATER  (bright blue with foam highlights and subtle depth variation)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const n =th(9*TS+x,   y);
+  const n2=th(9*TS+x+5, y+7);
+  const n3=th(9*TS+x+11,y+3);
+  if(n3<0.06)       tsp(9,x,y, 210,240,255); // foam/sparkle
+  else if(n2<0.12)  tsp(9,x,y, 180,220,250); // light ripple
+  else if(n<0.25)   tpal(9,x,y,[[42,98,210],[36,90,198]]);
+  else              tpal(9,x,y,[[60,134,228],[56,126,220],[52,120,212],[48,114,205]]);
+}
+
+const atlasTexture = new THREE.CanvasTexture(atlasCvs);
+atlasTexture.magFilter     = THREE.NearestFilter;  // crisp pixels, no blurring
+atlasTexture.minFilter     = THREE.NearestFilter;
+atlasTexture.generateMipmaps = false;
+atlasTexture.colorSpace    = THREE.SRGBColorSpace;
+
+// ── GAME STATE ────────────────────────────────────────────
+const world=new World(scene);
+const player=new Player(camera,world);
+const keys={};
+let locked=false, gameReady=false, gameStarted=false, paused=false;
+let showDbg=false;
+// Mining
+let mining=false, mineTarget=null, mineProg=0;
+
+// ── UI ELEMENTS ───────────────────────────────────────────
+const loadingEl    = document.getElementById('loading');
+const progEl       = document.getElementById('prog');
+const overlayEl    = document.getElementById('overlay');
+const clickHint    = document.getElementById('click-hint');
+const pauseScreen  = document.getElementById('pause-screen');
+const xhair        = document.getElementById('xhair');
+const hudEl        = document.getElementById('hud');
+const hotbarEl     = document.getElementById('hotbar');
+const healthEl     = document.getElementById('health');
+const blockHint    = document.getElementById('block-hint');
+const breakBarWrap = document.getElementById('break-bar-wrap');
+const breakBar     = document.getElementById('break-bar');
+const dbgEl        = document.getElementById('dbg');
+
+// ── HUD ───────────────────────────────────────────────────
+const SLOT_CLR={
+  [AIR]:'#444',[GRASS]:'#52aa40',[DIRT]:'#8b5e30',[STONE]:'#8a8a8a',
+  [WOOD]:'#c8a464',[LEAVES]:'#38a030',[SAND]:'#d8c07a',[BEDROCK]:'#3c3c3c',
+  [WATER]:'#3a80d0'
+};
+
+function buildHotbar(){
+  hotbarEl.innerHTML='';
+  player.hotbar.forEach((id,i)=>{
+    const slot=document.createElement('div');
+    slot.className='slot'+(i===player.slot?' active':'');
+    const icon=document.createElement('div');
+    icon.className='slot-icon';
+    icon.style.background=SLOT_CLR[id]||'#555';
+    const num=document.createElement('div');
+    num.className='slot-num';
+    num.textContent=i+1;
+    slot.append(icon,num);
+    slot.onclick=()=>{ player.slot=i; buildHotbar(); };
+    hotbarEl.append(slot);
+  });
+  blockHint.textContent=BLOCK_NAME[player.selectedBlock];
+}
+
+function buildHealth(){
+  healthEl.innerHTML='';
+  for(let i=0;i<10;i++){
+    const s=document.createElement('span');
+    s.textContent=(i<Math.ceil(player.hp/2))?'❤️':'🖤';
+    healthEl.append(s);
+  }
+}
+
+function showHUD(on){
+  xhair.style.display=on?'block':'none';
+  hudEl.style.display=on?'flex':'none';
+  blockHint.style.display=on?'block':'none';
+  dbgEl.style.display=(on&&showDbg)?'block':'none';
+  if(!on){ breakBarWrap.style.display='none'; }
+}
+
+// ── WORLD GENERATION ─────────────────────────────────────
+async function generateWorld(){
+  loadingEl.style.display='flex';
+  const total=(RDIST*2+1)**2;
+  let done=0;
+  for(let dx=-RDIST;dx<=RDIST;dx++){
+    for(let dz=-RDIST;dz<=RDIST;dz++){
+      const c=world.getChunk(dx,dz,true);
+      world.buildMesh(c);
+      done++;
+      progEl.style.width=(done/total*100)+'%';
+      if(done%3===0) await new Promise(r=>requestAnimationFrame(r));
+    }
+  }
+  // ── SPAWN PRZY WODZIE ─────────────────────────────────────────────────
+  // Używamy bezpośrednio funkcji cont() żeby znaleźć wybrzeże BEZ generowania chunków
+  const contAt = (wx,wz) => noise2(wx*0.012 + 37.3, wz*0.012 + 61.7);
+
+  let spawnX=8, spawnZ=8;
+
+  // Spiralna pętla — szukaj punktu gdzie cont≈0 (strefa plaży) i obok cont<-0.05 (ocean)
+  outer: for(let r=1;r<80;r++) for(let a=0;a<32;a++){
+    const tx = Math.round(r*4*Math.cos(a*Math.PI/16));
+    const tz = Math.round(r*4*Math.sin(a*Math.PI/16));
+    const c  = contAt(tx,tz);
+    // Chcemy: lądowy punkt (trawa, c≥0.02) z oceanem w pobliżu (c<-0.05 gdzieś obok)
+    if(c < 0.02 || c > 0.20) continue;
+    // Sprawdź czy w promieniu 12 jest ocean (bezpośrednio przez cont)
+    let oceanNear = false;
+    for(let ox=-12;ox<=12;ox+=4){
+      for(let oz=-12;oz<=12;oz+=4){
+        if(contAt(tx+ox,tz+oz) < -0.05){ oceanNear=true; break; }
+      }
+      if(oceanNear) break;
+    }
+    if(!oceanNear) continue;
+    // Ten punkt ma ocean w pobliżu — sprawdź czy chunk jest wygenerowany i ma trawę
+    const sy2 = world.surfaceY(tx,tz);
+    const bid = world.getBlock(tx,sy2,tz);
+    if((bid===GRASS||bid===SAND) && sy2 >= SEA+1){ spawnX=tx; spawnZ=tz; break outer; }
+  }
+
+  // Fallback: dowolna trawa z wygenerowanych chunków
+  if(world.getBlock(spawnX,world.surfaceY(spawnX,spawnZ),spawnZ)===WATER){
+    outer2: for(let r=1;r<20;r++) for(let a=0;a<16;a++){
+      const tx=Math.round(r*5*Math.cos(a*Math.PI/8));
+      const tz=Math.round(r*5*Math.sin(a*Math.PI/8));
+      const sy2=world.surfaceY(tx,tz);
+      if(world.getBlock(tx,sy2,tz)===GRASS&&sy2>SEA+2){spawnX=tx;spawnZ=tz;break outer2;}
+    }
+  }
+  const sy=world.surfaceY(spawnX,spawnZ);
+  player.pos.set(spawnX+0.5, sy+1.05, spawnZ+0.5);
+  player.vel.set(0,0,0);
+  // Sync camera — skierowana lekko w dół żeby za menu widać teren + wodę
+  camera.position.set(player.pos.x, player.pos.y+PLR_H-0.08, player.pos.z);
+  camera.rotation.order='YXZ';
+  camera.rotation.set(-0.35, 0.5, 0); // pitch w dół, lekki obrót boczny
+  loadingEl.style.display='none';
+}
+
+// ── POINTER LOCK ─────────────────────────────────────────
+function requestLock(){
+  if(gameReady&&!locked) canvas.requestPointerLock();
+}
+canvas.addEventListener('click', requestLock);
+clickHint.addEventListener('click', requestLock);
+document.getElementById('resume-btn').addEventListener('click', requestLock);
+
+document.addEventListener('pointerlockchange',()=>{
+  locked=document.pointerLockElement===canvas;
+  if(locked){
+    paused=false;
+    pauseScreen.style.display='none';
+    clickHint.style.display='none';
+    showHUD(true); buildHotbar(); buildHealth();
+    if(!gameStarted){
+      gameStarted=true;
+      prevT=performance.now();
+    }
+  } else {
+    showHUD(false);
+    hlMesh.visible=false;
+    mining=false; mineProg=0;
+    if(gameStarted){
+      paused=true;
+      pauseScreen.style.display='flex';
+    }
+  }
+});
+
+document.addEventListener('mousemove',e=>{
+  if(!locked||paused) return;
+  player.look(e.movementX, e.movementY);
+});
+
+// ── BLOCK INTERACTION ─────────────────────────────────────
+function getAim(){
+  const dir=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion).normalize();
+  return world.raycast(camera.position, dir, 5.5);
+}
+
+canvas.addEventListener('mousedown',e=>{
+  if(!locked||paused) return;
+  if(e.button===0){
+    // Start mining
+    mining=true; mineProg=0; mineTarget=null;
+  } else if(e.button===2){
+    // Instant place
+    const t=getAim(); if(!t) return;
+    const px=t.bx+t.nx, py=t.by+t.ny, pz=t.bz+t.nz;
+    if(py<0||py>=HEIGHT) return;
+    // Don't place inside player AABB
+    const p=player.pos, hw=PLR_W+0.1;
+    if(px>=Math.floor(p.x-hw)&&px<Math.ceil(p.x+hw)&&
+       py>=Math.floor(p.y)&&py<Math.ceil(p.y+PLR_H)&&
+       pz>=Math.floor(p.z-hw)&&pz<Math.ceil(p.z+hw)) return;
+    world.setBlock(px,py,pz,player.selectedBlock);
+    buildHotbar();
+  }
+});
+canvas.addEventListener('mouseup',e=>{
+  if(e.button===0){ mining=false; mineProg=0; mineTarget=null; }
+});
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+
+// ── KEYBOARD ─────────────────────────────────────────────
+document.addEventListener('keydown',e=>{
+  keys[e.code]=true;
+  if(e.code==='Escape'){
+    if(locked) document.exitPointerLock();
+    else if(paused&&gameStarted) requestLock();
+    return;
+  }
+  if(e.code==='F3'){ showDbg=!showDbg; dbgEl.style.display=(locked&&showDbg)?'block':'none'; }
+  if(e.code>='Digit1'&&e.code<='Digit6'){
+    player.slot=parseInt(e.code[5])-1; buildHotbar();
+  }
+  if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+});
+document.addEventListener('keyup',e=>{ keys[e.code]=false; });
+
+canvas.addEventListener('wheel',e=>{
+  if(!locked||paused) return;
+  player.slot=(player.slot+(e.deltaY>0?1:-1)+player.hotbar.length)%player.hotbar.length;
+  buildHotbar();
+},{passive:true});
+
+// ── RESIZE ───────────────────────────────────────────────
+window.addEventListener('resize',()=>{
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+});
+
+// ── START BUTTON ─────────────────────────────────────────
+document.getElementById('play-btn').addEventListener('click', async()=>{
+  overlayEl.style.display='none';
+  await generateWorld();
+  gameReady=true;
+  clickHint.style.display='flex';
+});
+
+// ── MAIN LOOP ────────────────────────────────────────────
+let prevT=performance.now();
+
+function loop(t){
+  requestAnimationFrame(loop);
+  const dt=Math.min((t-prevT)/1000, 0.05);
+  prevT=t;
+
+  if(!gameStarted||paused){
+    renderer.render(scene,camera);
+    return;
+  }
+
+  // Update player
+  player.update(dt,keys);
+  world.loadAround(player.pos.x, player.pos.z);
+
+  // Sun billboard — always faces camera, sits far away in sun direction
+  {
+    const sp = camera.position.clone().addScaledVector(SUN_DIR, SUN_DIST);
+    sunMesh.position.copy(sp);
+    sunMesh.lookAt(camera.position);
+  }
+
+  // Clouds — drift slowly west, wrap around player
+  {
+    const CLOUD_SPEED = 1.8; // blocks per second
+    const WRAP_R = CLOUD_R * 1.4;
+    for(const c of cloudMeshes){
+      c.position.x -= CLOUD_SPEED * dt;
+      // Wrap: if cloud drifts too far from player, teleport to opposite side
+      const dx = c.position.x - player.pos.x;
+      const dz = c.position.z - player.pos.z;
+      if(Math.sqrt(dx*dx+dz*dz) > WRAP_R){
+        c.position.x = player.pos.x + (Math.random()-0.5)*CLOUD_R*1.2;
+        c.position.z = player.pos.z + (Math.random()-0.5)*CLOUD_R*1.2;
+      }
+      // Keep clouds above player height
+      c.position.y = CLOUD_Y + (Math.random()-0.5)*0.02; // tiny bob
+    }
+  }
+
+  // Aim + highlight
+  const aim=getAim();
+  if(aim){
+    hlMesh.position.set(aim.bx+0.5, aim.by+0.5, aim.bz+0.5);
+    hlMesh.visible=true;
+
+    // Mining progress
+    if(mining){
+      const id=world.getBlock(aim.bx,aim.by,aim.bz);
+      const hard=BLOCK_HARD[id]??1;
+      if(hard===Infinity){
+        // Unbreakable
+        breakBarWrap.style.display='none';
+      } else {
+        // Reset progress if target changed
+        if(mineTarget&&(mineTarget.bx!==aim.bx||mineTarget.by!==aim.by||mineTarget.bz!==aim.bz)){
+          mineProg=0;
+        }
+        mineTarget={bx:aim.bx,by:aim.by,bz:aim.bz};
+        mineProg+=dt;
+        const pct=Math.min(mineProg/hard,1);
+        breakBar.style.width=(pct*100)+'%';
+        breakBarWrap.style.display='block';
+        if(pct>=1){
+          world.setBlock(aim.bx,aim.by,aim.bz,AIR);
+          mining=false; mineProg=0; mineTarget=null;
+          breakBarWrap.style.display='none';
+        }
+      }
+    } else {
+      mineProg=0; mineTarget=null;
+      breakBarWrap.style.display='none';
+    }
+  } else {
+    hlMesh.visible=false;
+    mining=false; mineProg=0; mineTarget=null;
+    breakBarWrap.style.display='none';
+  }
+
+  // Debug
+  if(showDbg){
+    const p=player.pos;
+    const [cx,cz]=world.worldToChunk(p.x,p.z);
+    const fps=dt>0?(1/dt)|0:0;
+    const aimed=aim?`${aim.bx},${aim.by},${aim.bz} [${BLOCK_NAME[world.getBlock(aim.bx,aim.by,aim.bz)]}]`:'—';
+    dbgEl.textContent=
+      `XYZ: ${p.x.toFixed(2)} / ${p.y.toFixed(2)} / ${p.z.toFixed(2)}\n`+
+      `Chunk: ${cx},${cz}   Ground: ${player.onGround}   FPS: ${fps}\n`+
+      `Cel: ${aimed}\n`+
+      `Blok w ręce: [${player.slot+1}] ${BLOCK_NAME[player.selectedBlock]}`;
+  }
+
+  renderer.render(scene,camera);
+}
+
+// Render while on menu (before gameStarted)
+requestAnimationFrame(loop);
+
+// Render while on menu (before gameStarted)
+requestAnimationFrame(loop);
+
+// ══════════════════════════════════════════════════════════
+//  INTERNATIONALISATION (i18n) + OPTIONS SCREEN
+// ══════════════════════════════════════════════════════════
+
+const LANGUAGES = {
+  pl:{ name:'Polski',         flag:'🇵🇱', strings:{
+    options_title:'OPCJE', tab_language:'🌐 Język', tab_controls:'🎮 Sterowanie', tab_about:'ℹ️ O grze',
+    btn_done:'Gotowe', btn_play:'Jednoosobowa', btn_quit:'Zakończ grę', btn_back:'Wróć do Gry',
+    btn_new_world:'Nowy Świat', btn_save_quit:'Zapisz i Wyjdź', btn_options:'Opcje...', btn_controls_lbl:'Sterowanie',
+    btn_seed:'Seed Świata', pause_title:'Menu Gry', click_to_play:'KLIKNIJ ABY GRAĆ',
+    ctrl_move:'WASD — Ruch', ctrl_jump:'SPACE — Skok', ctrl_sprint:'SHIFT — Sprint',
+    ctrl_break:'LMB (trzymaj) — Kopanie', ctrl_place:'RMB — Stawianie bloku',
+    ctrl_hotbar:'1-6 / Scroll — Hotbar', ctrl_pause:'ESC — Pauza', ctrl_debug:'F3 — Debug info',
+    about_title:'CUBE CRAFT v0.2', about_author:'Autor: Patryk Niedzielski',
+    about_engine:'Silnik: Three.js r160', about_ai:'AI: Claude Sonnet 4.6',
+    about_desc:'Gra voxelowa inspirowana Minecraftem. Proceduralny teren, woda, lasy, plaże.'
+  }},
+  en:{ name:'English',        flag:'🇬🇧', strings:{
+    options_title:'OPTIONS', tab_language:'🌐 Language', tab_controls:'🎮 Controls', tab_about:'ℹ️ About',
+    btn_done:'Done', btn_play:'Singleplayer', btn_quit:'Quit Game', btn_back:'Back to Game',
+    btn_new_world:'New World', btn_save_quit:'Save and Quit', btn_options:'Options...', btn_controls_lbl:'Controls',
+    btn_seed:'World Seed', pause_title:'Game Menu', click_to_play:'CLICK TO PLAY',
+    ctrl_move:'WASD — Move', ctrl_jump:'SPACE — Jump', ctrl_sprint:'SHIFT — Sprint',
+    ctrl_break:'LMB (hold) — Break block', ctrl_place:'RMB — Place block',
+    ctrl_hotbar:'1-6 / Scroll — Hotbar', ctrl_pause:'ESC — Pause', ctrl_debug:'F3 — Debug info',
+    about_title:'CUBE CRAFT v0.2', about_author:'Author: Patryk Niedzielski',
+    about_engine:'Engine: Three.js r160', about_ai:'AI: Claude Sonnet 4.6',
+    about_desc:'Voxel game inspired by Minecraft. Procedural terrain, water, forests, beaches.'
+  }},
+  de:{ name:'Deutsch',        flag:'🇩🇪', strings:{
+    options_title:'OPTIONEN', tab_language:'🌐 Sprache', tab_controls:'🎮 Steuerung', tab_about:'ℹ️ Über',
+    btn_done:'Fertig', btn_play:'Einzelspieler', btn_quit:'Spiel beenden', btn_back:'Zurück',
+    btn_new_world:'Neue Welt', btn_save_quit:'Speichern & Beenden', btn_options:'Optionen...', btn_controls_lbl:'Steuerung',
+    btn_seed:'Welt-Seed', pause_title:'Spielmenü', click_to_play:'KLICKEN ZUM SPIELEN',
+    ctrl_move:'WASD — Bewegen', ctrl_jump:'SPACE — Springen', ctrl_sprint:'SHIFT — Sprinten',
+    ctrl_break:'LMB (halten) — Abbauen', ctrl_place:'RMB — Platzieren',
+    ctrl_hotbar:'1-6 / Scroll — Hotbar', ctrl_pause:'ESC — Pause', ctrl_debug:'F3 — Debug',
+    about_title:'CUBE CRAFT v0.2', about_author:'Autor: Patryk Niedzielski',
+    about_engine:'Engine: Three.js r160', about_ai:'KI: Claude Sonnet 4.6',
+    about_desc:'Voxel-Spiel inspiriert von Minecraft. Prozedurales Terrain, Wasser, Wälder, Strände.'
+  }},
+  fr:{ name:'Français',       flag:'🇫🇷', strings:{
+    options_title:'OPTIONS', tab_language:'🌐 Langue', tab_controls:'🎮 Commandes', tab_about:'ℹ️ À propos',
+    btn_done:'Terminé', btn_play:'Solo', btn_quit:'Quitter', btn_back:'Retour',
+    btn_new_world:'Nouveau monde', btn_save_quit:'Sauvegarder & Quitter', btn_options:'Options...', btn_controls_lbl:'Commandes',
+    btn_seed:'Graine du monde', pause_title:'Menu du jeu', click_to_play:'CLIQUER POUR JOUER',
+    ctrl_move:'WASD — Déplacer', ctrl_jump:'ESPACE — Sauter', ctrl_sprint:'SHIFT — Sprint',
+    ctrl_break:'LMB (maintenir) — Casser', ctrl_place:'RMB — Poser',
+    ctrl_hotbar:'1-6 / Défilement — Barre', ctrl_pause:'ESC — Pause', ctrl_debug:'F3 — Debug',
+    about_title:'CUBE CRAFT v0.2', about_author:'Auteur: Patryk Niedzielski',
+    about_engine:'Moteur: Three.js r160', about_ai:'IA: Claude Sonnet 4.6',
+    about_desc:'Jeu voxel inspiré de Minecraft. Terrain procédural, eau, forêts, plages.'
+  }},
+  es:{ name:'Español',        flag:'🇪🇸', strings:{
+    options_title:'OPCIONES', tab_language:'🌐 Idioma', tab_controls:'🎮 Controles', tab_about:'ℹ️ Acerca de',
+    btn_done:'Hecho', btn_play:'Un jugador', btn_quit:'Salir', btn_back:'Volver',
+    btn_new_world:'Nuevo mundo', btn_save_quit:'Guardar y salir', btn_options:'Opciones...', btn_controls_lbl:'Controles',
+    btn_seed:'Semilla', pause_title:'Menú del juego', click_to_play:'CLICK PARA JUGAR',
+    ctrl_move:'WASD — Mover', ctrl_jump:'ESPACIO — Saltar', ctrl_sprint:'SHIFT — Correr',
+    ctrl_break:'LMB (mantener) — Romper', ctrl_place:'RMB — Colocar',
+    ctrl_hotbar:'1-6 / Rueda — Barra', ctrl_pause:'ESC — Pausa', ctrl_debug:'F3 — Debug',
+    about_title:'CUBE CRAFT v0.2', about_author:'Autor: Patryk Niedzielski',
+    about_engine:'Motor: Three.js r160', about_ai:'IA: Claude Sonnet 4.6',
+    about_desc:'Juego vóxel inspirado en Minecraft. Terreno procedural, agua, bosques, playas.'
+  }},
+  it:{ name:'Italiano',       flag:'🇮🇹', strings:{
+    options_title:'OPZIONI', tab_language:'🌐 Lingua', tab_controls:'🎮 Controlli', tab_about:'ℹ️ Info',
+    btn_done:'Fatto', btn_play:'Giocatore singolo', btn_quit:'Esci', btn_back:'Indietro',
+    btn_new_world:'Nuovo mondo', btn_save_quit:'Salva ed esci', btn_options:'Opzioni...', btn_controls_lbl:'Controlli',
+    btn_seed:'Seed mondo', pause_title:'Menu di gioco', click_to_play:'CLICCA PER GIOCARE',
+    ctrl_move:'WASD — Muovi', ctrl_jump:'SPAZIO — Salta', ctrl_sprint:'SHIFT — Sprint',
+    ctrl_break:'LMB (tieni) — Rompi', ctrl_place:'RMB — Posiziona',
+    ctrl_hotbar:'1-6 / Rotella — Barra', ctrl_pause:'ESC — Pausa', ctrl_debug:'F3 — Debug',
+    about_title:'CUBE CRAFT v0.2', about_author:'Autore: Patryk Niedzielski',
+    about_engine:'Motore: Three.js r160', about_ai:'IA: Claude Sonnet 4.6',
+    about_desc:'Gioco voxel ispirato a Minecraft. Terreno procedurale, acqua, foreste, spiagge.'
+  }},
+  pt:{ name:'Português',      flag:'🇧🇷', strings:{
+    options_title:'OPÇÕES', tab_language:'🌐 Idioma', tab_controls:'🎮 Controles', tab_about:'ℹ️ Sobre',
+    btn_done:'Concluído', btn_play:'Um jogador', btn_quit:'Sair', btn_back:'Voltar',
+    btn_new_world:'Novo mundo', btn_save_quit:'Salvar e sair', btn_options:'Opções...', btn_controls_lbl:'Controles',
+    btn_seed:'Semente', pause_title:'Menu do jogo', click_to_play:'CLIQUE PARA JOGAR',
+    ctrl_move:'WASD — Mover', ctrl_jump:'ESPAÇO — Pular', ctrl_sprint:'SHIFT — Correr',
+    ctrl_break:'LMB (segurar) — Quebrar', ctrl_place:'RMB — Colocar',
+    ctrl_hotbar:'1-6 / Scroll — Barra', ctrl_pause:'ESC — Pausa', ctrl_debug:'F3 — Debug',
+    about_title:'CUBE CRAFT v0.2', about_author:'Autor: Patryk Niedzielski',
+    about_engine:'Motor: Three.js r160', about_ai:'IA: Claude Sonnet 4.6',
+    about_desc:'Jogo voxel inspirado no Minecraft. Terreno procedural, água, florestas, praias.'
+  }},
+  ru:{ name:'Русский',        flag:'🇷🇺', strings:{
+    options_title:'НАСТРОЙКИ', tab_language:'🌐 Язык', tab_controls:'🎮 Управление', tab_about:'ℹ️ О игре',
+    btn_done:'Готово', btn_play:'Одиночная', btn_quit:'Выйти', btn_back:'Назад',
+    btn_new_world:'Новый мир', btn_save_quit:'Сохранить и выйти', btn_options:'Настройки...', btn_controls_lbl:'Управление',
+    btn_seed:'Семя мира', pause_title:'Меню игры', click_to_play:'НАЖМИТЕ ДЛЯ ИГРЫ',
+    ctrl_move:'WASD — Движение', ctrl_jump:'ПРОБЕЛ — Прыжок', ctrl_sprint:'SHIFT — Бег',
+    ctrl_break:'ЛКМ (держать) — Ломать', ctrl_place:'ПКМ — Ставить',
+    ctrl_hotbar:'1-6 / Колесо — Хотбар', ctrl_pause:'ESC — Пауза', ctrl_debug:'F3 — Дебаг',
+    about_title:'CUBE CRAFT v0.2', about_author:'Автор: Patryk Niedzielski',
+    about_engine:'Движок: Three.js r160', about_ai:'ИИ: Claude Sonnet 4.6',
+    about_desc:'Воксельная игра по мотивам Minecraft. Процедурный ландшафт, вода, леса, пляжи.'
+  }},
+  uk:{ name:'Українська',     flag:'🇺🇦', strings:{
+    options_title:'НАЛАШТУВАННЯ', tab_language:'🌐 Мова', tab_controls:'🎮 Керування', tab_about:'ℹ️ Про гру',
+    btn_done:'Готово', btn_play:'Одиночна', btn_quit:'Вийти', btn_back:'Назад',
+    btn_new_world:'Новий світ', btn_save_quit:'Зберегти і вийти', btn_options:'Налаштування...', btn_controls_lbl:'Керування',
+    btn_seed:'Насіння світу', pause_title:'Меню гри', click_to_play:'КЛІКНІТЬ ДЛЯ ГРИ',
+    ctrl_move:'WASD — Рух', ctrl_jump:'ПРОБІЛ — Стрибок', ctrl_sprint:'SHIFT — Спринт',
+    ctrl_break:'ЛКМ (тримати) — Ламати', ctrl_place:'ПКМ — Ставити',
+    ctrl_hotbar:'1-6 / Колесо — Хотбар', ctrl_pause:'ESC — Пауза', ctrl_debug:'F3 — Дебаг',
+    about_title:'CUBE CRAFT v0.2', about_author:'Автор: Patryk Niedzielski',
+    about_engine:'Рушій: Three.js r160', about_ai:'ШІ: Claude Sonnet 4.6',
+    about_desc:'Воксельна гра натхненна Minecraft. Процедурний рельєф, вода, ліси, пляжі.'
+  }},
+  ja:{ name:'日本語',          flag:'🇯🇵', strings:{
+    options_title:'オプション', tab_language:'🌐 言語', tab_controls:'🎮 操作', tab_about:'ℹ️ について',
+    btn_done:'完了', btn_play:'シングルプレイ', btn_quit:'終了', btn_back:'戻る',
+    btn_new_world:'新しいワールド', btn_save_quit:'保存して終了', btn_options:'オプション...', btn_controls_lbl:'操作方法',
+    btn_seed:'ワールドシード', pause_title:'ゲームメニュー', click_to_play:'クリックしてプレイ',
+    ctrl_move:'WASD — 移動', ctrl_jump:'スペース — ジャンプ', ctrl_sprint:'SHIFT — ダッシュ',
+    ctrl_break:'LMB（長押し）— ブロック破壊', ctrl_place:'RMB — ブロック設置',
+    ctrl_hotbar:'1-6 / スクロール — ホットバー', ctrl_pause:'ESC — ポーズ', ctrl_debug:'F3 — デバッグ',
+    about_title:'CUBE CRAFT v0.2', about_author:'制作: Patryk Niedzielski',
+    about_engine:'エンジン: Three.js r160', about_ai:'AI: Claude Sonnet 4.6',
+    about_desc:'Minecraftにインスパイアされたボクセルゲーム。'
+  }},
+  zh:{ name:'中文（简体）',   flag:'🇨🇳', strings:{
+    options_title:'选项', tab_language:'🌐 语言', tab_controls:'🎮 控制', tab_about:'ℹ️ 关于',
+    btn_done:'完成', btn_play:'单人游戏', btn_quit:'退出游戏', btn_back:'返回',
+    btn_new_world:'新世界', btn_save_quit:'保存并退出', btn_options:'选项...', btn_controls_lbl:'控制',
+    btn_seed:'世界种子', pause_title:'游戏菜单', click_to_play:'点击开始游戏',
+    ctrl_move:'WASD — 移动', ctrl_jump:'空格 — 跳跃', ctrl_sprint:'SHIFT — 冲刺',
+    ctrl_break:'左键（按住）— 破坏方块', ctrl_place:'右键 — 放置方块',
+    ctrl_hotbar:'1-6 / 滚轮 — 快捷栏', ctrl_pause:'ESC — 暂停', ctrl_debug:'F3 — 调试',
+    about_title:'CUBE CRAFT v0.2', about_author:'作者: Patryk Niedzielski',
+    about_engine:'引擎: Three.js r160', about_ai:'AI: Claude Sonnet 4.6',
+    about_desc:'受Minecraft启发的体素游戏。程序化地形、水、森林、沙滩。'
+  }},
+  ko:{ name:'한국어',          flag:'🇰🇷', strings:{
+    options_title:'옵션', tab_language:'🌐 언어', tab_controls:'🎮 조작', tab_about:'ℹ️ 정보',
+    btn_done:'완료', btn_play:'싱글플레이', btn_quit:'게임 종료', btn_back:'돌아가기',
+    btn_new_world:'새 세계', btn_save_quit:'저장하고 나가기', btn_options:'옵션...', btn_controls_lbl:'조작법',
+    btn_seed:'월드 시드', pause_title:'게임 메뉴', click_to_play:'클릭하여 플레이',
+    ctrl_move:'WASD — 이동', ctrl_jump:'스페이스 — 점프', ctrl_sprint:'SHIFT — 달리기',
+    ctrl_break:'좌클릭(유지) — 블록 파괴', ctrl_place:'우클릭 — 블록 설치',
+    ctrl_hotbar:'1-6 / 스크롤 — 단축바', ctrl_pause:'ESC — 일시정지', ctrl_debug:'F3 — 디버그',
+    about_title:'CUBE CRAFT v0.2', about_author:'제작: Patryk Niedzielski',
+    about_engine:'엔진: Three.js r160', about_ai:'AI: Claude Sonnet 4.6',
+    about_desc:'마인크래프트에서 영감 받은 복셀 게임.'
+  }},
+  nl:{ name:'Nederlands',     flag:'🇳🇱', strings:{
+    options_title:'OPTIES', tab_language:'🌐 Taal', tab_controls:'🎮 Besturing', tab_about:'ℹ️ Over',
+    btn_done:'Klaar', btn_play:'Singleplayer', btn_quit:'Spel verlaten', btn_back:'Terug',
+    btn_new_world:'Nieuwe wereld', btn_save_quit:'Opslaan en stoppen', btn_options:'Opties...', btn_controls_lbl:'Besturing',
+    btn_seed:'Wereld-seed', pause_title:'Spelmenu', click_to_play:'KLIK OM TE SPELEN',
+    ctrl_move:'WASD — Bewegen', ctrl_jump:'SPATIE — Springen', ctrl_sprint:'SHIFT — Sprinten',
+    ctrl_break:'LMB (ingehouden) — Afbreken', ctrl_place:'RMB — Plaatsen',
+    ctrl_hotbar:'1-6 / Scroll — Hotbar', ctrl_pause:'ESC — Pauze', ctrl_debug:'F3 — Debug',
+    about_title:'CUBE CRAFT v0.2', about_author:'Auteur: Patryk Niedzielski',
+    about_engine:'Engine: Three.js r160', about_ai:'AI: Claude Sonnet 4.6',
+    about_desc:'Voxelspel geïnspireerd op Minecraft.'
+  }},
+  sv:{ name:'Svenska',        flag:'🇸🇪', strings:{
+    options_title:'INSTÄLLNINGAR', tab_language:'🌐 Språk', tab_controls:'🎮 Kontroller', tab_about:'ℹ️ Om',
+    btn_done:'Klar', btn_play:'Enspelarläge', btn_quit:'Avsluta', btn_back:'Tillbaka',
+    btn_new_world:'Ny värld', btn_save_quit:'Spara och avsluta', btn_options:'Inställningar...', btn_controls_lbl:'Kontroller',
+    btn_seed:'Världsfrö', pause_title:'Spelmenyn', click_to_play:'KLICKA FÖR ATT SPELA',
+    ctrl_move:'WASD — Rörelse', ctrl_jump:'MELLANSLAG — Hoppa', ctrl_sprint:'SHIFT — Sprint',
+    ctrl_break:'LMB (håll) — Bryta', ctrl_place:'RMB — Placera',
+    ctrl_hotbar:'1-6 / Scroll — Hotbar', ctrl_pause:'ESC — Paus', ctrl_debug:'F3 — Debug',
+    about_title:'CUBE CRAFT v0.2', about_author:'Skapare: Patryk Niedzielski',
+    about_engine:'Motor: Three.js r160', about_ai:'AI: Claude Sonnet 4.6',
+    about_desc:'Voxelspel inspirerat av Minecraft.'
+  }},
+  no:{ name:'Norsk',          flag:'🇳🇴', strings:{
+    options_title:'INNSTILLINGER', tab_language:'🌐 Språk', tab_controls:'🎮 Kontroller', tab_about:'ℹ️ Om',
+    btn_done:'Ferdig', btn_play:'Enkeltspiller', btn_quit:'Avslutt', btn_back:'Tilbake',
+    btn_new_world:'Ny verden', btn_save_quit:'Lagre og avslutt', btn_options:'Innstillinger...', btn_controls_lbl:'Kontroller',
+    btn_seed:'Verdens-seed', pause_title:'Spillmenyen', click_to_play:'KLIKK FOR Å SPILLE',
+    ctrl_move:'WASD — Beveg', ctrl_jump:'MELLOMROM — Hopp', ctrl_sprint:'SHIFT — Sprint',
+    ctrl_break:'LMB (hold) — Bryt', ctrl_place:'RMB — Plasser',
+    ctrl_hotbar:'1-6 / Scroll — Hotbar', ctrl_pause:'ESC — Pause', ctrl_debug:'F3 — Debug',
+    about_title:'CUBE CRAFT v0.2', about_author:'Av: Patryk Niedzielski',
+    about_engine:'Motor: Three.js r160', about_ai:'AI: Claude Sonnet 4.6',
+    about_desc:'Voxelspill inspirert av Minecraft.'
+  }},
+  fi:{ name:'Suomi',          flag:'🇫🇮', strings:{
+    options_title:'ASETUKSET', tab_language:'🌐 Kieli', tab_controls:'🎮 Ohjaus', tab_about:'ℹ️ Tietoja',
+    btn_done:'Valmis', btn_play:'Yksinpeli', btn_quit:'Lopeta', btn_back:'Takaisin',
+    btn_new_world:'Uusi maailma', btn_save_quit:'Tallenna ja lopeta', btn_options:'Asetukset...', btn_controls_lbl:'Ohjaus',
+    btn_seed:'Maailman siemen', pause_title:'Pelivalikko', click_to_play:'KLIKKAA PELATAKSESI',
+    ctrl_move:'WASD — Liiku', ctrl_jump:'VÄLILYÖNTI — Hyppää', ctrl_sprint:'SHIFT — Juokse',
+    ctrl_break:'LMB (pidä) — Riko', ctrl_place:'RMB — Aseta',
+    ctrl_hotbar:'1-6 / Vieritys — Hotbar', ctrl_pause:'ESC — Tauko', ctrl_debug:'F3 — Debug',
+    about_title:'CUBE CRAFT v0.2', about_author:'Tekijä: Patryk Niedzielski',
+    about_engine:'Moottori: Three.js r160', about_ai:'AI: Claude Sonnet 4.6',
+    about_desc:'Minecraft-inspiroimainen vokseli-peli.'
+  }},
+  tr:{ name:'Türkçe',         flag:'🇹🇷', strings:{
+    options_title:'AYARLAR', tab_language:'🌐 Dil', tab_controls:'🎮 Kontroller', tab_about:'ℹ️ Hakkında',
+    btn_done:'Tamam', btn_play:'Tek Oyuncu', btn_quit:'Çıkış', btn_back:'Geri',
+    btn_new_world:'Yeni Dünya', btn_save_quit:'Kaydet ve Çık', btn_options:'Ayarlar...', btn_controls_lbl:'Kontroller',
+    btn_seed:'Dünya Tohumu', pause_title:'Oyun Menüsü', click_to_play:'OYNAMAK İÇİN TIKLA',
+    ctrl_move:'WASD — Hareket', ctrl_jump:'BOŞLUK — Zıpla', ctrl_sprint:'SHIFT — Koş',
+    ctrl_break:'LMB (basılı) — Kır', ctrl_place:'RMB — Yerleştir',
+    ctrl_hotbar:'1-6 / Kaydır — Hotbar', ctrl_pause:'ESC — Duraklat', ctrl_debug:'F3 — Debug',
+    about_title:'CUBE CRAFT v0.2', about_author:'Yapımcı: Patryk Niedzielski',
+    about_engine:'Motor: Three.js r160', about_ai:'YZ: Claude Sonnet 4.6',
+    about_desc:"Minecraft'tan ilham alan voksel oyunu."
+  }},
+  ar:{ name:'العربية',        flag:'🇸🇦', strings:{
+    options_title:'الخيارات', tab_language:'🌐 اللغة', tab_controls:'🎮 التحكم', tab_about:'ℹ️ حول',
+    btn_done:'تم', btn_play:'لاعب واحد', btn_quit:'خروج', btn_back:'رجوع',
+    btn_new_world:'عالم جديد', btn_save_quit:'حفظ والخروج', btn_options:'خيارات...', btn_controls_lbl:'التحكم',
+    btn_seed:'بذرة العالم', pause_title:'قائمة اللعبة', click_to_play:'انقر للعب',
+    ctrl_move:'WASD — تحرك', ctrl_jump:'مسافة — قفز', ctrl_sprint:'SHIFT — ركض',
+    ctrl_break:'زر يسار (اضغط) — كسر', ctrl_place:'زر يمين — وضع',
+    ctrl_hotbar:'1-6 / تمرير — شريط', ctrl_pause:'ESC — إيقاف', ctrl_debug:'F3 — تصحيح',
+    about_title:'CUBE CRAFT v0.2', about_author:'المطور: Patryk Niedzielski',
+    about_engine:'المحرك: Three.js r160', about_ai:'الذكاء: Claude Sonnet 4.6',
+    about_desc:'لعبة فوكسل مستوحاة من Minecraft.'
+  }},
+  hi:{ name:'हिन्दी',         flag:'🇮🇳', strings:{
+    options_title:'विकल्प', tab_language:'🌐 भाषा', tab_controls:'🎮 नियंत्रण', tab_about:'ℹ️ के बारे में',
+    btn_done:'हो गया', btn_play:'एकल खिलाड़ी', btn_quit:'बाहर जाएं', btn_back:'वापस',
+    btn_new_world:'नई दुनिया', btn_save_quit:'सहेजें और बाहर', btn_options:'विकल्प...', btn_controls_lbl:'नियंत्रण',
+    btn_seed:'दुनिया का बीज', pause_title:'खेल मेनू', click_to_play:'खेलने के लिए क्लिक करें',
+    ctrl_move:'WASD — चलना', ctrl_jump:'स्पेस — कूदना', ctrl_sprint:'SHIFT — दौड़ना',
+    ctrl_break:'LMB (दबाए) — तोड़ना', ctrl_place:'RMB — रखना',
+    ctrl_hotbar:'1-6 / स्क्रॉल — हॉटबार', ctrl_pause:'ESC — रोकें', ctrl_debug:'F3 — डीबग',
+    about_title:'CUBE CRAFT v0.2', about_author:'निर्माता: Patryk Niedzielski',
+    about_engine:'इंजन: Three.js r160', about_ai:'AI: Claude Sonnet 4.6',
+    about_desc:'Minecraft से प्रेरित वॉक्सेल गेम।'
+  }},
+  cs:{ name:'Čeština',        flag:'🇨🇿', strings:{
+    options_title:'NASTAVENÍ', tab_language:'🌐 Jazyk', tab_controls:'🎮 Ovládání', tab_about:'ℹ️ O hře',
+    btn_done:'Hotovo', btn_play:'Hra pro jednoho', btn_quit:'Ukončit', btn_back:'Zpět',
+    btn_new_world:'Nový svět', btn_save_quit:'Uložit a skončit', btn_options:'Nastavení...', btn_controls_lbl:'Ovládání',
+    btn_seed:'Seed světa', pause_title:'Herní menu', click_to_play:'KLIKNUTÍM HRAJ',
+    ctrl_move:'WASD — Pohyb', ctrl_jump:'MEZERNÍK — Skok', ctrl_sprint:'SHIFT — Sprint',
+    ctrl_break:'LMB (držet) — Kopat', ctrl_place:'RMB — Stavět',
+    ctrl_hotbar:'1-6 / Kolečko — Hotbar', ctrl_pause:'ESC — Pauza', ctrl_debug:'F3 — Debug',
+    about_title:'CUBE CRAFT v0.2', about_author:'Autor: Patryk Niedzielski',
+    about_engine:'Engine: Three.js r160', about_ai:'AI: Claude Sonnet 4.6',
+    about_desc:'Voxelová hra inspirovaná Minecraftem.'
+  }},
+  hu:{ name:'Magyar',         flag:'🇭🇺', strings:{
+    options_title:'BEÁLLÍTÁSOK', tab_language:'🌐 Nyelv', tab_controls:'🎮 Irányítás', tab_about:'ℹ️ Névjegy',
+    btn_done:'Kész', btn_play:'Egyjátékos', btn_quit:'Kilépés', btn_back:'Vissza',
+    btn_new_world:'Új világ', btn_save_quit:'Mentés és kilépés', btn_options:'Beállítások...', btn_controls_lbl:'Irányítás',
+    btn_seed:'Világ mag', pause_title:'Játék menü', click_to_play:'KATTINTS A JÁTÉKHOZ',
+    ctrl_move:'WASD — Mozgás', ctrl_jump:'SZÓKÖZ — Ugrás', ctrl_sprint:'SHIFT — Futás',
+    ctrl_break:'LMB (tartsd) — Törés', ctrl_place:'RMB — Elhelyezés',
+    ctrl_hotbar:'1-6 / Görgetés — Hotbar', ctrl_pause:'ESC — Szünet', ctrl_debug:'F3 — Debug',
+    about_title:'CUBE CRAFT v0.2', about_author:'Készítő: Patryk Niedzielski',
+    about_engine:'Motor: Three.js r160', about_ai:'MI: Claude Sonnet 4.6',
+    about_desc:'Minecraftból inspirált voxeljáték.'
+  }},
+  ro:{ name:'Română',         flag:'🇷🇴', strings:{
+    options_title:'OPȚIUNI', tab_language:'🌐 Limbă', tab_controls:'🎮 Comenzi', tab_about:'ℹ️ Despre',
+    btn_done:'Gata', btn_play:'Un jucător', btn_quit:'Ieșire', btn_back:'Înapoi',
+    btn_new_world:'Lume nouă', btn_save_quit:'Salvează și ieși', btn_options:'Opțiuni...', btn_controls_lbl:'Comenzi',
+    btn_seed:'Seed lume', pause_title:'Meniu joc', click_to_play:'CLICK PENTRU A JUCA',
+    ctrl_move:'WASD — Mișcare', ctrl_jump:'SPAȚIU — Săritură', ctrl_sprint:'SHIFT — Sprint',
+    ctrl_break:'LMB (ținut) — Sparge', ctrl_place:'RMB — Plasează',
+    ctrl_hotbar:'1-6 / Scroll — Hotbar', ctrl_pause:'ESC — Pauză', ctrl_debug:'F3 — Debug',
+    about_title:'CUBE CRAFT v0.2', about_author:'Autor: Patryk Niedzielski',
+    about_engine:'Motor: Three.js r160', about_ai:'AI: Claude Sonnet 4.6',
+    about_desc:'Joc voxel inspirat din Minecraft.'
+  }},
+  el:{ name:'Ελληνικά',       flag:'🇬🇷', strings:{
+    options_title:'ΕΠΙΛΟΓΕΣ', tab_language:'🌐 Γλώσσα', tab_controls:'🎮 Χειρισμός', tab_about:'ℹ️ Σχετικά',
+    btn_done:'Τέλος', btn_play:'Μονος παίκτης', btn_quit:'Έξοδος', btn_back:'Πίσω',
+    btn_new_world:'Νέος κόσμος', btn_save_quit:'Αποθήκευση και έξοδος', btn_options:'Επιλογές...', btn_controls_lbl:'Χειρισμός',
+    btn_seed:'Σπόρος κόσμου', pause_title:'Μενού παιχνιδιού', click_to_play:'ΚΛΙΚ ΓΙΑ ΠΑΙΧΝΙΔΙ',
+    ctrl_move:'WASD — Κίνηση', ctrl_jump:'ΔΙΑΣΤΗΜΑ — Άλμα', ctrl_sprint:'SHIFT — Τρέξιμο',
+    ctrl_break:'LMB (κρατήστε) — Σπάσιμο', ctrl_place:'RMB — Τοποθέτηση',
+    ctrl_hotbar:'1-6 / Κύλιση — Hotbar', ctrl_pause:'ESC — Παύση', ctrl_debug:'F3 — Debug',
+    about_title:'CUBE CRAFT v0.2', about_author:'Δημιουργός: Patryk Niedzielski',
+    about_engine:'Μηχανή: Three.js r160', about_ai:'ΤΝ: Claude Sonnet 4.6',
+    about_desc:'Voxel παιχνίδι εμπνευσμένο από το Minecraft.'
+  }},
+  th:{ name:'ไทย',            flag:'🇹🇭', strings:{
+    options_title:'ตัวเลือก', tab_language:'🌐 ภาษา', tab_controls:'🎮 การควบคุม', tab_about:'ℹ️ เกี่ยวกับ',
+    btn_done:'เสร็จ', btn_play:'ผู้เล่นเดี่ยว', btn_quit:'ออกจากเกม', btn_back:'กลับ',
+    btn_new_world:'โลกใหม่', btn_save_quit:'บันทึกและออก', btn_options:'ตัวเลือก...', btn_controls_lbl:'การควบคุม',
+    btn_seed:'ซีดโลก', pause_title:'เมนูเกม', click_to_play:'คลิกเพื่อเล่น',
+    ctrl_move:'WASD — เดิน', ctrl_jump:'SPACE — กระโดด', ctrl_sprint:'SHIFT — วิ่ง',
+    ctrl_break:'LMB (ค้าง) — ทำลาย', ctrl_place:'RMB — วาง',
+    ctrl_hotbar:'1-6 / เลื่อน — Hotbar', ctrl_pause:'ESC — หยุด', ctrl_debug:'F3 — Debug',
+    about_title:'CUBE CRAFT v0.2', about_author:'ผู้สร้าง: Patryk Niedzielski',
+    about_engine:'เอนจิน: Three.js r160', about_ai:'AI: Claude Sonnet 4.6',
+    about_desc:'เกม voxel ที่ได้รับแรงบันดาลใจจาก Minecraft'
+  }},
+};
+
+// ── CURRENT LANGUAGE ─────────────────────────────────────
+let currentLang = localStorage.getItem('cubecraft_lang') || 'pl';
+
+function t(key){ return (LANGUAGES[currentLang]?.strings[key]) || (LANGUAGES.en.strings[key]) || key; }
+
+function applyLanguage(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const key = el.getAttribute('data-i18n');
+    el.textContent = t(key);
+  });
+  // Update dynamic buttons
+  const playBtn = document.getElementById('play-btn');
+  if(playBtn) playBtn.textContent = t('btn_play');
+  const resumeBtn = document.getElementById('resume-btn');
+  if(resumeBtn) resumeBtn.textContent = t('btn_back');
+  const pauseTitleEl = document.getElementById('pause-title');
+  if(pauseTitleEl) pauseTitleEl.textContent = t('pause_title');
+  const clickHintP = document.querySelector('#click-hint p');
+  if(clickHintP) clickHintP.textContent = t('click_to_play');
+  // Quit buttons
+  document.querySelectorAll('.btn-quit').forEach(b=>b.textContent=t('btn_save_quit'));
+  document.querySelectorAll('.btn-new-world').forEach(b=>b.textContent=t('btn_new_world'));
+  document.querySelectorAll('.btn-opts').forEach(b=>b.textContent=t('btn_options'));
+  document.querySelectorAll('.btn-ctrls').forEach(b=>b.textContent=t('btn_controls_lbl'));
+  // Update lang grid selection highlight
+  document.querySelectorAll('.lang-btn').forEach(b=>{
+    b.classList.toggle('selected', b.dataset.lang===currentLang);
+  });
+}
+
+function buildLangGrid(){
+  const grid = document.getElementById('lang-grid');
+  if(!grid) return;
+  grid.innerHTML='';
+  Object.entries(LANGUAGES).forEach(([code, lang])=>{
+    const btn = document.createElement('button');
+    btn.className = 'lang-btn' + (code===currentLang?' selected':'');
+    btn.dataset.lang = code;
+    btn.textContent = lang.flag + ' ' + lang.name;
+    btn.onclick = ()=>{
+      currentLang = code;
+      localStorage.setItem('cubecraft_lang', code);
+      applyLanguage();
+      document.querySelectorAll('.lang-btn').forEach(b=>b.classList.toggle('selected',b.dataset.lang===code));
+    };
+    grid.appendChild(btn);
+  });
+}
+
+function switchOptTab(tab){
+  document.querySelectorAll('.opt-panel').forEach(p=>p.style.display='none');
+  document.querySelectorAll('.opt-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('opt-'+tab).style.display='';
+  event.target.classList.add('active');
+}
+
+function openOptions(){
+  buildLangGrid();
+  document.getElementById('options-screen').style.display='flex';
+}
+function closeOptions(){
+  document.getElementById('options-screen').style.display='none';
+}
+window.openOptions  = openOptions;
+window.closeOptions = closeOptions;
+window.switchOptTab = switchOptTab;
+
+// Wire "Opcje..." buttons
+document.querySelectorAll('.open-options').forEach(b=>b.onclick=openOptions);
+
+// Apply language on load
+buildLangGrid();
+applyLanguage();
+
+// ── LOSOWY TAGLINE ────────────────────────────────────────
+{
+  const TAGLINES = [
+    "Nie śpij, kopaj!","Bloki nie kopią się same.","Drzewa czekają na Ciebie.",
+    "Jutro też jest dzień... może.","Życie jest jak piaskownica — kopiesz.",
+    "Jeden blok na raz.","Świat nie zbuduje się sam.","Unikaj klifów w nocy.",
+    "Woda jest twoim przyjacielem.","Drewno = przetrwanie.",
+    "Nie wchodź w wodę w zbroi.","Góry są wyżej niż myślisz.",
+    "Las to nie parking.","Piasek jest żółty, nie brązowy.","Kopanie to medytacja.",
+    "Każdy blok ma historię.","Buduj. Niszcz. Buduj znowu.","Minecraft, ale lepszy.",
+    "Patryk zatwierdził ten świat.","Claude pomógł, Patryk stworzył.",
+    "Drzewa rosną szybciej niż myślisz.","Zrób dom zanim zapadnie zmrok.",
+    "Kamień jest twoim przyjacielem.","Świat się kręci, bloki stoją.",
+    "Kreatywność nie ma granic.","Kopaj głębiej, znajdź więcej.",
+    "Bądź jak drzewo — stój prosto.","Woda nie boli... prawie.",
+    "Każda wyprawa zaczyna się od jednego kroku.","Zrób zapasy na zimę.",
+    "Liście są tylko dekoracją.","Słońce zawsze wschodzi.",
+    "Chmury są kwadratowe z powodu.","Buduj wysoko, patrz daleko.",
+    "Nic nie ginie bezpowrotnie.","Twoje ręce są twoim najlepszym narzędziem.",
+    "Oceany czekają na odkrycie.","Plaża to nie biuro.",
+    "Dobre miejsce na dom: na wzgórzu.","Nie kop tam gdzie stoisz.",
+    "Ziemia to nie piasek.","Piasek to nie ziemia.",
+    "Zrób coś pięknego.","Zniszcz coś brzydkiego.",
+    "Kopanie buduje charakter.","Blok po bloku, zamek gotowy.",
+    "Skaczesz — bo możesz.","Biegaj, nie chodź.",
+    "Las pełen przygód.","Rzeka prowadzi do morza.",
+    "Codziennie nowy świat.","Każde drzewo było kiedyś nasionkiem.",
+    "Grasz, więc jesteś.","Kopanie to sztuka.",
+    "Nie pytaj co świat zrobi dla ciebie.","Zrób sobie zamek.",
+    "Wzgórza mówią: wspinaj się.","Woda mówi: płyń.",
+    "Bloki mówią: buduj.","Ty mówisz: dobrze.",
+    "Gdzie jest drewno, tam jest nadzieja.","Kamień nie rośnie na drzewach.",
+    "Grawitacja istnieje tylko dla piasku.","Liście przelatują wiatr... nie.",
+    "Dobry budowniczy mierzy dwa razy.","Kopie jeden raz.",
+    "Podróż tysiąca bloków zaczyna się od jednego skoku.",
+    "Znajdź wodę, znajdź życie.","Wzgórza są po to żeby je zdobywać.",
+    "Każdy klif to wyzwanie.","Każda plaza to odpoczynek.",
+    "Świat jest duży, czas jest mały.","Kopaj dopóki możesz.",
+    "Drzewa rosną pionowo.","Bloki leżą poziomo.",
+    "Razem możemy zbudować wszystko.","Jeden gracz, nieskończone możliwości.",
+    "Niebo nie jest granicą — bedrock jest.",
+    "Zbuduję piramidę... może jutro.","Dzisiaj kopię, jutro buduję.",
+    "Woda to życie, bloki to dom.","Dom jest tam gdzie twoje bloki.",
+    "Zagubiony w lesie? Idź w górę.","Zagubiony w wodzie? Płyń na brzeg.",
+    "Bloki nie narzekają.","Nie bądź jak bedrock — bądź elastyczny.",
+    "Klif to widok, nie problem.","Plaża to relaks, nie granica.",
+    "Budujesz historię jeden blok na raz.","Każdy wieczór to nowy rozdział.",
+    "Nie żałuj wykopanych bloków.","Nie żałuj zburzonych zamków.",
+    "Zawsze jest miejsce na jeszcze jeden blok.",
+    "Świat czeka, a ty wciąż czytasz tagline.",
+  ];
+  const el = document.getElementById('mc-tagline');
+  if(el) el.textContent = TAGLINES[Math.floor(Math.random()*TAGLINES.length)];
+}
+</script>
+</body>
+</html>
