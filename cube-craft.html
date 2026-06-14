@@ -391,6 +391,9 @@ html,body{width:100%;height:100%;background:#87ceeb;overflow:hidden;font-family:
             <button onclick="changeRdist(1)">▶</button>
           </div>
         </div>
+        <div id="rdist-warn" style="display:none;color:#ff5555;font-size:clamp(0.25rem,0.75vw,0.38rem);text-align:center;padding:8px 8px 0;line-height:1.8">
+          ⚠️ High render distance may cause severe lag or crash!
+        </div>
         <div class="opt-sub-back">
           <button class="mc-btn" style="width:160px" onclick="showOptPanel('main')" data-i18n="btn_back_opts">← Back</button>
         </div>
@@ -467,8 +470,8 @@ import * as THREE from 'three';
 const CHUNK  = 16;
 const HEIGHT = 64;
 const SEA    = 32;
-const RDIST_VALS  = [2,3,4,5,6,8,10,12,16,20,24,32,48,64,96,128];
-const RDIST_NAMES = ['Tiny','Short','Normal','Far','Farther','Extreme','Insane','Ludicrous','Max','Brutal','Absurd','Ridiculous','Nuclear','Cosmic','Godlike','Universe'];
+const RDIST_VALS  = [2,3,4,5,6,8,10,12,16,20,24,32,48,64,96,128,192,256,384,512,768,1028];
+const RDIST_NAMES = ['Tiny','Short','Normal','Far','Farther','Extreme','Insane','Ludicrous','Max','Brutal','Absurd','Ridiculous','Nuclear','Cosmic','Godlike','Universe','Beyond','Mythical','Legendary','Eternal','Infinite','OMEGA'];
 let rdistIdx = Math.max(0, RDIST_VALS.indexOf(parseInt(localStorage.getItem('cubecraft_rdist')||'4')));
 if(rdistIdx<0) rdistIdx=2;
 let rdist = RDIST_VALS[rdistIdx];
@@ -2119,7 +2122,12 @@ function showOptPanel(name){
 
 function updateRdistLabel(){
   const el=document.getElementById('rdist-label');
-  if(el) el.textContent=`${RDIST_NAMES[rdistIdx]} (${rdist})`;
+  const warn=document.getElementById('rdist-warn');
+  if(el){
+    el.textContent=`${RDIST_NAMES[rdistIdx]} (${rdist})`;
+    el.style.color = rdist>128 ? '#ff3333' : rdist>64 ? '#ff8800' : '#ffff55';
+  }
+  if(warn) warn.style.display = rdist>64 ? 'block' : 'none';
 }
 function changeRdist(dir){
   rdistIdx=Math.max(0,Math.min(RDIST_VALS.length-1,rdistIdx+dir));
