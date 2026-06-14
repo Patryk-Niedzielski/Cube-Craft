@@ -330,7 +330,7 @@ html,body{width:100%;height:100%;background:#87ceeb;overflow:hidden;font-family:
   <span class="footer-r">Copyright Copilot &amp; Patryk. Nie kopiować!</span>
 </div>
 
-<div id="click-hint"><p>CLICK TO CAPTURE MOUSE</p></div>
+<div id="click-hint"><p data-i18n="click_to_play">CLICK TO PLAY</p></div>
 
 <div id="pause-screen">
   <div id="pause-title" data-i18n="pause_title">Game Menu</div>
@@ -1334,12 +1334,15 @@ async function generateWorld(){
 
 // ── POINTER LOCK ─────────────────────────────────────────
 function requestLock(){
-  if(gameReady&&!locked) canvas.requestPointerLock();
+  if(!gameReady || locked) return;
+  const req = canvas.requestPointerLock();
+  if(req && typeof req.then === 'function') req.catch(()=>{});
 }
-canvas.addEventListener('click', requestLock);
+canvas.addEventListener('click', ()=>{ if(gameReady&&!locked&&!paused) requestLock(); });
 clickHint.addEventListener('click', requestLock);
 document.getElementById('resume-btn').addEventListener('click', requestLock);
 pauseScreen.addEventListener('click', e=>{ if(e.target===pauseScreen) requestLock(); });
+document.addEventListener('pointerlockerror', ()=>{ console.warn('Pointer lock failed'); });
 
 document.addEventListener('pointerlockchange',()=>{
   locked=document.pointerLockElement===canvas;
@@ -1427,13 +1430,13 @@ window.addEventListener('resize',()=>{
 // ── START BUTTON ─────────────────────────────────────────
 document.getElementById('play-btn').addEventListener('click', async()=>{
   overlayEl.style.display='none';
-  canvas.requestPointerLock();
   await generateWorld();
   gameReady=true;
   gameStarted=true;
   prevT=performance.now();
-  showHUD(true); buildHotbar(); buildHealth();
-  if(!locked) clickHint.style.display='flex';
+  buildHotbar(); buildHealth();
+  // Always show click-to-play — pointer lock must come from a fresh direct user click
+  clickHint.style.display='flex';
 });
 
 // ── MAIN LOOP ────────────────────────────────────────────
