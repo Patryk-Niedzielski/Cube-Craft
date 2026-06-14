@@ -120,25 +120,26 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
   z-index:20;background:rgba(0,0,0,0.55);
 }
 #inv-panel{
-  background:#c6c6c6;padding:14px 16px 12px;
+  background:#c6c6c6;padding:16px 18px 14px;
   border:3px solid;
   border-top-color:#fff;border-left-color:#fff;
   border-bottom-color:#555;border-right-color:#555;
-  min-width:380px;image-rendering:pixelated;
+  image-rendering:pixelated;
   font-family:'Press Start 2P',monospace;
+  max-height:90vh;overflow-y:auto;
 }
-#inv-main-grid{display:flex;flex-wrap:wrap;gap:3px}
+#inv-main-grid{display:grid;grid-template-columns:repeat(9,40px);gap:4px}
 #inv-title{font-size:9px;color:#333;margin-bottom:10px;text-shadow:1px 1px 0 rgba(255,255,255,0.6)}
 .inv-label{font-size:7px;color:#333;margin:8px 0 4px;text-shadow:1px 1px 0 rgba(255,255,255,0.5)}
-#inv-blocks-grid{display:flex;flex-wrap:wrap;gap:3px}
-#inv-hotbar-row{display:flex;gap:3px;flex-wrap:wrap}
+#inv-blocks-grid{display:grid;grid-template-columns:repeat(9,40px);gap:4px}
+#inv-hotbar-row{display:grid;grid-template-columns:repeat(9,40px);gap:4px}
 .inv-slot{
-  width:36px;height:36px;background:#8b8b8b;
+  width:40px;height:40px;background:#8b8b8b;
   border:2px solid;
   border-top-color:#373737;border-left-color:#373737;
   border-bottom-color:#fff;border-right-color:#fff;
   display:flex;align-items:center;justify-content:center;
-  cursor:pointer;position:relative;
+  cursor:pointer;position:relative;box-sizing:border-box;
 }
 .inv-slot:hover{background:#9a9a9a}
 .inv-slot.inv-active{
@@ -146,7 +147,7 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
   border-top-color:#fff;border-left-color:#fff;
   border-bottom-color:#373737;border-right-color:#373737;
 }
-.inv-slot img{width:28px;height:28px;image-rendering:pixelated;display:block}
+.inv-slot img{width:32px;height:32px;image-rendering:pixelated;display:block}
 .inv-slot-tip{
   display:none;position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);
   background:rgba(0,0,0,0.85);color:#fff;font-size:6px;
@@ -1721,14 +1722,17 @@ function buildHotbar(){
   player.hotbar.forEach((id,i)=>{
     const slot=document.createElement('div');
     slot.className='slot'+(i===player.slot?' active':'');
-    const img=document.createElement('img');
-    img.className='slot-icon';
-    img.src=makeBlockIcon(id);
-    slot.append(img);
+    if(id!==AIR){
+      const img=document.createElement('img');
+      img.className='slot-icon';
+      img.src=makeBlockIcon(id);
+      slot.append(img);
+    }
     slot.onclick=()=>{ player.slot=i; buildHotbar(); };
     hotbarEl.append(slot);
   });
-  blockHint.textContent=BLOCK_NAME[player.selectedBlock];
+  const sel=player.selectedBlock;
+  blockHint.textContent=sel!==AIR?BLOCK_NAME[sel]:'';
   updateHandUVs();
 }
 
@@ -1760,7 +1764,7 @@ function showHUD(on){
   hudEl.style.display=on?'flex':'none';
   blockHint.style.display=on?'block':'none';
   dbgEl.style.display=(on&&showDbg)?'block':'none';
-  chatAreaEl.style.display=on?'flex':'none';
+  if(!chatOpen) chatAreaEl.style.display=on?'flex':'none';
   if(!on){ breakBarWrap.style.display='none'; underwaterOverlay.style.display='none'; }
 }
 
@@ -1823,11 +1827,12 @@ function openChat(){
   tryFocus();
 }
 
-function closeChat(relock=true){
+function closeChat(){
   chatOpen=false;
   chatInputWrap.style.display='none';
   chatAreaEl.style.display='none';
-  if(relock) requestLock();
+  for(const k in keys) keys[k]=false;
+  if(gameStarted){ showHUD(true); clickHint.style.display='flex'; }
 }
 
 // ── INVENTORY ─────────────────────────────────────────────
@@ -1914,7 +1919,8 @@ function openInventory(){
 function closeInventory(){
   inventoryOpen=false;
   invScreen.style.display='none';
-  requestLock();
+  for(const k in keys) keys[k]=false;
+  if(gameStarted){ showHUD(true); clickHint.style.display='flex'; }
 }
 
 // ── WORLD GENERATION ─────────────────────────────────────
@@ -1984,8 +1990,8 @@ function requestLock(){
   const req = canvas.requestPointerLock();
   if(req && typeof req.then === 'function') req.catch(()=>{});
 }
-canvas.addEventListener('click', ()=>{ if(gameReady&&!locked&&!paused) requestLock(); });
-clickHint.addEventListener('click', requestLock);
+canvas.addEventListener('click', ()=>{ if(gameReady&&!locked&&!paused&&!chatOpen&&!inventoryOpen) requestLock(); });
+clickHint.addEventListener('click', ()=>{ if(!chatOpen&&!inventoryOpen) requestLock(); });
 document.getElementById('resume-btn').addEventListener('click', requestLock);
 pauseScreen.addEventListener('click', e=>{ if(e.target===pauseScreen) requestLock(); });
 document.addEventListener('pointerlockerror', ()=>{ console.warn('Pointer lock failed'); });
@@ -2002,17 +2008,18 @@ document.addEventListener('pointerlockchange',()=>{
     clickHint.style.display='none';
     if(gameStarted) showHUD(true);
   } else {
-    showHUD(false);
     hlMesh.visible=false;
     mining=false; mineProg=0;
     if(chatOpen){
-      // Keep chat area visible and try to focus input now that lock released
+      // Pointer lock released to open chat — keep game HUD hidden but show chat
+      showHUD(false);
       chatAreaEl.style.display='flex';
       chatInput.focus();
-    }
-    if(gameStarted && !inventoryOpen && !chatOpen){
+    } else if(inventoryOpen){
+      showHUD(false);
+    } else if(gameStarted){
+      showHUD(false);
       paused=true;
-      clickHint.style.display='none';
       pauseScreen.style.display='flex';
     }
   }
@@ -2071,6 +2078,7 @@ document.addEventListener('keydown',e=>{
     else if(paused&&gameStarted) requestLock();
     return;
   }
+  if(e.code==='KeyE' && inventoryOpen){ e.preventDefault(); closeInventory(); return; }
   if(e.code==='KeyE' && locked && gameStarted){ e.preventDefault(); openInventory(); return; }
   if(e.code==='KeyT' && locked && gameStarted){ e.preventDefault(); openChat(); document.exitPointerLock(); return; }
   if(e.code==='F3'){ showDbg=!showDbg; dbgEl.style.display=(locked&&showDbg)?'block':'none'; }
