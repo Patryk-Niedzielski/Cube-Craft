@@ -1259,6 +1259,53 @@ const foliageMat = new THREE.MeshBasicMaterial({
   side: THREE.DoubleSide
 });
 
+// ── BLOCK BREAK SOUNDS (Web Audio synthesis) ──────────────
+let _actx = null;
+function getActx(){
+  if(!_actx) _actx = new (window.AudioContext||window.webkitAudioContext)();
+  if(_actx.state==='suspended') _actx.resume();
+  return _actx;
+}
+
+// Each entry: array of noise layers [{filterType, freq, Q, vol, dur}]
+const BREAK_SND = {
+  [GRASS]:   [{f:'lowpass', hz:340, q:0.7, v:0.45, d:0.14}],
+  [DIRT]:    [{f:'lowpass', hz:240, q:0.5, v:0.40, d:0.12}],
+  [STONE]:   [{f:'bandpass',hz:1700,q:3.5, v:0.55, d:0.08},
+              {f:'lowpass', hz:200, q:0.5, v:0.28, d:0.06}],
+  [WOOD]:    [{f:'bandpass',hz:760, q:2.2, v:0.48, d:0.13},
+              {f:'lowpass', hz:140, q:0.5, v:0.22, d:0.09}],
+  [LEAVES]:  [{f:'bandpass',hz:680, q:1.0, v:0.28, d:0.10}],
+  [SAND]:    [{f:'lowpass', hz:170, q:0.4, v:0.28, d:0.22}],
+  [BEDROCK]: [{f:'bandpass',hz:1700,q:3.5, v:0.55, d:0.08},
+              {f:'lowpass', hz:200, q:0.5, v:0.28, d:0.06}],
+  [FOLIAGE]: [{f:'bandpass',hz:500, q:0.9, v:0.32, d:0.11}],
+};
+
+function playBreakSound(blockId){
+  const layers = BREAK_SND[blockId];
+  if(!layers) return;
+  const ctx = getActx();
+  const now = ctx.currentTime;
+  for(const {f, hz, q, v, d} of layers){
+    const len = Math.ceil(ctx.sampleRate * d);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const ch  = buf.getChannelData(0);
+    for(let i=0;i<len;i++) ch[i]=Math.random()*2-1;
+    const src  = ctx.createBufferSource();
+    src.buffer = buf;
+    const filt = ctx.createBiquadFilter();
+    filt.type           = f;
+    filt.frequency.value= hz;
+    filt.Q.value        = q;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(v, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now+d);
+    src.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
+    src.start(now); src.stop(now+d+0.01);
+  }
+}
+
 // ── GAME STATE ────────────────────────────────────────────
 const world=new World(scene);
 const player=new Player(camera,world);
@@ -1604,6 +1651,7 @@ function loop(t){
         breakBar.style.width=(pct*100)+'%';
         breakBarWrap.style.display='block';
         if(pct>=1){
+          playBreakSound(id);
           world.setBlock(aim.bx,aim.by,aim.bz,AIR);
           mineProg=0; mineTarget=null;
           breakBarWrap.style.display='none';
