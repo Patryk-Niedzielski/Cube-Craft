@@ -276,7 +276,7 @@ html,body{width:100%;height:100%;background:#87ceeb;overflow:hidden;font-family:
 <div id="loading">
   <h2>CUBE CRAFT</h2>
   <div class="prog-wrap"><div id="prog"></div></div>
-  <p id="loading-txt">GENERATING WORLD...</p>
+  <p id="loading-txt" data-i18n="loading_txt">GENERATING WORLD...</p>
 </div>
 
 <canvas id="c"></canvas>
@@ -296,12 +296,12 @@ html,body{width:100%;height:100%;background:#87ceeb;overflow:hidden;font-family:
     <span class="logo-sub">By Patryk Niedzielski [with the help of claude] <span id="mc-tagline"></span></span>
   </div>
   <div id="main-menu">
-    <button class="mc-btn" id="play-btn">Jednoosobowa</button>
+    <button class="mc-btn" id="play-btn" data-i18n="btn_play">Singleplayer</button>
     <div class="mc-btn-row">
-      <button class="mc-btn open-options" onclick='openOptions()'>Opcje...</button>
-      <button class="mc-btn" onclick="alert('Sterowanie:\nWASD — ruch\nSpace — skok\nShift — sprint\nLMB — kopanie\nRMB — stawianie\n1-6 / scroll — hotbar\nF3 — debug')">Sterowanie</button>
+      <button class="mc-btn open-options" data-i18n="btn_options">Options...</button>
+      <button class="mc-btn" onclick="openControlsTab()" data-i18n="btn_controls_lbl">Controls</button>
     </div>
-    <button class="mc-btn" style="margin-top:4px;background:#5a3a3a;border-top-color:#8a5a5a;border-left-color:#8a5a5a;border-right-color:#2a1a1a;border-bottom-color:#2a1a1a" onclick="location.reload()">Zakończ grę</button>
+    <button class="mc-btn" style="margin-top:4px;background:#5a3a3a;border-top-color:#8a5a5a;border-left-color:#8a5a5a;border-right-color:#2a1a1a;border-bottom-color:#2a1a1a" onclick="location.reload()" data-i18n="btn_quit">Quit Game</button>
   </div>
 </div>
 <div id="overlay-footer">
@@ -312,18 +312,18 @@ html,body{width:100%;height:100%;background:#87ceeb;overflow:hidden;font-family:
 <div id="click-hint"><p>CLICK TO CAPTURE MOUSE</p></div>
 
 <div id="pause-screen">
-  <div id="pause-title">Menu Gry</div>
+  <div id="pause-title" data-i18n="pause_title">Game Menu</div>
   <div id="pause-menu">
-    <button class="mc-btn" id="resume-btn">Wróć do Gry</button>
+    <button class="mc-btn" id="resume-btn" data-i18n="btn_back">Back to Game</button>
     <div class="mc-btn-row">
-      <button class="mc-btn open-options" id="btn-options" onclick='openOptions()'>Opcje...</button>
-      <button class="mc-btn" id="btn-controls" onclick="alert('Sterowanie:\nWASD — ruch\nSpace — skok\nShift — sprint\nLMB — kopanie\nRMB — stawianie\n1-6 / scroll — hotbar\nF3 — debug')">Sterowanie</button>
+      <button class="mc-btn open-options" id="btn-options" data-i18n="btn_options">Options...</button>
+      <button class="mc-btn" id="btn-controls" onclick="openControlsTab()" data-i18n="btn_controls_lbl">Controls</button>
     </div>
     <div class="mc-btn-row">
-      <button class="mc-btn" id="btn-seed" onclick="alert('Seed świata: ' + (typeof worldSeed !== \'undefined\' ? worldSeed : \'losowy\'))">Seed Świata</button>
-      <button class="mc-btn" onclick="location.reload()">Nowy Świat</button>
+      <button class="mc-btn" id="btn-seed" onclick="showSeed()" data-i18n="btn_seed">World Seed</button>
+      <button class="mc-btn" onclick="location.reload()" data-i18n="btn_new_world">New World</button>
     </div>
-    <button class="mc-btn" style="margin-top:4px;background:#5a3a3a;border-top-color:#8a5a5a;border-left-color:#8a5a5a;border-right-color:#2a1a1a;border-bottom-color:#2a1a1a" onclick="location.reload()">Zapisz i Wyjdź do Menu</button>
+    <button class="mc-btn" style="margin-top:4px;background:#5a3a3a;border-top-color:#8a5a5a;border-left-color:#8a5a5a;border-right-color:#2a1a1a;border-bottom-color:#2a1a1a" onclick="location.reload()" data-i18n="btn_save_quit">Save and Quit</button>
   </div>
 </div>
 
@@ -1407,7 +1407,7 @@ function loop(t){
       `XYZ: ${p.x.toFixed(2)} / ${p.y.toFixed(2)} / ${p.z.toFixed(2)}\n`+
       `Chunk: ${cx},${cz}   Ground: ${player.onGround}   FPS: ${fps}\n`+
       `Cel: ${aimed}\n`+
-      `Blok w ręce: [${player.slot+1}] ${BLOCK_NAME[player.selectedBlock]}`;
+      `${t('dbg_hand')} [${player.slot+1}] ${BLOCK_NAME[player.selectedBlock]}`;
   }
 
   renderer.render(scene,camera);
@@ -1424,26 +1424,78 @@ const LANGUAGES = {
     options_title:'OPCJE', tab_language:'🌐 Język', tab_controls:'🎮 Sterowanie', tab_about:'ℹ️ O grze',
     btn_done:'Gotowe', btn_play:'Jednoosobowa', btn_quit:'Zakończ grę', btn_back:'Wróć do Gry',
     btn_new_world:'Nowy Świat', btn_save_quit:'Zapisz i Wyjdź', btn_options:'Opcje...', btn_controls_lbl:'Sterowanie',
-    btn_seed:'Seed Świata', pause_title:'Menu Gry', click_to_play:'KLIKNIJ ABY GRAĆ',
+    btn_seed:'Seed Świata', pause_title:'Menu Gry', click_to_play:'KLIKNIJ ABY PRZECHWYCIĆ MYSZ',
+    loading_txt:'GENEROWANIE ŚWIATA...', dbg_hand:'Blok w ręce:',
     ctrl_move:'WASD — Ruch', ctrl_jump:'SPACE — Skok', ctrl_sprint:'SHIFT — Sprint',
     ctrl_break:'LMB (trzymaj) — Kopanie', ctrl_place:'RMB — Stawianie bloku',
     ctrl_hotbar:'1-6 / Scroll — Hotbar', ctrl_pause:'ESC — Pauza', ctrl_debug:'F3 — Debug info',
     about_title:'CUBE CRAFT v0.2', about_author:'Autor: Patryk Niedzielski',
     about_engine:'Silnik: Three.js r160', about_ai:'AI: Claude Sonnet 4.6',
     about_desc:'Gra voxelowa inspirowana Minecraftem. Proceduralny teren, woda, lasy, plaże.'
-  }},
+  }, taglines:[
+    "Nie śpij, kopaj!","Bloki nie kopią się same.","Drzewa czekają na Ciebie.",
+    "Jutro też jest dzień... może.","Życie jest jak piaskownica — kopiesz.",
+    "Jeden blok na raz.","Świat nie zbuduje się sam.","Unikaj klifów w nocy.",
+    "Woda jest twoim przyjacielem.","Drewno = przetrwanie.",
+    "Góry są wyżej niż myślisz.","Kopanie to medytacja.",
+    "Każdy blok ma historię.","Buduj. Niszcz. Buduj znowu.","Minecraft, ale lepszy.",
+    "Patryk zatwierdził ten świat.","Claude pomógł, Patryk stworzył.",
+    "Zrób dom zanim zapadnie zmrok.","Kamień jest twoim przyjacielem.",
+    "Kreatywność nie ma granic.","Kopaj głębiej, znajdź więcej.",
+    "Liście są tylko dekoracją.","Słońce zawsze wschodzi.",
+    "Buduj wysoko, patrz daleko.","Nic nie ginie bezpowrotnie.",
+    "Oceany czekają na odkrycie.","Plaża to nie biuro.",
+    "Nie kop tam gdzie stoisz.","Zrób coś pięknego.","Zniszcz coś brzydkiego.",
+    "Kopanie buduje charakter.","Blok po bloku, zamek gotowy.",
+    "Skaczesz — bo możesz.","Biegaj, nie chodź.",
+    "Las pełen przygód.","Rzeka prowadzi do morza.",
+    "Grasz, więc jesteś.","Kopanie to sztuka.",
+    "Niebo nie jest granicą — bedrock jest.",
+    "Woda to życie, bloki to dom.","Dom jest tam gdzie twoje bloki.",
+    "Zagubiony w lesie? Idź w górę.","Zagubiony w wodzie? Płyń na brzeg.",
+    "Bloki nie narzekają.","Klif to widok, nie problem.",
+    "Budujesz historię jeden blok na raz.","Każdy wieczór to nowy rozdział.",
+    "Zawsze jest miejsce na jeszcze jeden blok.",
+    "Świat czeka, a ty wciąż czytasz tagline.",
+  ]},
   en:{ name:'English',        flag:'🇬🇧', strings:{
     options_title:'OPTIONS', tab_language:'🌐 Language', tab_controls:'🎮 Controls', tab_about:'ℹ️ About',
     btn_done:'Done', btn_play:'Singleplayer', btn_quit:'Quit Game', btn_back:'Back to Game',
     btn_new_world:'New World', btn_save_quit:'Save and Quit', btn_options:'Options...', btn_controls_lbl:'Controls',
-    btn_seed:'World Seed', pause_title:'Game Menu', click_to_play:'CLICK TO PLAY',
+    btn_seed:'World Seed', pause_title:'Game Menu', click_to_play:'CLICK TO CAPTURE MOUSE',
+    loading_txt:'GENERATING WORLD...', dbg_hand:'Block in hand:',
     ctrl_move:'WASD — Move', ctrl_jump:'SPACE — Jump', ctrl_sprint:'SHIFT — Sprint',
     ctrl_break:'LMB (hold) — Break block', ctrl_place:'RMB — Place block',
     ctrl_hotbar:'1-6 / Scroll — Hotbar', ctrl_pause:'ESC — Pause', ctrl_debug:'F3 — Debug info',
     about_title:'CUBE CRAFT v0.2', about_author:'Author: Patryk Niedzielski',
     about_engine:'Engine: Three.js r160', about_ai:'AI: Claude Sonnet 4.6',
     about_desc:'Voxel game inspired by Minecraft. Procedural terrain, water, forests, beaches.'
-  }},
+  }, taglines:[
+    "Don't sleep, dig!","Blocks don't mine themselves.","Trees are waiting for you.",
+    "Tomorrow is another day... maybe.","Life is like a sandbox — you dig.",
+    "One block at a time.","The world won't build itself.","Avoid cliffs at night.",
+    "Water is your friend.","Wood = survival.",
+    "Mountains are higher than you think.","Mining is meditation.",
+    "Every block has a story.","Build. Destroy. Build again.","Minecraft, but better.",
+    "Patryk approved this world.","Claude helped, Patryk created.",
+    "Build a home before dark.","Stone is your friend.",
+    "Creativity has no limits.","Dig deeper, find more.",
+    "Leaves are just decoration.","The sun always rises.",
+    "Build high, see far.","Nothing is lost forever.",
+    "Oceans await discovery.","The beach is not an office.",
+    "Don't dig where you stand.","Make something beautiful.","Destroy something ugly.",
+    "Mining builds character.","Block by block, castle complete.",
+    "Jump — because you can.","Run, don't walk.",
+    "Forest full of adventures.","A river leads to the sea.",
+    "I play, therefore I am.","Mining is an art.",
+    "The sky is not the limit — bedrock is.",
+    "Water is life, blocks are home.","Home is where your blocks are.",
+    "Lost in the forest? Go up.","Lost in water? Swim to shore.",
+    "Blocks don't complain.","A cliff is a view, not a problem.",
+    "Building history one block at a time.","Every evening is a new chapter.",
+    "There's always room for one more block.",
+    "The world is waiting, and you're still reading the tagline.",
+  ]},
   de:{ name:'Deutsch',        flag:'🇩🇪', strings:{
     options_title:'OPTIONEN', tab_language:'🌐 Sprache', tab_controls:'🎮 Steuerung', tab_about:'ℹ️ Über',
     btn_done:'Fertig', btn_play:'Einzelspieler', btn_quit:'Spiel beenden', btn_back:'Zurück',
@@ -1711,29 +1763,20 @@ const LANGUAGES = {
 };
 
 // ── CURRENT LANGUAGE ─────────────────────────────────────
-let currentLang = localStorage.getItem('cubecraft_lang') || 'pl';
+let currentLang = localStorage.getItem('cubecraft_lang') || 'en';
 
 function t(key){ return (LANGUAGES[currentLang]?.strings[key]) || (LANGUAGES.en.strings[key]) || key; }
 
 function applyLanguage(){
   document.querySelectorAll('[data-i18n]').forEach(el=>{
-    const key = el.getAttribute('data-i18n');
-    el.textContent = t(key);
+    el.textContent = t(el.getAttribute('data-i18n'));
   });
-  // Update dynamic buttons
-  const playBtn = document.getElementById('play-btn');
-  if(playBtn) playBtn.textContent = t('btn_play');
-  const resumeBtn = document.getElementById('resume-btn');
-  if(resumeBtn) resumeBtn.textContent = t('btn_back');
-  const pauseTitleEl = document.getElementById('pause-title');
-  if(pauseTitleEl) pauseTitleEl.textContent = t('pause_title');
-  const clickHintP = document.querySelector('#click-hint p');
-  if(clickHintP) clickHintP.textContent = t('click_to_play');
-  // Quit buttons
-  document.querySelectorAll('.btn-quit').forEach(b=>b.textContent=t('btn_save_quit'));
-  document.querySelectorAll('.btn-new-world').forEach(b=>b.textContent=t('btn_new_world'));
-  document.querySelectorAll('.btn-opts').forEach(b=>b.textContent=t('btn_options'));
-  document.querySelectorAll('.btn-ctrls').forEach(b=>b.textContent=t('btn_controls_lbl'));
+  // Update tagline
+  const taglineEl = document.getElementById('mc-tagline');
+  if(taglineEl){
+    const tls = LANGUAGES[currentLang]?.taglines || LANGUAGES.en.taglines || [];
+    if(tls.length) taglineEl.textContent = tls[(Math.random()*tls.length)|0];
+  }
   // Update lang grid selection highlight
   document.querySelectorAll('.lang-btn').forEach(b=>{
     b.classList.toggle('selected', b.dataset.lang===currentLang);
@@ -1773,9 +1816,21 @@ function openOptions(){
 function closeOptions(){
   document.getElementById('options-screen').style.display='none';
 }
-window.openOptions  = openOptions;
-window.closeOptions = closeOptions;
-window.switchOptTab = switchOptTab;
+function openControlsTab(){
+  openOptions();
+  document.querySelectorAll('.opt-panel').forEach(p=>p.style.display='none');
+  document.querySelectorAll('.opt-tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('opt-controls').style.display='';
+  document.querySelectorAll('.opt-tab')[1].classList.add('active');
+}
+function showSeed(){
+  alert(t('btn_seed') + ': ' + worldSeed);
+}
+window.openOptions      = openOptions;
+window.closeOptions     = closeOptions;
+window.switchOptTab     = switchOptTab;
+window.openControlsTab  = openControlsTab;
+window.showSeed         = showSeed;
 
 // Wire "Opcje..." buttons
 document.querySelectorAll('.open-options').forEach(b=>b.onclick=openOptions);
@@ -1784,60 +1839,6 @@ document.querySelectorAll('.open-options').forEach(b=>b.onclick=openOptions);
 buildLangGrid();
 applyLanguage();
 
-// ── LOSOWY TAGLINE ────────────────────────────────────────
-{
-  const TAGLINES = [
-    "Nie śpij, kopaj!","Bloki nie kopią się same.","Drzewa czekają na Ciebie.",
-    "Jutro też jest dzień... może.","Życie jest jak piaskownica — kopiesz.",
-    "Jeden blok na raz.","Świat nie zbuduje się sam.","Unikaj klifów w nocy.",
-    "Woda jest twoim przyjacielem.","Drewno = przetrwanie.",
-    "Nie wchodź w wodę w zbroi.","Góry są wyżej niż myślisz.",
-    "Las to nie parking.","Piasek jest żółty, nie brązowy.","Kopanie to medytacja.",
-    "Każdy blok ma historię.","Buduj. Niszcz. Buduj znowu.","Minecraft, ale lepszy.",
-    "Patryk zatwierdził ten świat.","Claude pomógł, Patryk stworzył.",
-    "Drzewa rosną szybciej niż myślisz.","Zrób dom zanim zapadnie zmrok.",
-    "Kamień jest twoim przyjacielem.","Świat się kręci, bloki stoją.",
-    "Kreatywność nie ma granic.","Kopaj głębiej, znajdź więcej.",
-    "Bądź jak drzewo — stój prosto.","Woda nie boli... prawie.",
-    "Każda wyprawa zaczyna się od jednego kroku.","Zrób zapasy na zimę.",
-    "Liście są tylko dekoracją.","Słońce zawsze wschodzi.",
-    "Chmury są kwadratowe z powodu.","Buduj wysoko, patrz daleko.",
-    "Nic nie ginie bezpowrotnie.","Twoje ręce są twoim najlepszym narzędziem.",
-    "Oceany czekają na odkrycie.","Plaża to nie biuro.",
-    "Dobre miejsce na dom: na wzgórzu.","Nie kop tam gdzie stoisz.",
-    "Ziemia to nie piasek.","Piasek to nie ziemia.",
-    "Zrób coś pięknego.","Zniszcz coś brzydkiego.",
-    "Kopanie buduje charakter.","Blok po bloku, zamek gotowy.",
-    "Skaczesz — bo możesz.","Biegaj, nie chodź.",
-    "Las pełen przygód.","Rzeka prowadzi do morza.",
-    "Codziennie nowy świat.","Każde drzewo było kiedyś nasionkiem.",
-    "Grasz, więc jesteś.","Kopanie to sztuka.",
-    "Nie pytaj co świat zrobi dla ciebie.","Zrób sobie zamek.",
-    "Wzgórza mówią: wspinaj się.","Woda mówi: płyń.",
-    "Bloki mówią: buduj.","Ty mówisz: dobrze.",
-    "Gdzie jest drewno, tam jest nadzieja.","Kamień nie rośnie na drzewach.",
-    "Grawitacja istnieje tylko dla piasku.","Liście przelatują wiatr... nie.",
-    "Dobry budowniczy mierzy dwa razy.","Kopie jeden raz.",
-    "Podróż tysiąca bloków zaczyna się od jednego skoku.",
-    "Znajdź wodę, znajdź życie.","Wzgórza są po to żeby je zdobywać.",
-    "Każdy klif to wyzwanie.","Każda plaza to odpoczynek.",
-    "Świat jest duży, czas jest mały.","Kopaj dopóki możesz.",
-    "Drzewa rosną pionowo.","Bloki leżą poziomo.",
-    "Razem możemy zbudować wszystko.","Jeden gracz, nieskończone możliwości.",
-    "Niebo nie jest granicą — bedrock jest.",
-    "Zbuduję piramidę... może jutro.","Dzisiaj kopię, jutro buduję.",
-    "Woda to życie, bloki to dom.","Dom jest tam gdzie twoje bloki.",
-    "Zagubiony w lesie? Idź w górę.","Zagubiony w wodzie? Płyń na brzeg.",
-    "Bloki nie narzekają.","Nie bądź jak bedrock — bądź elastyczny.",
-    "Klif to widok, nie problem.","Plaża to relaks, nie granica.",
-    "Budujesz historię jeden blok na raz.","Każdy wieczór to nowy rozdział.",
-    "Nie żałuj wykopanych bloków.","Nie żałuj zburzonych zamków.",
-    "Zawsze jest miejsce na jeszcze jeden blok.",
-    "Świat czeka, a ty wciąż czytasz tagline.",
-  ];
-  const el = document.getElementById('mc-tagline');
-  if(el) el.textContent = TAGLINES[Math.floor(Math.random()*TAGLINES.length)];
-}
 </script>
 </body>
 </html>
