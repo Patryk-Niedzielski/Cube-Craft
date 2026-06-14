@@ -149,7 +149,7 @@ html,body{width:100%;height:100%;background:#87ceeb;overflow:hidden;font-family:
 /* Click to lock */
 #click-hint{
   position:fixed;inset:0;display:none;align-items:center;justify-content:center;
-  background:rgba(0,0,0,0.45);z-index:10;cursor:pointer;
+  background:rgba(0,0,0,0.45);z-index:16;cursor:pointer;
 }
 #click-hint p{
   color:#fff;font-size:1.1rem;letter-spacing:0.18em;
@@ -1250,6 +1250,7 @@ function requestLock(){
 canvas.addEventListener('click', requestLock);
 clickHint.addEventListener('click', requestLock);
 document.getElementById('resume-btn').addEventListener('click', requestLock);
+pauseScreen.addEventListener('click', e=>{ if(e.target===pauseScreen) requestLock(); });
 
 document.addEventListener('pointerlockchange',()=>{
   locked=document.pointerLockElement===canvas;
@@ -1264,6 +1265,7 @@ document.addEventListener('pointerlockchange',()=>{
     mining=false; mineProg=0;
     if(gameStarted){
       paused=true;
+      clickHint.style.display='none';
       pauseScreen.style.display='flex';
     }
   }
