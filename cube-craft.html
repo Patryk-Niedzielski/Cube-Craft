@@ -1919,6 +1919,11 @@ const player=new Player(camera,world);
 // ── MOBS ──────────────────────────────────────────────────
 const MOB_GRAV = -22;
 const mobs = [];
+const MOB_MAX   = { pig:6, cow:4, wolf:4, cat:4, chicken:6, fish:6 };
+const MOB_SPAWN_RMIN = 14, MOB_SPAWN_RMAX = 48;
+const MOB_DESPAWN_R2 = 64 * 64;
+const MOB_SPAWN_IV   = 5.0;   // seconds between spawn batches
+let   _mobSpawnT     = MOB_SPAWN_IV; // fire on first update
 
 const MOB_CFG = {
   pig:     { h: 1.10, w: 0.50, spd: 1.4 },
@@ -2457,13 +2462,14 @@ class Mob {
     let vx = this.idle ? 0 : -Math.sin(this.yaw) * spd;
     let vz = this.idle ? 0 : -Math.cos(this.yaw) * spd;
 
-    // Wall avoidance
+    // Wall and water avoidance
     if (!this.idle && this.onGround) {
       const reach = this.cfg.w + 0.15;
-      const nx = Math.floor(this.pos.x - Math.sin(this.yaw) * reach);
-      const nz = Math.floor(this.pos.z - Math.cos(this.yaw) * reach);
-      const fy = Math.floor(this.pos.y + 0.3);
-      if (this._solid(nx, fy, nz) || this._solid(nx, fy + 1, nz)) {
+      const fnx = Math.floor(this.pos.x - Math.sin(this.yaw) * reach);
+      const fnz = Math.floor(this.pos.z - Math.cos(this.yaw) * reach);
+      const fy  = Math.floor(this.pos.y + 0.3);
+      const fwdId = world.getBlock(fnx, fy, fnz);
+      if (this._solid(fnx, fy, fnz) || this._solid(fnx, fy + 1, fnz) || fwdId === WATER) {
         this.yaw += Math.PI * (0.75 + Math.random() * 0.5);
         vx = 0; vz = 0;
         this.wanderTimer = 1 + Math.random() * 1.5;
@@ -2487,6 +2493,13 @@ class Mob {
       this.vel.y    = 0;
       this.onGround = true;
     } else {
+      this.onGround = false;
+    }
+
+    // Water escape: if a land mob ended up submerged, swim up and flee
+    if (world.getBlock(bx, Math.floor(this.pos.y + 0.1), bz) === WATER) {
+      if (this.vel.y < 3) this.vel.y = 5;
+      this.yaw  += Math.PI + (Math.random() - 0.5) * 0.8;
       this.onGround = false;
     }
 
@@ -2544,53 +2557,53 @@ class Mob {
 function clearMobs() {
   for (const m of mobs) m.remove();
   mobs.length = 0;
-}
-
-function spawnMobs() {
-  clearMobs();
-  const landTypes = [
-    { type: 'pig',     count: 4 },
-    { type: 'cow',     count: 3 },
-    { type: 'wolf',    count: 3 },
-    { type: 'cat',     count: 3 },
-    { type: 'chicken', count: 4 },
-  ];
-  for (const { type, count } of landTypes) {
-    let spawned = 0;
-    outer: for (let r = 8; r < 90; r += 4) {
-      for (let a = 0; a < 14; a++) {
-        if (spawned >= count) break outer;
-        const angle = (a / 14) * Math.PI * 2 + r * 0.37;
-        const tx = Math.round(r * Math.cos(angle));
-        const tz = Math.round(r * Math.sin(angle));
-        const sy = world.surfaceY(tx, tz);
-        if (world.getBlock(tx, sy, tz) === GRASS && sy > SEA + 1) {
-          mobs.push(new Mob(type, tx + 0.5, sy + 1, tz + 0.5));
-          spawned++;
-        }
-      }
-    }
-  }
-  let fishCount = 0;
-  outer2: for (let r = 4; r < 80; r += 4) {
-    for (let a = 0; a < 12; a++) {
-      if (fishCount >= 5) break outer2;
-      const angle = (a / 12) * Math.PI * 2 + r * 0.5;
-      const tx = Math.round(r * Math.cos(angle));
-      const tz = Math.round(r * Math.sin(angle));
-      for (let y = HEIGHT - 1; y > 2; y--) {
-        if (world.getBlock(tx, y, tz) === WATER && world.getBlock(tx, y - 1, tz) === WATER) {
-          mobs.push(new Mob('fish', tx + 0.5, y - 0.5, tz + 0.5));
-          fishCount++;
-          break;
-        }
-      }
-    }
-  }
+  _mobSpawnT = MOB_SPAWN_IV; // spawn immediately on next update
 }
 
 function updateMobs(dt) {
   for (const m of mobs) m.update(dt);
+  if (!gameStarted) return;
+
+  // Despawn mobs that have wandered too far from the player
+  for (let i = mobs.length - 1; i >= 0; i--) {
+    const m = mobs[i];
+    const dx = m.pos.x - player.pos.x, dz = m.pos.z - player.pos.z;
+    if (dx*dx + dz*dz > MOB_DESPAWN_R2) { m.remove(); mobs.splice(i, 1); }
+  }
+
+  // Periodic spawning
+  _mobSpawnT += dt;
+  if (_mobSpawnT < MOB_SPAWN_IV) return;
+  _mobSpawnT = 0;
+
+  const allTypes = ['pig','cow','wolf','cat','chicken','fish'];
+  // Try up to 3 spawns per interval so the world populates quickly at first
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const counts = {};
+    for (const m of mobs) counts[m.type] = (counts[m.type] || 0) + 1;
+    const eligible = allTypes.filter(t => (counts[t] || 0) < MOB_MAX[t]);
+    if (!eligible.length) break;
+
+    const type   = eligible[Math.floor(Math.random() * eligible.length)];
+    const angle  = Math.random() * Math.PI * 2;
+    const radius = MOB_SPAWN_RMIN + Math.random() * (MOB_SPAWN_RMAX - MOB_SPAWN_RMIN);
+    const tx = Math.round(player.pos.x + Math.cos(angle) * radius);
+    const tz = Math.round(player.pos.z + Math.sin(angle) * radius);
+
+    if (type === 'fish') {
+      for (let y = HEIGHT - 1; y > 2; y--) {
+        if (world.getBlock(tx, y, tz) === WATER && world.getBlock(tx, y-1, tz) === WATER) {
+          mobs.push(new Mob('fish', tx + 0.5, y - 0.5, tz + 0.5));
+          break;
+        }
+      }
+    } else {
+      const sy = world.surfaceY(tx, tz);
+      if (world.getBlock(tx, sy, tz) === GRASS && sy > SEA) {
+        mobs.push(new Mob(type, tx + 0.5, sy + 1, tz + 0.5));
+      }
+    }
+  }
 }
 
 const keys={};
@@ -3176,7 +3189,6 @@ async function generateWorld(){
   camera.position.set(player.pos.x, player.pos.y+PLR_H-0.08, player.pos.z);
   camera.rotation.order='YXZ';
   camera.rotation.set(-0.35, 0.5, 0); // pitch w dół, lekki obrót boczny
-  spawnMobs();
   loadingEl.style.display='none';
 }
 
