@@ -909,9 +909,9 @@ class Chunk{
       const hill  = fbm(wx, wz);
       const det   = noise2(wx*0.10,  wz*0.10)*0.06;
       const mt    = Math.max(0, cont)*Math.max(0, hill)*3.2;
-      const rv    = noise2(wx*0.007+500.3, wz*0.007+300.7);
-      const rvBreak = noise2(wx*0.04+200.5, wz*0.04+400.1); // breaks river continuity into isolated ponds
-      const riverCarve = Math.abs(rv)<0.007 && rvBreak>0.25 && cont>0.06 && cont<0.22;
+      // Lake placement: noise peaks (>0.64) form isolated blobs ~10-15 blocks wide, well separated
+      const lakeN = noise2(wx*0.022+500.3, wz*0.022+300.7);
+      const riverCarve = lakeN>0.64 && cont>0.08 && cont<0.20;
 
       let h;
       if(cont < -0.30){
@@ -926,7 +926,7 @@ class Chunk{
       } else {
         // ─── LAND — grass, hills, mountains
         h = Math.max(SEA+4, SEA + 4 + Math.floor(hill*7 + mt*12 + (cont+0.18)*6 + det*4));
-        if(riverCarve) h = Math.max(h - 8, SEA - 4);
+        if(riverCarve) h = Math.max(h - 5, SEA - 2);
       }
       hmap[x*CHUNK+z] = Math.max(1, Math.min(HEIGHT-3, h));
     }
