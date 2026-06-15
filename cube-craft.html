@@ -1999,13 +1999,13 @@ function processCommand(raw){
   }
   const parts=txt.slice(1).split(/\s+/);
   const cmd=parts[0].toLowerCase();
+  if(!cheatsEnabled){ addChatMsg('Cheats are not enabled in this world.','err'); return; }
   if(cmd==='gamemode'){
     const m=(parts[1]||'').toLowerCase();
     if(m==='creative') setGamemode('creative');
     else if(m==='survival') setGamemode('survival');
     else addChatMsg('Usage: /gamemode creative|survival','err');
   } else if(cmd==='give'){
-    if(!cheatsEnabled){ addChatMsg('Cheats are not enabled in this world.','err'); return; }
     openGiveMenu();
   } else {
     addChatMsg('Unknown command: '+txt,'err');
