@@ -909,9 +909,11 @@ class Chunk{
       const hill  = fbm(wx, wz);
       const det   = noise2(wx*0.10,  wz*0.10)*0.06;
       const mt    = Math.max(0, cont)*Math.max(0, hill)*3.2;
-      // Lake placement: noise peaks (>0.64) form isolated blobs ~10-15 blocks wide, well separated
+      // Lake placement: high noise peaks form small isolated ponds, now rarer & tighter window
       const lakeN = noise2(wx*0.022+500.3, wz*0.022+300.7);
-      const riverCarve = lakeN>0.64 && cont>0.08 && cont<0.20;
+      const riverCarve = lakeN>0.68 && cont>0.10 && cont<0.18;
+      // Occasional sea: low-freq noise → a few large broad basins across the world
+      const seaN = noise2(wx*0.005+911.7, wz*0.005+733.1);
 
       let h;
       if(cont < -0.30){
@@ -928,6 +930,14 @@ class Chunk{
         h = Math.max(SEA+4, SEA + 4 + Math.floor(hill*7 + mt*12 + (cont+0.18)*6 + det*4));
         if(riverCarve) h = Math.max(h - 5, SEA - 2);
       }
+
+      // ─── OCCASIONAL SEA — broad shallow basin well below sea level at its center
+      if(seaN > 0.42){
+        const depth = Math.floor((seaN - 0.42) * 55);   // gentle slope from shore → deep center
+        h = Math.min(h, SEA - 2 - depth);
+        h = Math.max(h, SEA - 11);
+      }
+
       hmap[x*CHUNK+z] = Math.max(1, Math.min(HEIGHT-3, h));
     }
 
