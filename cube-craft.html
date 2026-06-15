@@ -2232,7 +2232,7 @@ function loop(t){
 
   // Hand animation
   {
-    handGroup.visible = true;
+    handGroup.visible = player.selectedBlock !== AIR;
     const spd = Math.sqrt(player.vel.x*player.vel.x + player.vel.z*player.vel.z);
     if(spd > 0.5 && player.onGround) handBobPhase += dt * 9;
     const bob = Math.sin(handBobPhase);
