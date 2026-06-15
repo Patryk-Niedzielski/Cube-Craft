@@ -910,7 +910,8 @@ class Chunk{
       const det   = noise2(wx*0.10,  wz*0.10)*0.06;
       const mt    = Math.max(0, cont)*Math.max(0, hill)*3.2;
       const rv    = noise2(wx*0.007+500.3, wz*0.007+300.7);
-      const riverCarve = Math.abs(rv)<0.014 && cont>0.04 && cont<0.30;
+      const rvBreak = noise2(wx*0.04+200.5, wz*0.04+400.1); // breaks river continuity into isolated ponds
+      const riverCarve = Math.abs(rv)<0.007 && rvBreak>0.25 && cont>0.06 && cont<0.22;
 
       let h;
       if(cont < -0.30){
