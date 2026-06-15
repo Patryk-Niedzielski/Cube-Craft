@@ -913,7 +913,7 @@ class Chunk{
       // blocks, measured). Wobble weight is deliberately tiny so it only nudges
       // the shoreline — a strong wobble shatters the blob into many small lakes
       // and carves donut rings, which is what made earlier versions ugly.
-      const seaN = noise2(wx*0.003+911.7, wz*0.003+733.1)
+      const seaN = noise2(wx*0.002+911.7, wz*0.002+733.1)
                  + noise2(wx*0.021+88.2,  wz*0.021+150.6)*0.05;
 
       let h;
@@ -933,7 +933,7 @@ class Chunk{
 
       // ─── OCCASIONAL SEA — steep shore (thin sand rim) into a deep flat basin.
       // Sharp ramp over a small noise band → narrow beach instead of a wide sand puddle.
-      const SEA_THRESH = 0.42;
+      const SEA_THRESH = 0.56;
       if(seaN > SEA_THRESH){
         const t = Math.min(1, (seaN - SEA_THRESH) / 0.08);   // 0 at shore → 1 deep
         const e = 1 - (1 - t) * (1 - t);                     // ease-out: plunge fast, flatten deep
@@ -1280,6 +1280,17 @@ class World{
         this.chunks.delete(k);
       }
     }
+  }
+
+  // Dispose every chunk + mesh so a new world regenerates from scratch
+  clear(){
+    for(const [k,c] of this.chunks){
+      if(c.mesh){this.scene.remove(c.mesh);c.mesh.geometry.dispose();c.mesh.material.dispose();c.mesh=null;}
+      if(c.waterMesh){this.scene.remove(c.waterMesh);c.waterMesh.geometry.dispose();c.waterMesh.material.dispose();c.waterMesh=null;}
+      if(c.foliageMesh){this.scene.remove(c.foliageMesh);c.foliageMesh.geometry.dispose();c.foliageMesh=null;}
+      if(c.glassMesh){this.scene.remove(c.glassMesh);c.glassMesh.geometry.dispose();c.glassMesh=null;}
+    }
+    this.chunks.clear();
   }
 
   // DDA voxel raycast
@@ -2405,6 +2416,7 @@ function giveBlock(id){
 // ── WORLD GENERATION ─────────────────────────────────────
 async function generateWorld(){
   loadingEl.style.display='flex';
+  world.clear();   // wipe any chunks from a previous world so the new seed/terrain applies
   const total=(rdist*2+1)**2;
   let done=0;
   for(let dx=-rdist;dx<=rdist;dx++){
