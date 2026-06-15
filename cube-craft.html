@@ -500,6 +500,7 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
 <div id="block-hint"></div>
 <div id="break-bar-wrap"><div id="break-bar"></div></div>
 <div id="dbg"></div>
+<div id="fps-counter" style="display:none;position:fixed;top:8px;right:8px;font-family:'Press Start 2P',monospace;font-size:9px;color:#fff;text-shadow:1px 1px 0 #000;background:rgba(0,0,0,0.4);padding:3px 6px;z-index:10;pointer-events:none"></div>
 <div id="ver">v0.2 — iter.2</div>
 
 <div id="overlay">
@@ -631,7 +632,7 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
       <div id="opt-video" class="opt-panel opt-sub-panel" style="display:none">
         <div class="opt-sub-heading">🖥️ Video</div>
         <div class="opt-video-row">
-          <span data-i18n="opt_render_dist">Render Distance</span>
+          <span>Render Distance</span>
           <div class="opt-val-picker">
             <button onclick="changeRdist(-1)">◀</button>
             <span id="rdist-label"></span>
@@ -640,6 +641,46 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
         </div>
         <div id="rdist-warn" style="display:none;color:#ff5555;font-size:clamp(0.25rem,0.75vw,0.38rem);text-align:center;padding:8px 8px 0;line-height:1.8">
           ⚠️ High render distance may cause severe lag or crash!
+        </div>
+        <div class="opt-video-row">
+          <span>FOV</span>
+          <div class="opt-val-picker">
+            <button onclick="changeFov(-1)">◀</button>
+            <span id="fov-label"></span>
+            <button onclick="changeFov(1)">▶</button>
+          </div>
+        </div>
+        <div class="opt-video-row">
+          <span>Brightness</span>
+          <div class="opt-val-picker">
+            <button onclick="changeBrightness(-1)">◀</button>
+            <span id="brightness-label"></span>
+            <button onclick="changeBrightness(1)">▶</button>
+          </div>
+        </div>
+        <div class="opt-video-row">
+          <span>Fog</span>
+          <div class="opt-val-picker">
+            <button id="fog-btn" onclick="toggleFog()">ON</button>
+          </div>
+        </div>
+        <div class="opt-video-row">
+          <span>Clouds</span>
+          <div class="opt-val-picker">
+            <button id="clouds-btn" onclick="toggleClouds()">ON</button>
+          </div>
+        </div>
+        <div class="opt-video-row">
+          <span>FPS Counter</span>
+          <div class="opt-val-picker">
+            <button id="fps-btn" onclick="toggleFpsCounter()">OFF</button>
+          </div>
+        </div>
+        <div class="opt-video-row">
+          <span>Fullscreen</span>
+          <div class="opt-val-picker">
+            <button onclick="toggleFullscreen()">Toggle</button>
+          </div>
         </div>
         <div class="opt-sub-back">
           <button class="mc-btn" style="width:160px" onclick="showOptPanel('main')" data-i18n="btn_back_opts">← Back</button>
@@ -1409,7 +1450,7 @@ const skyDome=new THREE.Mesh(
 );
 scene.add(skyDome);
 
-const camera=new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 500);
+const camera=new THREE.PerspectiveCamera(80, window.innerWidth/window.innerHeight, 0.1, 500);
 scene.add(camera); // needed for hand mesh (camera child) to render
 
 // Lighting — only needed for non-voxel objects (clouds, sun billboard)
@@ -2756,6 +2797,14 @@ function loop(t){
   }
 
   renderer.render(scene,camera);
+
+  // FPS counter
+  if(fpsCounterOn){
+    _fpsFrames++;
+    const now=performance.now();
+    if(now-_fpsLast>=500){ _fpsVal=Math.round(_fpsFrames*1000/(now-_fpsLast)); _fpsFrames=0; _fpsLast=now; }
+    fpsEl.textContent=_fpsVal+' FPS';
+  }
 }
 
 requestAnimationFrame(loop);
@@ -3152,7 +3201,9 @@ function showOptPanel(name){
   const el = document.getElementById('opt-'+name);
   el.style.display = (name==='main') ? 'flex' : '';
   if(name==='lang') buildLangGrid();
-  if(name==='video') updateRdistLabel();
+  if(name==='video'){ updateRdistLabel(); updateFovLabel(); updateBrightnessLabel(); applyClouds(); applyFog();
+    const fpsbtn=document.getElementById('fps-btn'); if(fpsbtn){ fpsbtn.textContent=fpsCounterOn?'ON':'OFF'; fpsbtn.style.color=fpsCounterOn?'#55ff55':'#ff5555'; }
+  }
 }
 
 function updateRdistLabel(){
@@ -3170,6 +3221,86 @@ function changeRdist(dir){
   localStorage.setItem('cubecraft_rdist',rdist);
   updateRdistLabel();
   if(scene.fog){ scene.fog.near=rdist*CHUNK*0.5; scene.fog.far=rdist*CHUNK*0.98; }
+}
+
+// ── FOV ──────────────────────────────────────────────────
+const FOV_VALS=[60,70,80,90,100,110,120];
+let fovIdx=FOV_VALS.indexOf(parseInt(localStorage.getItem('cubecraft_fov')||'80'));
+if(fovIdx<0) fovIdx=2;
+function updateFovLabel(){
+  const el=document.getElementById('fov-label');
+  if(el) el.textContent=FOV_VALS[fovIdx]+'°';
+}
+function changeFov(dir){
+  fovIdx=Math.max(0,Math.min(FOV_VALS.length-1,fovIdx+dir));
+  localStorage.setItem('cubecraft_fov',FOV_VALS[fovIdx]);
+  camera.fov=FOV_VALS[fovIdx];
+  camera.updateProjectionMatrix();
+  updateFovLabel();
+}
+// Apply saved FOV on startup
+camera.fov=FOV_VALS[fovIdx]; camera.updateProjectionMatrix();
+
+// ── BRIGHTNESS ───────────────────────────────────────────
+const BRIGHT_VALS=[0.5,0.75,1,1.25,1.5,2];
+const BRIGHT_NAMES=['Moody','Dim','Normal','Bright','Brighter','Max'];
+let brightIdx=parseInt(localStorage.getItem('cubecraft_bright')||'2');
+if(brightIdx<0||brightIdx>=BRIGHT_VALS.length) brightIdx=2;
+function applyBrightness(){
+  canvas.style.filter=brightIdx===2?'':'brightness('+BRIGHT_VALS[brightIdx]+')';
+}
+function updateBrightnessLabel(){
+  const el=document.getElementById('brightness-label');
+  if(el){ el.textContent=BRIGHT_NAMES[brightIdx]; el.style.color=brightIdx>2?'#ffff55':'#aaa'; }
+}
+function changeBrightness(dir){
+  brightIdx=Math.max(0,Math.min(BRIGHT_VALS.length-1,brightIdx+dir));
+  localStorage.setItem('cubecraft_bright',brightIdx);
+  applyBrightness(); updateBrightnessLabel();
+}
+applyBrightness();
+
+// ── FOG TOGGLE ───────────────────────────────────────────
+let fogOn=localStorage.getItem('cubecraft_fog')!=='0';
+function applyFog(){
+  if(fogOn){
+    scene.fog=new THREE.Fog(0xb8deff, rdist*CHUNK*0.5, rdist*CHUNK*0.98);
+  } else {
+    scene.fog=null;
+  }
+  const btn=document.getElementById('fog-btn');
+  if(btn){ btn.textContent=fogOn?'ON':'OFF'; btn.style.color=fogOn?'#55ff55':'#ff5555'; }
+}
+function toggleFog(){ fogOn=!fogOn; localStorage.setItem('cubecraft_fog',fogOn?'1':'0'); applyFog(); }
+applyFog();
+
+// ── CLOUDS TOGGLE ────────────────────────────────────────
+let cloudsOn=localStorage.getItem('cubecraft_clouds')!=='0';
+function applyClouds(){
+  for(const c of cloudMeshes) c.visible=cloudsOn;
+  const btn=document.getElementById('clouds-btn');
+  if(btn){ btn.textContent=cloudsOn?'ON':'OFF'; btn.style.color=cloudsOn?'#55ff55':'#ff5555'; }
+}
+function toggleClouds(){ cloudsOn=!cloudsOn; localStorage.setItem('cubecraft_clouds',cloudsOn?'1':'0'); applyClouds(); }
+applyClouds();
+
+// ── FPS COUNTER ──────────────────────────────────────────
+let fpsCounterOn=localStorage.getItem('cubecraft_fps')==='1';
+let _fpsFrames=0, _fpsLast=performance.now(), _fpsVal=0;
+const fpsEl=document.getElementById('fps-counter');
+function toggleFpsCounter(){
+  fpsCounterOn=!fpsCounterOn;
+  localStorage.setItem('cubecraft_fps',fpsCounterOn?'1':'0');
+  fpsEl.style.display=fpsCounterOn?'block':'none';
+  const btn=document.getElementById('fps-btn');
+  if(btn){ btn.textContent=fpsCounterOn?'ON':'OFF'; btn.style.color=fpsCounterOn?'#55ff55':'#ff5555'; }
+}
+if(fpsCounterOn) fpsEl.style.display='block';
+
+// ── FULLSCREEN ───────────────────────────────────────────
+function toggleFullscreen(){
+  if(!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+  else document.exitFullscreen();
 }
 function openOptions(){
   document.getElementById('options-screen').style.display='flex';
