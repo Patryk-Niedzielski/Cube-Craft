@@ -1336,6 +1336,7 @@ class Player{
     this.air=10; this.maxAir=10;
     this.drownTimer=0;
     this.inWater=false; this.headInWater=false;
+    this._peakY=SEA+6; this._prevOnGround=true;
     this.hotbar=new Array(9).fill(AIR);
     this.hotbarCounts=new Array(9).fill(0);
     this.inventory=new Array(27).fill(AIR);
@@ -1374,7 +1375,7 @@ class Player{
       return;
     }
 
-    // ── Creative fly ──────────────────────────────────────────
+    // ── Creative fly (noclip — same as spectator but horizontal WASD) ──────
     if(this.flying && gamemode==='creative'){
       this.onGround=false;
       this.inWater=false; this.headInWater=false;
@@ -1383,9 +1384,9 @@ class Player{
       let fy=0;
       if(keys['Space']) fy=flySpd;
       if(keys['ShiftLeft']||keys['ShiftRight']) fy=-flySpd;
-      this._moveX(mx*dt);
-      this._moveY(fy*dt);
-      this._moveZ(mz*dt);
+      this.pos.x+=mx*dt;
+      this.pos.y+=fy*dt;
+      this.pos.z+=mz*dt;
       this.cam.position.set(this.pos.x, this.pos.y+PLR_H-0.08, this.pos.z);
       this.cam.rotation.order='YXZ'; this.cam.rotation.y=this.yaw; this.cam.rotation.x=this.pitch;
       return;
@@ -1423,7 +1424,21 @@ class Player{
     this._moveY(this.vel.y*dt);
     this._moveZ(this.vel.z*dt);
 
-    if(this.pos.y<-8){ this.pos.set(8.5,SEA+6,8.5); this.vel.set(0,0,0); }
+    // ── Fall damage ───────────────────────────────────────────
+    if(gamemode==='survival' && !this.inWater){
+      if(this.onGround){
+        if(!this._prevOnGround){
+          const fell=this._peakY - this.pos.y;
+          if(fell>3) this.hp=Math.max(0, this.hp - Math.floor((fell-3)*2));
+        }
+        this._peakY=this.pos.y;
+      } else {
+        this._peakY=Math.max(this._peakY, this.pos.y);
+      }
+    }
+    this._prevOnGround=this.onGround;
+
+    if(this.pos.y<-8){ this.pos.set(8.5,SEA+6,8.5); this.vel.set(0,0,0); this._peakY=SEA+6; this._prevOnGround=true; }
 
     // ── Air / drowning ────────────────────────────────────────
     if(this.headInWater){
