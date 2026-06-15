@@ -60,6 +60,12 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
   border-bottom-color:#fff;border-right-color:#fff;
 }
 .slot-icon{width:32px;height:32px;image-rendering:pixelated;display:block}
+.slot-count{
+  position:absolute;bottom:1px;right:2px;
+  font-size:7px;color:#fff;font-family:'Press Start 2P',monospace;line-height:1;
+  text-shadow:1px 1px 0 #000,-1px 0 0 #000,0 -1px 0 #000;
+  pointer-events:none;
+}
 
 /* Block name hint */
 #block-hint{
@@ -644,14 +650,15 @@ const AIR=0,GRASS=1,DIRT=2,STONE=3,WOOD=4,LEAVES=5,SAND=6,BEDROCK=7,WATER=8,FOLI
 const BLOCK_NAME=['Air','Grass','Dirt','Stone','Wood','Leaves','Sand','Bedrock','Water','Grass'];
 const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05];
 const TEX_IDX={
-  [GRASS]:  [0,2,1],
-  [DIRT]:   [2,2,2],
-  [STONE]:  [3,3,3],
-  [WOOD]:   [4,4,5],
-  [LEAVES]: [6,6,6],
-  [SAND]:   [7,7,7],
-  [BEDROCK]:[8,8,8],
-  [WATER]:  [9,9,9],
+  [GRASS]:   [0,2,1],
+  [DIRT]:    [2,2,2],
+  [STONE]:   [3,3,3],
+  [WOOD]:    [4,4,5],
+  [LEAVES]:  [6,6,6],
+  [SAND]:    [7,7,7],
+  [BEDROCK]: [8,8,8],
+  [WATER]:   [9,9,9],
+  [FOLIAGE]: [10,10,10],
 };
 // SOLID: player collides with these
 const SOLID=new Uint8Array(256);
@@ -1127,8 +1134,10 @@ class Player{
     this.air=10; this.maxAir=10;
     this.drownTimer=0;
     this.inWater=false; this.headInWater=false;
-    this.hotbar=[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,AIR,AIR,AIR];
+    this.hotbar=new Array(9).fill(AIR);
+    this.hotbarCounts=new Array(9).fill(0);
     this.inventory=new Array(27).fill(AIR);
+    this.inventoryCounts=new Array(27).fill(0);
     this.slot=0;
   }
   get selectedBlock(){ return this.hotbar[this.slot]; }
@@ -1504,7 +1513,7 @@ const handGroup = new THREE.Group();
 camera.add(handGroup);
 
 const handGeo = new THREE.BoxGeometry(0.35, 0.35, 0.35);
-const handMat = new THREE.MeshBasicMaterial({map: atlasTexture, depthTest: false});
+const handMat = new THREE.MeshBasicMaterial({map: atlasTexture, depthTest: false, transparent: true, alphaTest: 0.1});
 const handMesh = new THREE.Mesh(handGeo, handMat);
 handMesh.renderOrder = 999;
 handGroup.add(handMesh);
@@ -1615,7 +1624,7 @@ const keys={};
 let locked=false, gameReady=false, gameStarted=false, paused=false;
 let gamemode='survival', inventoryOpen=false, chatOpen=false;
 const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,WATER,FOLIAGE];
-const DEFAULT_HOTBAR=[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,AIR,AIR,AIR];
+const DEFAULT_HOTBAR=new Array(9).fill(AIR);
 let showDbg=false;
 // Mining
 let mining=false, mineTarget=null, mineProg=0;
@@ -1727,6 +1736,13 @@ function buildHotbar(){
       img.className='slot-icon';
       img.src=makeBlockIcon(id);
       slot.append(img);
+      const cnt=player.hotbarCounts[i];
+      if(cnt>1){
+        const badge=document.createElement('span');
+        badge.className='slot-count';
+        badge.textContent=cnt;
+        slot.append(badge);
+      }
     }
     slot.onclick=()=>{ player.slot=i; buildHotbar(); };
     hotbarEl.append(slot);
@@ -1737,6 +1753,8 @@ function buildHotbar(){
 }
 
 function buildHealth(){
+  if(gamemode==='creative'){ healthEl.style.display='none'; return; }
+  healthEl.style.display='flex';
   healthEl.innerHTML='';
   const hp=player.hp;
   for(let i=0;i<10;i++){
@@ -1776,8 +1794,10 @@ function setGamemode(mode){
     gmBadge.style.display='block';
     addChatMsg('Gamemode set to Creative','ok');
   } else {
-    player.hotbar=[...DEFAULT_HOTBAR];
+    player.hotbar=new Array(9).fill(AIR);
+    player.hotbarCounts=new Array(9).fill(0);
     player.inventory=new Array(27).fill(AIR);
+    player.inventoryCounts=new Array(27).fill(0);
     player.slot=0;
     gmBadge.style.display='none';
     addChatMsg('Gamemode set to Survival','ok');
@@ -1811,18 +1831,17 @@ function processCommand(raw){
   }
 }
 
-function openChat(){
+function openChat(initialText=''){
   if(!gameStarted) return;
   chatOpen=true;
-  // exitPointerLock triggers showHUD(false) which hides chatAreaEl;
-  // override it immediately after so the area stays visible
   chatAreaEl.style.display='flex';
   chatInputWrap.style.display='flex';
-  chatInput.value='';
-  // focus must happen after pointer lock actually releases (async)
+  chatInput.value=initialText;
   const tryFocus=()=>{
-    if(!document.pointerLockElement){ chatInput.focus(); }
-    else requestAnimationFrame(tryFocus);
+    if(!document.pointerLockElement){
+      chatInput.focus();
+      chatInput.setSelectionRange(chatInput.value.length, chatInput.value.length);
+    } else requestAnimationFrame(tryFocus);
   };
   tryFocus();
 }
@@ -1848,11 +1867,18 @@ function buildInvHotbar(){
       tip.className='inv-slot-tip';
       tip.textContent=BLOCK_NAME[id];
       s.append(img,tip);
+      const cnt=player.hotbarCounts[i];
+      if(cnt>1){
+        const badge=document.createElement('span');
+        badge.className='slot-count';
+        badge.textContent=cnt;
+        s.append(badge);
+      }
     }
     s.addEventListener('click',()=>{ player.slot=i; buildHotbar(); buildInvHotbar(); });
     s.addEventListener('contextmenu',e=>{
       e.preventDefault();
-      player.hotbar[i]=AIR;
+      player.hotbar[i]=AIR; player.hotbarCounts[i]=0;
       buildHotbar(); buildInvHotbar();
     });
     invHotbarRow.append(s);
@@ -1871,15 +1897,26 @@ function buildInvMainGrid(){
       const tip=document.createElement('div'); tip.className='inv-slot-tip';
       tip.textContent=BLOCK_NAME[id];
       s.append(img,tip);
+      const cnt=player.inventoryCounts[i];
+      if(cnt>1){
+        const badge=document.createElement('span');
+        badge.className='slot-count';
+        badge.textContent=cnt;
+        s.append(badge);
+      }
     }
     s.addEventListener('click',()=>{
-      // Swap with active hotbar slot
-      const hb=player.hotbar[player.slot];
-      player.hotbar[player.slot]=player.inventory[i];
-      player.inventory[i]=hb;
+      const si=player.slot;
+      const hbId=player.hotbar[si], hbCnt=player.hotbarCounts[si];
+      player.hotbar[si]=player.inventory[i]; player.hotbarCounts[si]=player.inventoryCounts[i];
+      player.inventory[i]=hbId; player.inventoryCounts[i]=hbCnt;
       buildHotbar(); buildInvMainGrid(); buildInvHotbar();
     });
-    s.addEventListener('contextmenu',e=>{ e.preventDefault(); player.inventory[i]=AIR; buildInvMainGrid(); });
+    s.addEventListener('contextmenu',e=>{
+      e.preventDefault();
+      player.inventory[i]=AIR; player.inventoryCounts[i]=0;
+      buildInvMainGrid();
+    });
     invMainGridEl.append(s);
   });
 }
@@ -1921,6 +1958,30 @@ function closeInventory(){
   invScreen.style.display='none';
   for(const k in keys) keys[k]=false;
   if(gameStarted){ showHUD(true); clickHint.style.display='flex'; }
+}
+
+// ── ITEM PICKUP ───────────────────────────────────────────
+function giveBlock(id){
+  // Try to stack on existing hotbar slot
+  for(let i=0;i<9;i++){
+    if(player.hotbar[i]===id && player.hotbarCounts[i]<64){ player.hotbarCounts[i]++; buildHotbar(); return; }
+  }
+  // Try empty hotbar slot (prefer active slot first)
+  if(player.hotbar[player.slot]===AIR){
+    player.hotbar[player.slot]=id; player.hotbarCounts[player.slot]=1; buildHotbar(); return;
+  }
+  for(let i=0;i<9;i++){
+    if(player.hotbar[i]===AIR){ player.hotbar[i]=id; player.hotbarCounts[i]=1; buildHotbar(); return; }
+  }
+  // Try to stack on existing inventory slot
+  for(let i=0;i<27;i++){
+    if(player.inventory[i]===id && player.inventoryCounts[i]<64){ player.inventoryCounts[i]++; return; }
+  }
+  // Try empty inventory slot
+  for(let i=0;i<27;i++){
+    if(player.inventory[i]===AIR){ player.inventory[i]=id; player.inventoryCounts[i]=1; return; }
+  }
+  // Inventory full — block dropped (discarded)
 }
 
 // ── WORLD GENERATION ─────────────────────────────────────
@@ -2044,6 +2105,8 @@ canvas.addEventListener('mousedown',e=>{
     handSwingT=0; // start swing animation
   } else if(e.button===2){
     // Instant place
+    const blk=player.selectedBlock;
+    if(blk===AIR) return;
     const t=getAim(); if(!t) return;
     const px=t.bx+t.nx, py=t.by+t.ny, pz=t.bz+t.nz;
     if(py<0||py>=HEIGHT) return;
@@ -2052,9 +2115,14 @@ canvas.addEventListener('mousedown',e=>{
     if(px>=Math.floor(p.x-hw)&&px<Math.ceil(p.x+hw)&&
        py>=Math.floor(p.y)&&py<Math.ceil(p.y+PLR_H)&&
        pz>=Math.floor(p.z-hw)&&pz<Math.ceil(p.z+hw)) return;
-    world.setBlock(px,py,pz,player.selectedBlock);
-    playPlaceSound(player.selectedBlock);
-    handPlaceT=0; // start place animation
+    world.setBlock(px,py,pz,blk);
+    playPlaceSound(blk);
+    handPlaceT=0;
+    if(gamemode==='survival'){
+      const si=player.slot;
+      player.hotbarCounts[si]--;
+      if(player.hotbarCounts[si]<=0){ player.hotbar[si]=AIR; player.hotbarCounts[si]=0; }
+    }
     buildHotbar();
   }
 });
@@ -2081,6 +2149,7 @@ document.addEventListener('keydown',e=>{
   if(e.code==='KeyE' && inventoryOpen){ e.preventDefault(); closeInventory(); return; }
   if(e.code==='KeyE' && locked && gameStarted){ e.preventDefault(); openInventory(); return; }
   if(e.code==='KeyT' && locked && gameStarted){ e.preventDefault(); openChat(); document.exitPointerLock(); return; }
+  if(e.code==='Slash' && locked && gameStarted){ e.preventDefault(); openChat('/'); document.exitPointerLock(); return; }
   if(e.code==='F3'){ showDbg=!showDbg; dbgEl.style.display=(locked&&showDbg)?'block':'none'; }
   if(e.code>='Digit1'&&e.code<='Digit9'){
     player.slot=parseInt(e.code[5])-1; buildHotbar();
@@ -2088,7 +2157,11 @@ document.addEventListener('keydown',e=>{
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
 });
 document.addEventListener('keyup',e=>{ if(!chatOpen) keys[e.code]=false; });
-chatInput.addEventListener('keydown',e=>e.stopPropagation());
+chatInput.addEventListener('keydown',e=>{
+  if(e.code==='Enter'){ e.preventDefault(); e.stopPropagation(); const t=chatInput.value.trim(); if(t) processCommand(t); closeChat(); return; }
+  if(e.code==='Escape'){ e.preventDefault(); e.stopPropagation(); closeChat(); return; }
+  e.stopPropagation();
+});
 
 canvas.addEventListener('wheel',e=>{
   if(!locked||paused) return;
@@ -2242,6 +2315,7 @@ function loop(t){
         if(pct>=1){
           playBreakSound(id);
           world.setBlock(aim.bx,aim.by,aim.bz,AIR);
+          if(gamemode==='survival' && id!==AIR) giveBlock(id);
           mineProg=0; mineTarget=null;
           breakBarWrap.style.display='none';
         }
