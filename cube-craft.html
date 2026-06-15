@@ -1352,7 +1352,7 @@ class Player{
 
     // ── Spectator: noclip free-fly ghost ──────────────────────
     if(gamemode==='spectator'){
-      const flySpd=(keys['ShiftLeft']||keys['ShiftRight'])?RUN_SPD*3:RUN_SPD*1.5;
+      const flySpd=(keys['ControlLeft']||keys['ControlRight'])?RUN_SPD*3:RUN_SPD*1.5;
       const cp=Math.cos(this.pitch), sp=Math.sin(this.pitch);
       let fx=0,fy=0,fz=0;
       if(keys['KeyW']||keys['ArrowUp'])  {fx+=-s*cp;fy+=sp;fz+=-c*cp;}
@@ -1371,13 +1371,15 @@ class Player{
 
     // ── Creative fly ──────────────────────────────────────────
     if(this.flying && gamemode==='creative'){
+      this.onGround=false;
       const flySpd=RUN_SPD*1.5;
       if(len>0){mx=mx/len*flySpd; mz=mz/len*flySpd;} else {mx=0;mz=0;}
       let fy=0;
       if(keys['Space']) fy=flySpd;
       if(keys['ShiftLeft']||keys['ShiftRight']) fy=-flySpd;
-      this.pos.x+=mx*dt; this.pos.y+=fy*dt; this.pos.z+=mz*dt;
-      this.vel.set(0,0,0); this.onGround=false;
+      this._moveX(mx*dt);
+      this._moveY(fy*dt);
+      this._moveZ(mz*dt);
       this.cam.position.set(this.pos.x, this.pos.y+PLR_H-0.08, this.pos.z);
       this.cam.rotation.order='YXZ'; this.cam.rotation.y=this.yaw; this.cam.rotation.x=this.pitch;
       return;
