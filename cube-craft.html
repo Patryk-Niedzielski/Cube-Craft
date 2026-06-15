@@ -508,6 +508,7 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
     <span class="logo-sub">By Patryk Niedzielski [with the help of claude] <span id="mc-tagline"></span></span>
   </div>
   <div id="main-menu">
+    <button class="mc-btn" id="continue-btn" style="display:none;background:#3a6b3a;border-top-color:#5a9a5a;border-left-color:#5a9a5a;border-right-color:#1a3a1a;border-bottom-color:#1a3a1a">Continue</button>
     <button class="mc-btn" id="play-btn" data-i18n="btn_play">Singleplayer</button>
     <div class="mc-btn-row">
       <button class="mc-btn open-options" data-i18n="btn_options">Options...</button>
@@ -1015,6 +1016,7 @@ class World{
     const [lx,lz]=this.worldToLocal(wx,wz);
     const c=this.getChunk(cx,cz,true);
     c.set(lx,wy,lz,id);
+    if(trackingMods) worldMods.set(`${wx},${wy},${wz}`,id);
     this.buildMesh(c);
     if(lx===0)        { const n=this.getChunk(cx-1,cz); if(n) this.buildMesh(n); }
     if(lx===CHUNK-1)  { const n=this.getChunk(cx+1,cz); if(n) this.buildMesh(n); }
@@ -1793,6 +1795,7 @@ const keys={};
 let locked=false, gameReady=false, gameStarted=false, paused=false;
 let gamemode='survival', inventoryOpen=false, chatOpen=false, creativePageIdx=0, giveMenuOpen=false;
 let cheatsEnabled=false;
+let worldMods=new Map(), trackingMods=false;
 const CREATIVE_PAGE_SIZE=27;
 const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS];
 const DEFAULT_HOTBAR=new Array(9).fill(AIR);
@@ -2032,7 +2035,11 @@ function closeChat(){
   chatInputWrap.style.display='none';
   chatAreaEl.style.display='none';
   for(const k in keys) keys[k]=false;
-  if(gameStarted){ showHUD(true); clickHint.style.display='flex'; }
+  if(gameStarted && !inventoryOpen && !giveMenuOpen){
+    showHUD(true);
+    const req=canvas.requestPointerLock();
+    if(req&&typeof req.then==='function') req.catch(()=>{ showHUD(false); clickHint.style.display='flex'; });
+  }
 }
 
 // ── INVENTORY ─────────────────────────────────────────────
@@ -2194,6 +2201,74 @@ function closeGiveMenu(){
   giveMenuEl.style.display='none';
   for(const k in keys) keys[k]=false;
   if(gameStarted){ showHUD(true); clickHint.style.display='flex'; }
+}
+
+// ── WORLD SAVE / LOAD ─────────────────────────────────────
+const SAVE_KEY='cubecraft_save';
+
+function saveWorld(){
+  if(!gameStarted) return;
+  const data={
+    v:1, seed:worldSeed, gamemode, cheats:cheatsEnabled,
+    player:{
+      x:player.pos.x, y:player.pos.y, z:player.pos.z,
+      yaw:player.yaw, pitch:player.pitch, slot:player.slot,
+      hotbar:[...player.hotbar], hotbarCounts:[...player.hotbarCounts],
+      inventory:[...player.inventory], inventoryCounts:[...player.inventoryCounts],
+      hp:player.hp
+    },
+    mods:Object.fromEntries(worldMods)
+  };
+  try{ localStorage.setItem(SAVE_KEY, JSON.stringify(data)); }
+  catch(e){ console.warn('Save failed',e); }
+}
+
+function loadSave(){
+  try{
+    const raw=localStorage.getItem(SAVE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e){ return null; }
+}
+
+async function startFromSave(save){
+  worldSeed=save.seed;
+  initPerm(worldSeed);
+  gamemode=save.gamemode||'survival';
+  cheatsEnabled=!!save.cheats;
+  trackingMods=false;
+  worldMods=new Map();
+  await generateWorld();
+  // Apply modifications without re-tracking them
+  if(save.mods){
+    for(const [key,id] of Object.entries(save.mods)){
+      const [wx,wy,wz]=key.split(',').map(Number);
+      world.setBlock(wx,wy,wz,id);
+    }
+    // Re-populate worldMods so future saves include these changes
+    for(const [key,id] of Object.entries(save.mods)) worldMods.set(key,id);
+  }
+  trackingMods=true;
+  // Restore player
+  const p=save.player;
+  if(p){
+    player.pos.set(p.x,p.y,p.z);
+    player.yaw=p.yaw||0; player.pitch=p.pitch||0;
+    player.slot=p.slot||0;
+    if(p.hotbar) player.hotbar=[...p.hotbar];
+    if(p.hotbarCounts) player.hotbarCounts=[...p.hotbarCounts];
+    if(p.inventory) player.inventory=[...p.inventory];
+    if(p.inventoryCounts) player.inventoryCounts=[...p.inventoryCounts];
+    if(p.hp!=null) player.hp=p.hp;
+  }
+  gameReady=true; gameStarted=true;
+  prevT=performance.now();
+  buildHotbar(); buildHealth();
+  clickHint.style.display='flex';
+}
+
+function updateContinueBtn(){
+  const btn=document.getElementById('continue-btn');
+  if(btn) btn.style.display=loadSave()?'block':'none';
 }
 
 // ── ITEM PICKUP ───────────────────────────────────────────
@@ -2451,13 +2526,17 @@ document.getElementById('wc-create').addEventListener('click', async()=>{
   initPerm(worldSeed);
   gamemode = _wcGamemode;
   cheatsEnabled = _wcCheats;
+  trackingMods=false; worldMods=new Map();
+  localStorage.removeItem(SAVE_KEY);
   wcScreen.style.display='none';
   await generateWorld();
+  trackingMods=true;
   gameReady=true;
   gameStarted=true;
   prevT=performance.now();
   buildHotbar(); buildHealth();
   clickHint.style.display='flex';
+  updateContinueBtn();
 });
 
 document.getElementById('wc-cancel').addEventListener('click',()=>{
@@ -2473,6 +2552,20 @@ document.getElementById('play-btn').addEventListener('click',()=>{
   wcSeedInp.value='';
   wcScreen.style.display='flex';
 });
+
+// ── CONTINUE BUTTON ──────────────────────────────────────
+updateContinueBtn();
+document.getElementById('continue-btn').addEventListener('click', async()=>{
+  const save=loadSave();
+  if(!save) return;
+  overlayEl.style.display='none';
+  await startFromSave(save);
+  updateContinueBtn();
+});
+
+// ── AUTO-SAVE ─────────────────────────────────────────────
+setInterval(saveWorld, 30000);
+window.addEventListener('beforeunload', saveWorld);
 
 // ── MAIN LOOP ────────────────────────────────────────────
 let prevT=performance.now();
