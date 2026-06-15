@@ -1377,6 +1377,7 @@ class Player{
     // ── Creative fly ──────────────────────────────────────────
     if(this.flying && gamemode==='creative'){
       this.onGround=false;
+      this.inWater=false; this.headInWater=false;
       const flySpd=RUN_SPD*1.5;
       if(len>0){mx=mx/len*flySpd; mz=mz/len*flySpd;} else {mx=0;mz=0;}
       let fy=0;
@@ -2077,18 +2078,21 @@ function showHUD(on){
 }
 
 // ── GAMEMODE ──────────────────────────────────────────────
+function refreshGamemodeBadge(){
+  if(gamemode==='creative'){ gmBadge.style.display='block'; gmBadge.textContent='CREATIVE'; }
+  else if(gamemode==='spectator'){ gmBadge.style.display='block'; gmBadge.textContent='SPECTATOR'; }
+  else { gmBadge.style.display='none'; }
+}
 function setGamemode(mode){
   gamemode=mode;
   player.flying=false;
+  refreshGamemodeBadge();
   if(mode==='creative'){
     player.hp=player.maxHp;
-    gmBadge.style.display='block';
-    gmBadge.textContent='CREATIVE';
+    creativePageIdx=0;
     addChatMsg('Gamemode set to Creative','ok');
   } else if(mode==='spectator'){
     player.hp=player.maxHp;
-    gmBadge.style.display='block';
-    gmBadge.textContent='SPECTATOR';
     addChatMsg('Gamemode set to Spectator','ok');
   } else {
     player.hotbar=new Array(9).fill(AIR);
@@ -2096,7 +2100,6 @@ function setGamemode(mode){
     player.inventory=new Array(27).fill(AIR);
     player.inventoryCounts=new Array(27).fill(0);
     player.slot=0;
-    gmBadge.style.display='none';
     addChatMsg('Gamemode set to Survival','ok');
   }
   buildHotbar(); buildHealth();
@@ -2268,7 +2271,6 @@ function buildInvScreen(){
 function openInventory(){
   if(!gameStarted) return;
   inventoryOpen=true;
-  creativePageIdx=0;
   document.exitPointerLock();
   buildInvScreen();
   invScreen.style.display='flex';
@@ -2385,9 +2387,10 @@ async function startFromSave(save){
     if(p.inventoryCounts) player.inventoryCounts=[...p.inventoryCounts];
     if(p.hp!=null) player.hp=p.hp;
   }
+  player.flying=false;
   gameReady=true; gameStarted=true;
   prevT=performance.now();
-  buildHotbar(); buildHealth();
+  buildHotbar(); buildHealth(); refreshGamemodeBadge();
   clickHint.style.display='flex';
 }
 
@@ -2684,6 +2687,7 @@ document.getElementById('wc-create').addEventListener('click', async()=>{
   initPerm(worldSeed);
   gamemode = _wcGamemode;
   cheatsEnabled = _wcCheats;
+  player.flying=false;
   trackingMods=false; worldMods=new Map();
   localStorage.removeItem(SAVE_KEY);
   wcScreen.style.display='none';
@@ -2692,7 +2696,7 @@ document.getElementById('wc-create').addEventListener('click', async()=>{
   gameReady=true;
   gameStarted=true;
   prevT=performance.now();
-  buildHotbar(); buildHealth();
+  buildHotbar(); buildHealth(); refreshGamemodeBadge();
   clickHint.style.display='flex';
   updateContinueBtn();
 });
