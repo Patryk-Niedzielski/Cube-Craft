@@ -1644,6 +1644,8 @@ const BREAK_SND = {
   [BEDROCK]: [{f:'bandpass',hz:1700,q:3.5, v:0.55, d:0.08},
               {f:'lowpass', hz:200, q:0.5, v:0.28, d:0.06}],
   [FOLIAGE]: [{f:'bandpass',hz:500, q:0.9, v:0.32, d:0.11}],
+  [GLASS]:   [{f:'bandpass',hz:3400,q:7.0, v:0.55, d:0.06},
+              {f:'bandpass',hz:1800,q:4.0, v:0.38, d:0.11}],
 };
 
 function playBreakSound(blockId){
@@ -1678,6 +1680,7 @@ const PLACE_SND = {
   [LEAVES]:  {f:'bandpass', hz:430, q:0.9, v:0.22, d:0.07},
   [SAND]:    {f:'lowpass',  hz:150, q:0.4, v:0.25, d:0.11},
   [BEDROCK]: {f:'bandpass', hz:900, q:2.5, v:0.40, d:0.07},
+  [GLASS]:   {f:'bandpass', hz:2400,q:6.0, v:0.28, d:0.05},
 };
 function playPlaceSound(blockId){
   const sp = PLACE_SND[blockId] || PLACE_SND[STONE];
