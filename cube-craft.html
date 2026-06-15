@@ -1921,112 +1921,489 @@ const MOB_GRAV = -22;
 const mobs = [];
 
 const MOB_CFG = {
-  pig:     { h: 1.05, w: 0.45, spd: 1.4 },
-  cow:     { h: 1.25, w: 0.50, spd: 1.2 },
-  wolf:    { h: 1.05, w: 0.40, spd: 1.8 },
-  cat:     { h: 0.85, w: 0.35, spd: 1.5 },
-  chicken: { h: 0.95, w: 0.25, spd: 1.3 },
-  fish:    { h: 0.22, w: 0.20, spd: 1.0 },
+  pig:     { h: 1.10, w: 0.50, spd: 1.4 },
+  cow:     { h: 1.32, w: 0.56, spd: 1.2 },
+  wolf:    { h: 1.10, w: 0.45, spd: 1.8 },
+  cat:     { h: 0.90, w: 0.38, spd: 1.5 },
+  chicken: { h: 1.00, w: 0.28, spd: 1.3 },
+  fish:    { h: 0.25, w: 0.22, spd: 1.0 },
 };
 
-function _mobBox(g, color, w, h, d, x, y, z) {
-  const m = new THREE.Mesh(
-    new THREE.BoxGeometry(w, h, d),
-    new THREE.MeshBasicMaterial({ color })
+// Draw pixel-art onto a 64×64 canvas (8 columns × 8 rows, each cell = 8px)
+// art = array of 8-char strings, pal = { char: cssColor }
+function _PT(art, pal) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  for (let r = 0; r < 8; r++) for (let k = 0; k < 8; k++) {
+    const col = pal[art[r][k]];
+    if (col) { ctx.fillStyle = col; ctx.fillRect(k*8, r*8, 8, 8); }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = t.minFilter = THREE.NearestFilter;
+  return t;
+}
+
+// Solid flat material
+const _FM = c => new THREE.MeshBasicMaterial({ color: c });
+// Texture → material
+const _TM = t => new THREE.MeshBasicMaterial({ map: t });
+// Build a 6-element material array [+X, -X, +Y, -Y, +Z(back), -Z(front)]
+// each element can be a hex color, a THREE.Texture, or null (uses fallback)
+function _MA(r, l, top, bot, bk, fr, fb = 0xffffff) {
+  return [r, l, top, bot, bk, fr].map(v =>
+    v == null     ? _FM(fb) :
+    typeof v === 'number' ? _FM(v) :
+    _TM(v)
   );
+}
+// Add box to group
+function _box(g, mat, w, h, d, x, y, z) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
+    Array.isArray(mat) ? mat : mat);
   m.position.set(x, y, z);
   g.add(m);
   return m;
 }
 
+// ─ Shared mob skins (created once, reused across instances) ──────────────
+const MOB_SKIN = (() => {
+  const S = {};
+
+  // ── PIG ────────────────────────────────────────────────
+  {
+    const P = { p:'#FFB3BA', d:'#E07090', e:'#221111', n:'#AA2050', s:'#DD8090', w:'#FFCCD0' };
+    const hFront = _PT([
+      'pppppppp',
+      'pppppppp',
+      'peppppep',
+      'pppppppp',
+      'ppdddddp',  // snout top
+      'pdnpdnpp',  // nostrils
+      'ppddddpp',
+      'pppppppp',
+    ], P);
+    const hTop = _PT([
+      'ddppppdd',  // ears
+      'ddppppdd',
+      'pppppppp',
+      'pppppppp',
+      'pppppppp',
+      'pppppppp',
+      'pppppppp',
+      'pppppppp',
+    ], P);
+    const hSide = _PT([
+      'ppppppdd',  // ear at back
+      'ppppppdd',
+      'pppppppp',
+      'pppppppp',
+      'pppppppp',
+      'pppppppp',
+      'pppppppp',
+      'pppppppp',
+    ], P);
+    const bSide = _PT([
+      'pppppppp',
+      'psppppsp',
+      'pppppppp',
+      'pppppppp',
+      'pppppppp',
+      'pppppppp',
+      'psppppsp',
+      'pppppppp',
+    ], P);
+    const bTop = _PT([
+      'pppppppp',
+      'pssssppp',
+      'ppsssspp',
+      'pppppppp',
+      'pppppppp',
+      'ppsssspp',
+      'pssssppp',
+      'pppppppp',
+    ], P);
+    S.pig = {
+      head: _MA(hSide, hSide, hTop, 0xFFB3BA, 0xFFB3BA, hFront, 0xFFB3BA),
+      body: _MA(bSide, bSide, bTop, 0xEEA0B0, bSide, bSide, 0xFFB3BA),
+      leg:  _FM(0xFFB3BA),
+      snout:_FM(0xE07090),
+    };
+  }
+
+  // ── COW ────────────────────────────────────────────────
+  {
+    const C = { b:'#3D2010', w:'#F0EDDE', s:'#7B5030', e:'#111111', h:'#4A2810', m:'#9B7050' };
+    const hFront = _PT([
+      'bbwwwwbb',  // horns area / blaze
+      'bbwwwwbb',
+      'bbwwwwbb',
+      'bebbbbeb',  // eyes
+      'bbbbbbbb',
+      'bmmmmmmb',  // muzzle
+      'bmbbbbmb',  // nostrils
+      'bbbbbbbb',
+    ], C);
+    const hTop = _PT([
+      'hwbbbbwh',  // horn bases
+      'bbbbbbbb',
+      'bbwwwwbb',  // blaze continues
+      'bbwwwwbb',
+      'bbbbbbbb',
+      'bbbbbbbb',
+      'bbbbbbbb',
+      'bbbbbbbb',
+    ], C);
+    const hSide = _PT([
+      'bbbbbbbb',
+      'bbbbbbbb',
+      'bbbbbbbb',
+      'bbebbebb',  // side eye
+      'bbbbbbbb',
+      'bmmmmmmb',
+      'bbbbbbbb',
+      'bbbbbbbb',
+    ], C);
+    const bSide = _PT([
+      'bbbbbbbb',
+      'bwwwwwwb',  // white spot
+      'bwwwwwwb',
+      'bwwwwwwb',
+      'bwwwwwwb',
+      'bbbbbbbb',
+      'bbbbbbbb',
+      'bbbbbbbb',
+    ], C);
+    const bTop = _PT([
+      'bbbbbbbb',
+      'bbhhhhhb',  // slightly darker spine
+      'bhhhhhhb',
+      'bbhhhhhb',
+      'bbhhhhhb',
+      'bhhhhhhb',
+      'bbhhhhhb',
+      'bbbbbbbb',
+    ], C);
+    S.cow = {
+      head: _MA(hSide, hSide, hTop, 0x3D2010, 0x3D2010, hFront, 0x3D2010),
+      body: _MA(bSide, bSide, bTop, 0x2E1808, bSide, bSide, 0x3D2010),
+      leg:  _FM(0x3D2010),
+      horn: _FM(0xF0EDDE),
+      muzzle: _FM(0x9B7050),
+    };
+  }
+
+  // ── WOLF (golden retriever) ─────────────────────────────
+  {
+    const W = { g:'#C8860A', l:'#F0C060', d:'#8A5500', n:'#1A0A00', e:'#3A2000', w:'#FFF5D0' };
+    const hFront2 = _PT([
+      'gggggggg',
+      'gggggggg',
+      'geggggeg',  // eyes at col 1,6
+      'gggggggg',
+      'gllllllg',
+      'glnnnnlg',  // nose block
+      'gllllllg',
+      'gggggggg',
+    ], W);
+    const hTop2 = _PT([
+      'dddddddd',
+      'dgggggdg',
+      'gggggggg',
+      'gggggggg',
+      'glllllgg',  // lighter snout top
+      'glllllgg',
+      'gggggggg',
+      'gggggggg',
+    ], W);
+    const bSide = _PT([
+      'gggggggg',
+      'gdddddgg',  // saddle
+      'gdddddgg',
+      'gdddddgg',
+      'gggggggg',
+      'gggggggg',
+      'glllllgg',  // lighter belly area
+      'gggggggg',
+    ], W);
+    const bTop = _PT([
+      'gggggggg',
+      'gdddddgg',
+      'gddddddg',
+      'gdddddgg',
+      'gdddddgg',
+      'gddddddg',
+      'gdddddgg',
+      'gggggggg',
+    ], W);
+    const chest = _PT([
+      'gggggggg',
+      'glllllgg',
+      'gllllllg',
+      'glllllgg',
+      'glllllgg',
+      'gllllllg',
+      'glllllgg',
+      'gggggggg',
+    ], W);
+    S.wolf = {
+      head: _MA(bSide, bSide, hTop2, 0xC8860A, 0xC8860A, hFront2, 0xC8860A),
+      body: _MA(bSide, bSide, bTop, 0x8A5500, bSide, chest, 0xC8860A),
+      leg:  _FM(0xC8860A),
+      ear:  _FM(0x8A5500),
+      tail: _FM(0xF0C060),
+    };
+  }
+
+  // ── CAT ─────────────────────────────────────────────────
+  {
+    const K = { o:'#C87030', l:'#F0A860', s:'#8B4A10', g:'#228B22', p:'#FF88AA', e:'#111111', w:'#FFF0E8' };
+    const hFront = _PT([
+      'oossssoo',  // stripes + ear shapes at top corners
+      'oossssoo',
+      'oooooooo',
+      'ogoooogg',  // green eyes
+      'oogooogo',  // pupil
+      'ollllllo',  // lighter muzzle
+      'olpppllo',  // pink nose
+      'oooooooo',
+    ], K);
+    const hTop = _PT([
+      'ssooooee',  // stripes + ear corners dark
+      'soooooeo',
+      'oossssoo',  // tabby pattern
+      'oooooooo',
+      'oossssoo',
+      'oooooooo',
+      'oooooooo',
+      'oooooooo',
+    ], K);
+    const hSide = _PT([
+      'ooooooee',  // ear at back
+      'ooooooeo',
+      'oooooooo',
+      'oeooooos',  // eye + stripe
+      'oooooooo',
+      'oooooooo',
+      'oooooooo',
+      'oooooooo',
+    ], K);
+    const bSide = _PT([
+      'oooooooo',
+      'osoooooo',  // tabby stripes
+      'ooooosoo',
+      'oooooooo',
+      'osoooooo',
+      'ooooosoo',
+      'oooooooo',
+      'oooooooo',
+    ], K);
+    const bBelly = _PT([
+      'oooooooo',
+      'olllllgo',
+      'ollllllo',
+      'ollllllo',
+      'ollllllo',
+      'ollllllo',
+      'olllllgo',
+      'oooooooo',
+    ], K);
+    S.cat = {
+      head: _MA(hSide, hSide, hTop, 0xC87030, 0xC87030, hFront, 0xC87030),
+      body: _MA(bSide, bSide, 0x9A5520, 0x9A5520, bSide, bBelly, 0xC87030),
+      leg:  _FM(0xC87030),
+      earIn: _FM(0xFF99BB),
+      tail: _FM(0xC87030),
+    };
+  }
+
+  // ── CHICKEN ─────────────────────────────────────────────
+  {
+    const H = { w:'#FFF5E0', r:'#CC2222', y:'#FFCC00', e:'#222222', f:'#EEDDCC', g:'#DDD0BB' };
+    const hFront = _PT([
+      'wwwwwwww',
+      'wwwwwwww',
+      'wewwwwew',  // eyes
+      'wwwwwwww',
+      'wwyyyyww',  // beak
+      'wwyyyyww',
+      'wwrrrrww',  // wattle
+      'wwwwwwww',
+    ], H);
+    const hTop = _PT([
+      'wwrrrwww',  // comb
+      'wrrrrrww',
+      'wwrrrwww',
+      'wwwwwwww',
+      'wwwwwwww',
+      'wwwwwwww',
+      'wwwwwwww',
+      'wwwwwwww',
+    ], H);
+    const bSide = _PT([
+      'wwwwwwww',
+      'wfffffww',  // feather shadow
+      'wffffffw',
+      'wfffffww',
+      'wffffffw',
+      'wfffffww',
+      'wwwwwwww',
+      'wwwwwwww',
+    ], H);
+    const bFront = _PT([
+      'wwwwwwww',
+      'wgggggww',
+      'wgwwwgww',
+      'wgwwwgww',
+      'wgwwwgww',
+      'wgggggww',
+      'wwwwwwww',
+      'wwwwwwww',
+    ], H);
+    S.chicken = {
+      head: _MA(0xFFF5E0, 0xFFF5E0, hTop, 0xFFF5E0, 0xFFF5E0, hFront, 0xFFF5E0),
+      body: _MA(bSide, bSide, 0xFFF5E0, 0xFFF5E0, bSide, bFront, 0xFFF5E0),
+      leg:  _FM(0xFFCC00),
+      comb: _FM(0xCC2222),
+      beak: _FM(0xFFCC00),
+    };
+  }
+
+  // ── FISH ────────────────────────────────────────────────
+  {
+    function makeFishSkin(bc, fc, sc) {
+      const F = { b: bc, f: fc, s: sc, w:'#FFFFFF', e:'#111111' };
+      const side = _PT([
+        'bbbbbbbb',
+        'bssbssbb',  // scale pattern
+        'bssbbsbb',
+        'bssbssbb',
+        'bssbbsbb',
+        'bssbssbb',
+        'bbbbbbbb',
+        'bbbbbbbb',
+      ], F);
+      const front = _PT([
+        'bbbbbbbb',
+        'bbwwwwbb',  // eye whites
+        'bweewebb',  // pupils
+        'bbwwwwbb',
+        'bbbbbbbb',
+        'bbbbbbbb',
+        'bbbbbbbb',
+        'bbbbbbbb',
+      ], F);
+      const belly = _PT([
+        'ffffffff',
+        'ffffffff',
+        'ffffffff',
+        'ffffffff',
+        'ffffffff',
+        'ffffffff',
+        'ffffffff',
+        'ffffffff',
+      ], F);
+      return {
+        body: _MA(side, side, side, belly, side, front, 0),
+        fin:  _FM(parseInt(fc.replace('#',''), 16)),
+      };
+    }
+    S.fish_blue   = makeFishSkin('#2266AA', '#5599CC', '#1A4488');
+    S.fish_orange = makeFishSkin('#CC5500', '#FF8822', '#994400');
+  }
+
+  return S;
+})();
+
 function buildMobGroup(type) {
   const g = new THREE.Group();
-  const b = (color, w, h, d, x, y, z) => _mobBox(g, color, w, h, d, x, y, z);
   g.userData.legs = [];
   g.userData.head = null;
   g.userData.tail = null;
 
   if (type === 'pig') {
-    const PK = 0xFFB3BA, DK = 0xFF8FAA;
-    b(PK, 0.90, 0.45, 0.55,  0,     0.67,  0);
-    g.userData.legs.push(b(PK, 0.15, 0.40, 0.15, -0.30, 0.20, -0.18));
-    g.userData.legs.push(b(PK, 0.15, 0.40, 0.15,  0.30, 0.20, -0.18));
-    g.userData.legs.push(b(PK, 0.15, 0.40, 0.15, -0.30, 0.20,  0.18));
-    g.userData.legs.push(b(PK, 0.15, 0.40, 0.15,  0.30, 0.20,  0.18));
-    g.userData.head = b(PK, 0.48, 0.46, 0.42,  0,    0.90, -0.46);
-    b(DK, 0.28, 0.20, 0.14,  0,     0.88, -0.67);
-    b(DK, 0.13, 0.13, 0.06, -0.17,  1.12, -0.45);
-    b(DK, 0.13, 0.13, 0.06,  0.17,  1.12, -0.45);
+    const sk = MOB_SKIN.pig;
+    _box(g, sk.body, 1.00, 0.48, 0.62,  0,    0.68,  0.00);
+    g.userData.legs.push(_box(g, sk.leg, 0.18, 0.42, 0.18, -0.36, 0.21, -0.22));
+    g.userData.legs.push(_box(g, sk.leg, 0.18, 0.42, 0.18,  0.36, 0.21, -0.22));
+    g.userData.legs.push(_box(g, sk.leg, 0.18, 0.42, 0.18, -0.36, 0.21,  0.22));
+    g.userData.legs.push(_box(g, sk.leg, 0.18, 0.42, 0.18,  0.36, 0.21,  0.22));
+    g.userData.head = _box(g, sk.head, 0.56, 0.54, 0.52,  0,    0.90, -0.50);
+    _box(g, sk.snout, 0.38, 0.24, 0.18,  0,    0.88, -0.76);
   }
   else if (type === 'cow') {
-    const BR = 0x5C3317, WH = 0xEEEEDD, TN = 0x8B6040;
-    b(BR, 1.00, 0.50, 0.65,  0,     0.70,  0);
-    b(WH, 0.45, 0.30, 0.66,  0.10,  0.78,  0);
-    g.userData.legs.push(b(BR, 0.18, 0.45, 0.18, -0.35, 0.22, -0.22));
-    g.userData.legs.push(b(BR, 0.18, 0.45, 0.18,  0.35, 0.22, -0.22));
-    g.userData.legs.push(b(BR, 0.18, 0.45, 0.18, -0.35, 0.22,  0.22));
-    g.userData.legs.push(b(BR, 0.18, 0.45, 0.18,  0.35, 0.22,  0.22));
-    g.userData.head = b(BR, 0.50, 0.50, 0.44,  0,    0.97, -0.56);
-    b(TN, 0.32, 0.24, 0.16,  0,     0.92, -0.78);
-    b(WH, 0.08, 0.22, 0.08, -0.26,  1.28, -0.52);
-    b(WH, 0.08, 0.22, 0.08,  0.26,  1.28, -0.52);
+    const sk = MOB_SKIN.cow;
+    _box(g, sk.body, 1.10, 0.52, 0.70,  0,    0.72,  0.00);
+    g.userData.legs.push(_box(g, sk.leg, 0.22, 0.52, 0.22, -0.40, 0.26, -0.24));
+    g.userData.legs.push(_box(g, sk.leg, 0.22, 0.52, 0.22,  0.40, 0.26, -0.24));
+    g.userData.legs.push(_box(g, sk.leg, 0.22, 0.52, 0.22, -0.40, 0.26,  0.24));
+    g.userData.legs.push(_box(g, sk.leg, 0.22, 0.52, 0.22,  0.40, 0.26,  0.24));
+    g.userData.head = _box(g, sk.head, 0.58, 0.58, 0.54,  0,    1.00, -0.60);
+    _box(g, sk.muzzle, 0.38, 0.28, 0.18,  0,    0.95, -0.86);
+    _box(g, sk.horn, 0.10, 0.28, 0.10, -0.30, 1.34, -0.58);
+    _box(g, sk.horn, 0.10, 0.28, 0.10,  0.30, 1.34, -0.58);
   }
   else if (type === 'wolf') {
-    const GD = 0xC8860A, LG = 0xF0C060, DG = 0x8A5500;
-    b(GD, 0.80, 0.40, 0.50,  0,     0.60,  0);
-    b(LG, 0.50, 0.30, 0.52,  0,     0.62, -0.05);
-    g.userData.legs.push(b(GD, 0.14, 0.42, 0.14, -0.29, 0.21, -0.16));
-    g.userData.legs.push(b(GD, 0.14, 0.42, 0.14,  0.29, 0.21, -0.16));
-    g.userData.legs.push(b(GD, 0.14, 0.42, 0.14, -0.29, 0.21,  0.16));
-    g.userData.legs.push(b(GD, 0.14, 0.42, 0.14,  0.29, 0.21,  0.16));
-    g.userData.head = b(GD, 0.42, 0.40, 0.38,  0,    0.85, -0.47);
-    b(LG, 0.28, 0.22, 0.20,  0,     0.82, -0.66);
-    const eL = b(DG, 0.14, 0.22, 0.08, -0.22, 0.86, -0.44);
-    eL.rotation.z =  0.3;
-    const eR = b(DG, 0.14, 0.22, 0.08,  0.22, 0.86, -0.44);
-    eR.rotation.z = -0.3;
-    g.userData.tail = b(LG, 0.10, 0.10, 0.32,  0,    0.84,  0.28);
-    g.userData.tail.rotation.x = -0.5;
+    const sk = MOB_SKIN.wolf;
+    _box(g, sk.body, 0.88, 0.44, 0.56,  0,    0.62,  0.00);
+    g.userData.legs.push(_box(g, sk.leg, 0.18, 0.48, 0.18, -0.32, 0.24, -0.18));
+    g.userData.legs.push(_box(g, sk.leg, 0.18, 0.48, 0.18,  0.32, 0.24, -0.18));
+    g.userData.legs.push(_box(g, sk.leg, 0.18, 0.48, 0.18, -0.32, 0.24,  0.18));
+    g.userData.legs.push(_box(g, sk.leg, 0.18, 0.48, 0.18,  0.32, 0.24,  0.18));
+    g.userData.head = _box(g, sk.head, 0.50, 0.50, 0.46,  0,    0.88, -0.50);
+    // Floppy ears
+    const eL = _box(g, sk.ear, 0.16, 0.26, 0.08, -0.27, 1.04, -0.50);
+    eL.rotation.z =  0.35;
+    const eR = _box(g, sk.ear, 0.16, 0.26, 0.08,  0.27, 1.04, -0.50);
+    eR.rotation.z = -0.35;
+    g.userData.tail = _box(g, sk.tail, 0.12, 0.12, 0.38,  0,    0.88,  0.30);
+    g.userData.tail.rotation.x = -0.55;
   }
   else if (type === 'cat') {
-    const OR = 0xC87030, LO = 0xF0A860;
-    b(OR, 0.68, 0.30, 0.45,  0,     0.55,  0);
-    b(LO, 0.40, 0.22, 0.46,  0,     0.58,  0);
-    g.userData.legs.push(b(OR, 0.12, 0.35, 0.12, -0.24, 0.175, -0.15));
-    g.userData.legs.push(b(OR, 0.12, 0.35, 0.12,  0.24, 0.175, -0.15));
-    g.userData.legs.push(b(OR, 0.12, 0.35, 0.12, -0.24, 0.175,  0.15));
-    g.userData.legs.push(b(OR, 0.12, 0.35, 0.12,  0.24, 0.175,  0.15));
-    g.userData.head = b(OR, 0.36, 0.36, 0.33,  0,    0.78, -0.40);
-    b(LO, 0.18, 0.14, 0.12,  0,     0.76, -0.56);
-    b(OR, 0.10, 0.16, 0.05, -0.13,  0.99, -0.38);
-    b(OR, 0.10, 0.16, 0.05,  0.13,  0.99, -0.38);
-    b(0xFF99BB, 0.06, 0.10, 0.03, -0.13, 0.99, -0.385);
-    b(0xFF99BB, 0.06, 0.10, 0.03,  0.13, 0.99, -0.385);
-    g.userData.tail = b(OR, 0.08, 0.08, 0.42,  0,    0.72,  0.32);
-    g.userData.tail.rotation.x = -0.6;
+    const sk = MOB_SKIN.cat;
+    _box(g, sk.body, 0.72, 0.34, 0.50,  0,    0.56,  0.00);
+    g.userData.legs.push(_box(g, sk.leg, 0.14, 0.38, 0.14, -0.26, 0.19, -0.17));
+    g.userData.legs.push(_box(g, sk.leg, 0.14, 0.38, 0.14,  0.26, 0.19, -0.17));
+    g.userData.legs.push(_box(g, sk.leg, 0.14, 0.38, 0.14, -0.26, 0.19,  0.17));
+    g.userData.legs.push(_box(g, sk.leg, 0.14, 0.38, 0.14,  0.26, 0.19,  0.17));
+    g.userData.head = _box(g, sk.head, 0.40, 0.40, 0.38,  0,    0.80, -0.44);
+    // Pointy ears
+    _box(g, sk.head, 0.12, 0.20, 0.06, -0.16, 1.02, -0.44);
+    _box(g, sk.head, 0.12, 0.20, 0.06,  0.16, 1.02, -0.44);
+    // Inner ear pink
+    _box(g, sk.earIn, 0.07, 0.12, 0.03, -0.16, 1.02, -0.447);
+    _box(g, sk.earIn, 0.07, 0.12, 0.03,  0.16, 1.02, -0.447);
+    // Tail (3 segments, curves upward)
+    g.userData.tail = _box(g, sk.tail, 0.09, 0.09, 0.46,  0,    0.74,  0.30);
+    g.userData.tail.rotation.x = -0.7;
   }
   else if (type === 'chicken') {
-    const WH = 0xFFF5E0, RD = 0xCC2222, YL = 0xFFCC00;
-    b(WH, 0.50, 0.50, 0.45,  0,     0.63,  0);
-    b(WH, 0.08, 0.30, 0.40, -0.30,  0.64,  0.02);
-    b(WH, 0.08, 0.30, 0.40,  0.30,  0.64,  0.02);
-    g.userData.legs.push(b(YL, 0.07, 0.40, 0.07, -0.10, 0.20, 0));
-    g.userData.legs.push(b(YL, 0.07, 0.40, 0.07,  0.10, 0.20, 0));
+    const sk = MOB_SKIN.chicken;
+    _box(g, sk.body, 0.52, 0.54, 0.50,  0,    0.65,  0.00);
+    // Wings
+    _box(g, sk.body, 0.10, 0.36, 0.44, -0.32, 0.64,  0.02);
+    _box(g, sk.body, 0.10, 0.36, 0.44,  0.32, 0.64,  0.02);
+    g.userData.legs.push(_box(g, sk.leg, 0.08, 0.42, 0.08, -0.12, 0.21,  0.00));
+    g.userData.legs.push(_box(g, sk.leg, 0.08, 0.42, 0.08,  0.12, 0.21,  0.00));
     g.userData.legs.push(null);
     g.userData.legs.push(null);
-    g.userData.head = b(WH, 0.30, 0.30, 0.27,  0,    0.96, -0.33);
-    b(RD, 0.08, 0.18, 0.06,  0,     1.12, -0.31);
-    b(YL, 0.10, 0.08, 0.16,  0,     0.94, -0.47);
-    b(RD, 0.07, 0.10, 0.05,  0,     0.88, -0.45);
+    g.userData.head = _box(g, sk.head, 0.32, 0.32, 0.30,  0,    0.98, -0.36);
+    _box(g, sk.comb, 0.10, 0.22, 0.07,  0,    1.16, -0.34);
+    _box(g, sk.beak, 0.12, 0.10, 0.20,  0,    0.96, -0.51);
+    _box(g, sk.comb, 0.08, 0.12, 0.06,  0,    0.90, -0.50);  // wattle
   }
   else if (type === 'fish') {
-    const bodyColor = Math.random() < 0.5 ? 0x3388CC : 0xFF8800;
-    const finColor  = Math.random() < 0.5 ? 0xAADDFF : 0xFFBB44;
-    b(bodyColor, 0.14, 0.22, 0.38,  0,     0,     0);
-    g.userData.tail = b(finColor, 0.04, 0.28, 0.06,  0, 0, 0.23);
-    b(finColor, 0.03, 0.10, 0.22,   0,     0.15,  0.02);
-    b(0xFFFFFF, 0.02, 0.06, 0.06,  -0.08,  0.04, -0.14);
-    b(0x111111, 0.02, 0.03, 0.03,  -0.085, 0.04, -0.15);
+    const sk = Math.random() < 0.5 ? MOB_SKIN.fish_blue : MOB_SKIN.fish_orange;
+    // Body along Z (nose at -Z, tail at +Z)
+    _box(g, sk.body, 0.15, 0.26, 0.44,  0,    0,     0.00);
+    // Tail fin
+    g.userData.tail = _box(g, sk.fin, 0.05, 0.32, 0.07,  0,    0,     0.26);
+    // Dorsal fin
+    _box(g, sk.fin, 0.04, 0.12, 0.26,  0,    0.18,  0.02);
+    // Pectoral fins
+    _box(g, sk.fin, 0.14, 0.06, 0.16, -0.10, 0,     0.05);
+    _box(g, sk.fin, 0.14, 0.06, 0.16,  0.10, 0,     0.05);
   }
 
   return g;
@@ -2155,7 +2532,11 @@ class Mob {
   remove() {
     scene.remove(this.group);
     this.group.traverse(child => {
-      if (child.isMesh) { child.geometry.dispose(); child.material.dispose(); }
+      if (child.isMesh) {
+        child.geometry.dispose();
+        if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+        else child.material.dispose();
+      }
     });
   }
 }
