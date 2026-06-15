@@ -137,7 +137,9 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
 #inv-main-grid{display:grid;grid-template-columns:repeat(9,40px);gap:4px}
 #inv-title{font-size:9px;color:#333;margin-bottom:10px;text-shadow:1px 1px 0 rgba(255,255,255,0.6)}
 .inv-label{font-size:7px;color:#333;margin:8px 0 4px;text-shadow:1px 1px 0 rgba(255,255,255,0.5)}
-#inv-blocks-grid{display:grid;grid-template-columns:repeat(9,40px);gap:4px}
+#inv-page-nav{display:none;align-items:center;justify-content:center;gap:10px;margin:6px 0 2px}
+#inv-page-info{font-size:7px;color:#333;min-width:52px;text-align:center;font-family:'Press Start 2P',monospace;text-shadow:1px 1px 0 rgba(255,255,255,0.5)}
+#inv-prev:disabled,#inv-next:disabled{opacity:0.35;cursor:default;pointer-events:none}
 #inv-hotbar-row{display:grid;grid-template-columns:repeat(9,40px);gap:4px}
 .inv-slot{
   width:40px;height:40px;background:#8b8b8b;
@@ -490,12 +492,13 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
 <div id="inv-screen">
   <div id="inv-panel">
     <div id="inv-title">INVENTORY</div>
-    <div id="inv-creative-section">
-      <div class="inv-label">BLOCKS</div>
-      <div id="inv-blocks-grid"></div>
-    </div>
-    <div class="inv-label">INVENTORY <span style="font-size:6px;opacity:0.6">(right-click to clear)</span></div>
+    <div class="inv-label" id="inv-grid-label">INVENTORY <span style="font-size:6px;opacity:0.6">(right-click to clear)</span></div>
     <div id="inv-main-grid"></div>
+    <div id="inv-page-nav">
+      <button class="mc-btn" id="inv-prev" style="padding:3px 10px;font-size:9px;min-width:0">◀</button>
+      <span id="inv-page-info">1 / 1</span>
+      <button class="mc-btn" id="inv-next" style="padding:3px 10px;font-size:9px;min-width:0">▶</button>
+    </div>
     <div class="inv-label">HOTBAR</div>
     <div id="inv-hotbar-row"></div>
     <div style="margin-top:10px;display:flex;justify-content:flex-end">
@@ -1622,7 +1625,8 @@ const world=new World(scene);
 const player=new Player(camera,world);
 const keys={};
 let locked=false, gameReady=false, gameStarted=false, paused=false;
-let gamemode='survival', inventoryOpen=false, chatOpen=false;
+let gamemode='survival', inventoryOpen=false, chatOpen=false, creativePageIdx=0;
+const CREATIVE_PAGE_SIZE=27;
 const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,WATER,FOLIAGE];
 const DEFAULT_HOTBAR=new Array(9).fill(AIR);
 let showDbg=false;
@@ -1665,10 +1669,15 @@ const chatInputWrap     = document.getElementById('chat-input-wrap');
 const chatInput         = document.getElementById('chat-input');
 const invScreen         = document.getElementById('inv-screen');
 const invTitleEl        = document.getElementById('inv-title');
-const invCreativeSection= document.getElementById('inv-creative-section');
-const invBlocksGrid     = document.getElementById('inv-blocks-grid');
+const invGridLabelEl    = document.getElementById('inv-grid-label');
+const invPageNav        = document.getElementById('inv-page-nav');
+const invPrevBtn        = document.getElementById('inv-prev');
+const invNextBtn        = document.getElementById('inv-next');
+const invPageInfo       = document.getElementById('inv-page-info');
 const invHotbarRow      = document.getElementById('inv-hotbar-row');
 const gmBadge           = document.getElementById('gm-badge');
+invPrevBtn.addEventListener('click',()=>{ creativePageIdx--; buildCreativeGrid(); });
+invNextBtn.addEventListener('click',()=>{ creativePageIdx++; buildCreativeGrid(); });
 
 // ── HUD ───────────────────────────────────────────────────
 
@@ -1921,33 +1930,49 @@ function buildInvMainGrid(){
   });
 }
 
+function buildCreativeGrid(){
+  invMainGridEl.innerHTML='';
+  const totalPages=Math.max(1,Math.ceil(CREATIVE_BLOCKS.length/CREATIVE_PAGE_SIZE));
+  creativePageIdx=Math.min(creativePageIdx,totalPages-1);
+  const start=creativePageIdx*CREATIVE_PAGE_SIZE;
+  CREATIVE_BLOCKS.slice(start,start+CREATIVE_PAGE_SIZE).forEach(id=>{
+    const s=document.createElement('div');
+    s.className='inv-slot';
+    const img=document.createElement('img'); img.src=makeBlockIcon(id);
+    const tip=document.createElement('div'); tip.className='inv-slot-tip';
+    tip.textContent=BLOCK_NAME[id];
+    s.append(img,tip);
+    s.addEventListener('click',()=>{
+      player.hotbar[player.slot]=id;
+      player.hotbarCounts[player.slot]=0; // 0 = unlimited in creative
+      buildHotbar(); buildInvHotbar();
+    });
+    invMainGridEl.append(s);
+  });
+  invPageInfo.textContent=`${creativePageIdx+1} / ${totalPages}`;
+  invPrevBtn.disabled=creativePageIdx===0;
+  invNextBtn.disabled=creativePageIdx>=totalPages-1;
+}
+
 function buildInvScreen(){
   const cr=gamemode==='creative';
   invTitleEl.textContent=cr?'CREATIVE INVENTORY':'INVENTORY';
-  invCreativeSection.style.display=cr?'block':'none';
   if(cr){
-    invBlocksGrid.innerHTML='';
-    CREATIVE_BLOCKS.forEach(id=>{
-      const s=document.createElement('div');
-      s.className='inv-slot';
-      const img=document.createElement('img'); img.src=makeBlockIcon(id);
-      const tip=document.createElement('div'); tip.className='inv-slot-tip';
-      tip.textContent=BLOCK_NAME[id];
-      s.append(img,tip);
-      s.addEventListener('click',()=>{
-        player.hotbar[player.slot]=id;
-        buildHotbar(); buildInvHotbar();
-      });
-      invBlocksGrid.append(s);
-    });
+    invGridLabelEl.textContent='BLOCKS';
+    invPageNav.style.display='flex';
+    buildCreativeGrid();
+  } else {
+    invGridLabelEl.innerHTML='INVENTORY <span style="font-size:6px;opacity:0.6">(right-click to clear)</span>';
+    invPageNav.style.display='none';
+    buildInvMainGrid();
   }
-  buildInvMainGrid();
   buildInvHotbar();
 }
 
 function openInventory(){
   if(!gameStarted) return;
   inventoryOpen=true;
+  creativePageIdx=0;
   document.exitPointerLock();
   buildInvScreen();
   invScreen.style.display='flex';
