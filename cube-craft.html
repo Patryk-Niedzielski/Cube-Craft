@@ -2161,7 +2161,11 @@ function closeInventory(){
   inventoryOpen=false;
   invScreen.style.display='none';
   for(const k in keys) keys[k]=false;
-  if(gameStarted){ showHUD(true); clickHint.style.display='flex'; }
+  if(gameStarted){
+    showHUD(true);
+    const req=canvas.requestPointerLock();
+    if(req&&typeof req.then==='function') req.catch(()=>{ showHUD(false); clickHint.style.display='flex'; });
+  }
 }
 
 function openGiveMenu(){
@@ -2200,7 +2204,11 @@ function closeGiveMenu(){
   giveMenuOpen=false;
   giveMenuEl.style.display='none';
   for(const k in keys) keys[k]=false;
-  if(gameStarted){ showHUD(true); clickHint.style.display='flex'; }
+  if(gameStarted){
+    showHUD(true);
+    const req=canvas.requestPointerLock();
+    if(req&&typeof req.then==='function') req.catch(()=>{ showHUD(false); clickHint.style.display='flex'; });
+  }
 }
 
 // ── WORLD SAVE / LOAD ─────────────────────────────────────
