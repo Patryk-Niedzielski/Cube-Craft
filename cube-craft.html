@@ -1915,6 +1915,303 @@ function playPlaceSound(blockId){
 // ── GAME STATE ────────────────────────────────────────────
 const world=new World(scene);
 const player=new Player(camera,world);
+
+// ── MOBS ──────────────────────────────────────────────────
+const MOB_GRAV = -22;
+const mobs = [];
+
+const MOB_CFG = {
+  pig:     { h: 1.05, w: 0.45, spd: 1.4 },
+  cow:     { h: 1.25, w: 0.50, spd: 1.2 },
+  wolf:    { h: 1.05, w: 0.40, spd: 1.8 },
+  cat:     { h: 0.85, w: 0.35, spd: 1.5 },
+  chicken: { h: 0.95, w: 0.25, spd: 1.3 },
+  fish:    { h: 0.22, w: 0.20, spd: 1.0 },
+};
+
+function _mobBox(g, color, w, h, d, x, y, z) {
+  const m = new THREE.Mesh(
+    new THREE.BoxGeometry(w, h, d),
+    new THREE.MeshBasicMaterial({ color })
+  );
+  m.position.set(x, y, z);
+  g.add(m);
+  return m;
+}
+
+function buildMobGroup(type) {
+  const g = new THREE.Group();
+  const b = (color, w, h, d, x, y, z) => _mobBox(g, color, w, h, d, x, y, z);
+  g.userData.legs = [];
+  g.userData.head = null;
+  g.userData.tail = null;
+
+  if (type === 'pig') {
+    const PK = 0xFFB3BA, DK = 0xFF8FAA;
+    b(PK, 0.90, 0.45, 0.55,  0,     0.67,  0);
+    g.userData.legs.push(b(PK, 0.15, 0.40, 0.15, -0.30, 0.20, -0.18));
+    g.userData.legs.push(b(PK, 0.15, 0.40, 0.15,  0.30, 0.20, -0.18));
+    g.userData.legs.push(b(PK, 0.15, 0.40, 0.15, -0.30, 0.20,  0.18));
+    g.userData.legs.push(b(PK, 0.15, 0.40, 0.15,  0.30, 0.20,  0.18));
+    g.userData.head = b(PK, 0.48, 0.46, 0.42,  0,    0.90, -0.46);
+    b(DK, 0.28, 0.20, 0.14,  0,     0.88, -0.67);
+    b(DK, 0.13, 0.13, 0.06, -0.17,  1.12, -0.45);
+    b(DK, 0.13, 0.13, 0.06,  0.17,  1.12, -0.45);
+  }
+  else if (type === 'cow') {
+    const BR = 0x5C3317, WH = 0xEEEEDD, TN = 0x8B6040;
+    b(BR, 1.00, 0.50, 0.65,  0,     0.70,  0);
+    b(WH, 0.45, 0.30, 0.66,  0.10,  0.78,  0);
+    g.userData.legs.push(b(BR, 0.18, 0.45, 0.18, -0.35, 0.22, -0.22));
+    g.userData.legs.push(b(BR, 0.18, 0.45, 0.18,  0.35, 0.22, -0.22));
+    g.userData.legs.push(b(BR, 0.18, 0.45, 0.18, -0.35, 0.22,  0.22));
+    g.userData.legs.push(b(BR, 0.18, 0.45, 0.18,  0.35, 0.22,  0.22));
+    g.userData.head = b(BR, 0.50, 0.50, 0.44,  0,    0.97, -0.56);
+    b(TN, 0.32, 0.24, 0.16,  0,     0.92, -0.78);
+    b(WH, 0.08, 0.22, 0.08, -0.26,  1.28, -0.52);
+    b(WH, 0.08, 0.22, 0.08,  0.26,  1.28, -0.52);
+  }
+  else if (type === 'wolf') {
+    const GD = 0xC8860A, LG = 0xF0C060, DG = 0x8A5500;
+    b(GD, 0.80, 0.40, 0.50,  0,     0.60,  0);
+    b(LG, 0.50, 0.30, 0.52,  0,     0.62, -0.05);
+    g.userData.legs.push(b(GD, 0.14, 0.42, 0.14, -0.29, 0.21, -0.16));
+    g.userData.legs.push(b(GD, 0.14, 0.42, 0.14,  0.29, 0.21, -0.16));
+    g.userData.legs.push(b(GD, 0.14, 0.42, 0.14, -0.29, 0.21,  0.16));
+    g.userData.legs.push(b(GD, 0.14, 0.42, 0.14,  0.29, 0.21,  0.16));
+    g.userData.head = b(GD, 0.42, 0.40, 0.38,  0,    0.85, -0.47);
+    b(LG, 0.28, 0.22, 0.20,  0,     0.82, -0.66);
+    const eL = b(DG, 0.14, 0.22, 0.08, -0.22, 0.86, -0.44);
+    eL.rotation.z =  0.3;
+    const eR = b(DG, 0.14, 0.22, 0.08,  0.22, 0.86, -0.44);
+    eR.rotation.z = -0.3;
+    g.userData.tail = b(LG, 0.10, 0.10, 0.32,  0,    0.84,  0.28);
+    g.userData.tail.rotation.x = -0.5;
+  }
+  else if (type === 'cat') {
+    const OR = 0xC87030, LO = 0xF0A860;
+    b(OR, 0.68, 0.30, 0.45,  0,     0.55,  0);
+    b(LO, 0.40, 0.22, 0.46,  0,     0.58,  0);
+    g.userData.legs.push(b(OR, 0.12, 0.35, 0.12, -0.24, 0.175, -0.15));
+    g.userData.legs.push(b(OR, 0.12, 0.35, 0.12,  0.24, 0.175, -0.15));
+    g.userData.legs.push(b(OR, 0.12, 0.35, 0.12, -0.24, 0.175,  0.15));
+    g.userData.legs.push(b(OR, 0.12, 0.35, 0.12,  0.24, 0.175,  0.15));
+    g.userData.head = b(OR, 0.36, 0.36, 0.33,  0,    0.78, -0.40);
+    b(LO, 0.18, 0.14, 0.12,  0,     0.76, -0.56);
+    b(OR, 0.10, 0.16, 0.05, -0.13,  0.99, -0.38);
+    b(OR, 0.10, 0.16, 0.05,  0.13,  0.99, -0.38);
+    b(0xFF99BB, 0.06, 0.10, 0.03, -0.13, 0.99, -0.385);
+    b(0xFF99BB, 0.06, 0.10, 0.03,  0.13, 0.99, -0.385);
+    g.userData.tail = b(OR, 0.08, 0.08, 0.42,  0,    0.72,  0.32);
+    g.userData.tail.rotation.x = -0.6;
+  }
+  else if (type === 'chicken') {
+    const WH = 0xFFF5E0, RD = 0xCC2222, YL = 0xFFCC00;
+    b(WH, 0.50, 0.50, 0.45,  0,     0.63,  0);
+    b(WH, 0.08, 0.30, 0.40, -0.30,  0.64,  0.02);
+    b(WH, 0.08, 0.30, 0.40,  0.30,  0.64,  0.02);
+    g.userData.legs.push(b(YL, 0.07, 0.40, 0.07, -0.10, 0.20, 0));
+    g.userData.legs.push(b(YL, 0.07, 0.40, 0.07,  0.10, 0.20, 0));
+    g.userData.legs.push(null);
+    g.userData.legs.push(null);
+    g.userData.head = b(WH, 0.30, 0.30, 0.27,  0,    0.96, -0.33);
+    b(RD, 0.08, 0.18, 0.06,  0,     1.12, -0.31);
+    b(YL, 0.10, 0.08, 0.16,  0,     0.94, -0.47);
+    b(RD, 0.07, 0.10, 0.05,  0,     0.88, -0.45);
+  }
+  else if (type === 'fish') {
+    const bodyColor = Math.random() < 0.5 ? 0x3388CC : 0xFF8800;
+    const finColor  = Math.random() < 0.5 ? 0xAADDFF : 0xFFBB44;
+    b(bodyColor, 0.14, 0.22, 0.38,  0,     0,     0);
+    g.userData.tail = b(finColor, 0.04, 0.28, 0.06,  0, 0, 0.23);
+    b(finColor, 0.03, 0.10, 0.22,   0,     0.15,  0.02);
+    b(0xFFFFFF, 0.02, 0.06, 0.06,  -0.08,  0.04, -0.14);
+    b(0x111111, 0.02, 0.03, 0.03,  -0.085, 0.04, -0.15);
+  }
+
+  return g;
+}
+
+class Mob {
+  constructor(type, x, y, z) {
+    this.type        = type;
+    this.pos         = new THREE.Vector3(x, y, z);
+    this.vel         = new THREE.Vector3();
+    this.onGround    = false;
+    this.yaw         = Math.random() * Math.PI * 2;
+    this.wanderTimer = 1 + Math.random() * 3;
+    this.idle        = false;
+    this.animPhase   = Math.random() * Math.PI * 2;
+    this.cfg         = MOB_CFG[type];
+    this.group       = buildMobGroup(type);
+    scene.add(this.group);
+    this._syncTransform();
+  }
+
+  _syncTransform() {
+    this.group.position.copy(this.pos);
+    this.group.rotation.y = this.yaw;
+  }
+
+  _solid(bx, by, bz) {
+    return SOLID[world.getBlock(bx, by, bz)];
+  }
+
+  update(dt) {
+    if (this.type === 'fish') { this._updateFish(dt); return; }
+
+    // Wander AI
+    this.wanderTimer -= dt;
+    if (this.wanderTimer <= 0) {
+      if (this.idle) {
+        this.idle = false;
+        this.yaw  = Math.random() * Math.PI * 2;
+        this.wanderTimer = 2 + Math.random() * 4;
+      } else if (Math.random() < 0.35) {
+        this.idle = true;
+        this.wanderTimer = 1.5 + Math.random() * 2;
+      } else {
+        this.yaw = Math.random() * Math.PI * 2;
+        this.wanderTimer = 2 + Math.random() * 4;
+      }
+    }
+
+    const spd = this.cfg.spd;
+    let vx = this.idle ? 0 : -Math.sin(this.yaw) * spd;
+    let vz = this.idle ? 0 : -Math.cos(this.yaw) * spd;
+
+    // Wall avoidance
+    if (!this.idle && this.onGround) {
+      const reach = this.cfg.w + 0.15;
+      const nx = Math.floor(this.pos.x - Math.sin(this.yaw) * reach);
+      const nz = Math.floor(this.pos.z - Math.cos(this.yaw) * reach);
+      const fy = Math.floor(this.pos.y + 0.3);
+      if (this._solid(nx, fy, nz) || this._solid(nx, fy + 1, nz)) {
+        this.yaw += Math.PI * (0.75 + Math.random() * 0.5);
+        vx = 0; vz = 0;
+        this.wanderTimer = 1 + Math.random() * 1.5;
+      }
+    }
+
+    // Gravity
+    this.vel.y = this.onGround ? 0 : Math.max(this.vel.y + MOB_GRAV * dt, -30);
+
+    // Apply movement
+    this.pos.x += vx * dt;
+    this.pos.z += vz * dt;
+    this.pos.y += this.vel.y * dt;
+
+    // Ground collision
+    const bx = Math.floor(this.pos.x);
+    const bz = Math.floor(this.pos.z);
+    const footBlock = Math.floor(this.pos.y - 0.05);
+    if (this.vel.y <= 0 && this._solid(bx, footBlock, bz)) {
+      this.pos.y    = footBlock + 1;
+      this.vel.y    = 0;
+      this.onGround = true;
+    } else {
+      this.onGround = false;
+    }
+
+    // Leg animation
+    const legs = this.group.userData.legs;
+    this.animPhase += (this.idle ? 0 : spd) * dt * 3.5;
+    const amp = this.idle ? 0 : 0.45;
+    if (legs[0]) legs[0].rotation.x =  Math.sin(this.animPhase) * amp;
+    if (legs[1]) legs[1].rotation.x = -Math.sin(this.animPhase) * amp;
+    if (legs[2]) legs[2].rotation.x = -Math.sin(this.animPhase) * amp;
+    if (legs[3]) legs[3].rotation.x =  Math.sin(this.animPhase) * amp;
+
+    // Tail wag
+    if (this.group.userData.tail) {
+      this.group.userData.tail.rotation.z = Math.sin(this.animPhase * 1.5) * 0.35;
+    }
+
+    this._syncTransform();
+  }
+
+  _updateFish(dt) {
+    this.animPhase += dt * 2.5;
+    const spd = this.cfg.spd;
+
+    this.yaw += Math.sin(this.animPhase * 0.4) * dt * 0.6;
+    const nx = this.pos.x - Math.sin(this.yaw) * spd * dt;
+    const nz = this.pos.z - Math.cos(this.yaw) * spd * dt;
+    const ny = this.pos.y + Math.sin(this.animPhase * 0.8) * 0.15 * dt;
+
+    if (world.getBlock(Math.floor(nx), Math.floor(ny), Math.floor(nz)) === WATER) {
+      this.pos.set(nx, ny, nz);
+    } else {
+      this.yaw += Math.PI + (Math.random() - 0.5) * 0.8;
+    }
+
+    if (this.group.userData.tail) {
+      this.group.userData.tail.rotation.y = Math.sin(this.animPhase * 3) * 0.45;
+    }
+
+    this._syncTransform();
+  }
+
+  remove() {
+    scene.remove(this.group);
+    this.group.traverse(child => {
+      if (child.isMesh) { child.geometry.dispose(); child.material.dispose(); }
+    });
+  }
+}
+
+function clearMobs() {
+  for (const m of mobs) m.remove();
+  mobs.length = 0;
+}
+
+function spawnMobs() {
+  clearMobs();
+  const landTypes = [
+    { type: 'pig',     count: 4 },
+    { type: 'cow',     count: 3 },
+    { type: 'wolf',    count: 3 },
+    { type: 'cat',     count: 3 },
+    { type: 'chicken', count: 4 },
+  ];
+  for (const { type, count } of landTypes) {
+    let spawned = 0;
+    outer: for (let r = 8; r < 90; r += 4) {
+      for (let a = 0; a < 14; a++) {
+        if (spawned >= count) break outer;
+        const angle = (a / 14) * Math.PI * 2 + r * 0.37;
+        const tx = Math.round(r * Math.cos(angle));
+        const tz = Math.round(r * Math.sin(angle));
+        const sy = world.surfaceY(tx, tz);
+        if (world.getBlock(tx, sy, tz) === GRASS && sy > SEA + 1) {
+          mobs.push(new Mob(type, tx + 0.5, sy + 1, tz + 0.5));
+          spawned++;
+        }
+      }
+    }
+  }
+  let fishCount = 0;
+  outer2: for (let r = 4; r < 80; r += 4) {
+    for (let a = 0; a < 12; a++) {
+      if (fishCount >= 5) break outer2;
+      const angle = (a / 12) * Math.PI * 2 + r * 0.5;
+      const tx = Math.round(r * Math.cos(angle));
+      const tz = Math.round(r * Math.sin(angle));
+      for (let y = HEIGHT - 1; y > 2; y--) {
+        if (world.getBlock(tx, y, tz) === WATER && world.getBlock(tx, y - 1, tz) === WATER) {
+          mobs.push(new Mob('fish', tx + 0.5, y - 0.5, tz + 0.5));
+          fishCount++;
+          break;
+        }
+      }
+    }
+  }
+}
+
+function updateMobs(dt) {
+  for (const m of mobs) m.update(dt);
+}
+
 const keys={};
 let locked=false, gameReady=false, gameStarted=false, paused=false;
 let gamemode='survival', inventoryOpen=false, chatOpen=false, creativePageIdx=0, giveMenuOpen=false;
@@ -2441,6 +2738,7 @@ function giveBlock(id){
 // ── WORLD GENERATION ─────────────────────────────────────
 async function generateWorld(){
   loadingEl.style.display='flex';
+  clearMobs();
   world.clear();   // wipe any chunks from a previous world so the new seed/terrain applies
   const total=(rdist*2+1)**2;
   let done=0;
@@ -2497,6 +2795,7 @@ async function generateWorld(){
   camera.position.set(player.pos.x, player.pos.y+PLR_H-0.08, player.pos.z);
   camera.rotation.order='YXZ';
   camera.rotation.set(-0.35, 0.5, 0); // pitch w dół, lekki obrót boczny
+  spawnMobs();
   loadingEl.style.display='none';
 }
 
@@ -2762,6 +3061,7 @@ function loop(t){
   const prevHp=player.hp;
   player.update(dt,keys);
   world.loadAround(player.pos.x, player.pos.z);
+  updateMobs(dt);
 
   // Wave animation — update time uniform on all loaded water meshes
   const wt=t*0.001;
