@@ -163,6 +163,50 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
   border:1px solid #555;
 }
 .inv-slot:hover .inv-slot-tip{display:block}
+/* ── WORLD CREATE SCREEN ── */
+#world-create-screen{
+  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+  z-index:25;background:rgba(0,0,0,0.72);
+}
+#wc-box{
+  background:#c6c6c6;padding:20px 22px 16px;width:310px;
+  border:3px solid;
+  border-top-color:#fff;border-left-color:#fff;
+  border-bottom-color:#555;border-right-color:#555;
+  font-family:'Press Start 2P',monospace;
+}
+.wc-title{font-size:9px;color:#333;margin-bottom:14px;text-align:center;text-shadow:1px 1px 0 rgba(255,255,255,0.6)}
+.wc-label{font-size:6px;color:#333;display:block;margin-bottom:3px;text-shadow:1px 1px 0 rgba(255,255,255,0.5)}
+.wc-field{margin-bottom:10px}
+.wc-input{
+  width:100%;box-sizing:border-box;background:#000;color:#fff;
+  font-family:'Press Start 2P',monospace;font-size:7px;
+  padding:5px 6px;outline:none;border:2px solid #666;
+}
+.wc-input:focus{border-color:#aaa}
+.wc-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.wc-toggle{font-size:7px !important;padding:4px 12px !important;width:auto !important;min-width:80px}
+.wc-toggle.wc-on{
+  background:#3a6b3a;
+  border-top-color:#5a9a5a;border-left-color:#5a9a5a;
+  border-right-color:#1a3a1a;border-bottom-color:#1a3a1a;
+}
+.wc-btns{display:flex;gap:8px;margin-top:14px}
+/* ── GIVE MENU ── */
+#give-menu{
+  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+  z-index:22;background:rgba(0,0,0,0.55);
+}
+#give-panel{
+  background:#c6c6c6;padding:16px 18px 14px;
+  border:3px solid;
+  border-top-color:#fff;border-left-color:#fff;
+  border-bottom-color:#555;border-right-color:#555;
+  font-family:'Press Start 2P',monospace;
+  max-height:90vh;overflow-y:auto;
+}
+#give-panel-title{font-size:9px;color:#333;margin-bottom:10px;text-shadow:1px 1px 0 rgba(255,255,255,0.6)}
+#give-grid{display:grid;grid-template-columns:repeat(9,40px);gap:4px}
 /* ── GAMEMODE BADGE ── */
 #gm-badge{
   position:fixed;top:8px;right:8px;
@@ -477,6 +521,44 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
   <span class="footer-r">Copyright Copilot &amp; Patryk. Nie kopiować!</span>
 </div>
 
+<!-- ── WORLD CREATE SCREEN ── -->
+<div id="world-create-screen">
+  <div id="wc-box">
+    <div class="wc-title">CREATE NEW WORLD</div>
+    <div class="wc-field">
+      <span class="wc-label">WORLD NAME</span>
+      <input class="wc-input" id="wc-name" type="text" value="New World" maxlength="24" spellcheck="false" autocomplete="off">
+    </div>
+    <div class="wc-field">
+      <span class="wc-label">SEED <span style="font-size:5px;opacity:0.6">(blank = random)</span></span>
+      <input class="wc-input" id="wc-seed" type="text" placeholder="" maxlength="20" spellcheck="false" autocomplete="off">
+    </div>
+    <div class="wc-row">
+      <span class="wc-label">GAME MODE</span>
+      <button class="mc-btn wc-toggle" id="wc-gm">SURVIVAL</button>
+    </div>
+    <div class="wc-row">
+      <span class="wc-label">ALLOW CHEATS</span>
+      <button class="mc-btn wc-toggle" id="wc-ch">OFF</button>
+    </div>
+    <div class="wc-btns">
+      <button class="mc-btn" id="wc-create">Create World</button>
+      <button class="mc-btn" id="wc-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── GIVE MENU (cheats only) ── -->
+<div id="give-menu">
+  <div id="give-panel">
+    <div id="give-panel-title">GIVE BLOCK</div>
+    <div id="give-grid"></div>
+    <div style="margin-top:10px;display:flex;justify-content:flex-end">
+      <button class="mc-btn" style="width:100px;font-size:7px" onclick="closeGiveMenu()">Close [ESC]</button>
+    </div>
+  </div>
+</div>
+
 <div id="click-hint"><p data-i18n="click_to_play">CLICK TO PLAY</p></div>
 
 <!-- ── CHAT ── -->
@@ -728,13 +810,16 @@ void main(){
 }`;
 
 // ── PERLIN NOISE ──────────────────────────────────────────
-const worldSeed = (Math.random()*1e9)|0;
+let worldSeed = (Math.random()*1e9)|0;
 const PERM=new Uint8Array(512);
-{
+function _lcg(seed){ let s=seed|0; return ()=>{s=(Math.imul(1664525,s)+1013904223)|0;return(s>>>0)/2**32;}; }
+function initPerm(seed){
+  const rng=_lcg(seed^0xdeadbeef);
   const s=[...Array(256)].map((_,i)=>i);
-  for(let i=255;i>0;i--){const j=(Math.random()*(i+1))|0;[s[i],s[j]]=[s[j],s[i]];}
+  for(let i=255;i>0;i--){const j=(rng()*(i+1))|0;[s[i],s[j]]=[s[j],s[i]];}
   for(let i=0;i<512;i++) PERM[i]=s[i&255];
 }
+initPerm(worldSeed);
 const fade=t=>t*t*t*(t*(t*6-15)+10);
 const lerp=(t,a,b)=>a+t*(b-a);
 const grad2=(h,x,y)=>{const v=h&3,u=v<2?x:y,w=v<2?y:x;return((v&1)?-u:u)+((v&2)?-w:w);};
@@ -1706,7 +1791,8 @@ const world=new World(scene);
 const player=new Player(camera,world);
 const keys={};
 let locked=false, gameReady=false, gameStarted=false, paused=false;
-let gamemode='survival', inventoryOpen=false, chatOpen=false, creativePageIdx=0;
+let gamemode='survival', inventoryOpen=false, chatOpen=false, creativePageIdx=0, giveMenuOpen=false;
+let cheatsEnabled=false;
 const CREATIVE_PAGE_SIZE=27;
 const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS];
 const DEFAULT_HOTBAR=new Array(9).fill(AIR);
@@ -1757,6 +1843,8 @@ const invNextBtn        = document.getElementById('inv-next');
 const invPageInfo       = document.getElementById('inv-page-info');
 const invHotbarRow      = document.getElementById('inv-hotbar-row');
 const gmBadge           = document.getElementById('gm-badge');
+const giveMenuEl        = document.getElementById('give-menu');
+const giveGridEl        = document.getElementById('give-grid');
 invPrevBtn.addEventListener('click',()=>{ creativePageIdx--; buildCreativeGrid(); });
 invNextBtn.addEventListener('click',()=>{ creativePageIdx++; buildCreativeGrid(); });
 
@@ -1916,6 +2004,9 @@ function processCommand(raw){
     if(m==='creative') setGamemode('creative');
     else if(m==='survival') setGamemode('survival');
     else addChatMsg('Usage: /gamemode creative|survival','err');
+  } else if(cmd==='give'){
+    if(!cheatsEnabled){ addChatMsg('Cheats are not enabled in this world.','err'); return; }
+    openGiveMenu();
   } else {
     addChatMsg('Unknown command: '+txt,'err');
   }
@@ -2066,6 +2157,45 @@ function closeInventory(){
   if(gameStarted){ showHUD(true); clickHint.style.display='flex'; }
 }
 
+function openGiveMenu(){
+  giveMenuOpen=true;
+  showHUD(false);
+  giveGridEl.innerHTML='';
+  CREATIVE_BLOCKS.forEach(id=>{
+    const cell=document.createElement('div');
+    cell.className='inv-slot';
+    cell.style.cursor='pointer';
+    const img=document.createElement('img');
+    img.src=makeBlockIcon(id);
+    img.style.cssText='width:36px;height:36px;image-rendering:pixelated';
+    cell.appendChild(img);
+    cell.addEventListener('click',()=>{
+      const amt=gamemode==='creative'?0:64;
+      let placed=false;
+      for(let i=0;i<9;i++){
+        if(player.hotbar[i]===AIR){ player.hotbar[i]=id; player.hotbarCounts[i]=amt; placed=true; break; }
+      }
+      if(!placed){
+        for(let i=0;i<27;i++){
+          if(player.inventory[i]===AIR){ player.inventory[i]=id; player.inventoryCounts[i]=amt; placed=true; break; }
+        }
+      }
+      if(!placed) addChatMsg('Inventory full!','err');
+      buildHotbar();
+      closeGiveMenu();
+    });
+    giveGridEl.appendChild(cell);
+  });
+  giveMenuEl.style.display='flex';
+}
+
+function closeGiveMenu(){
+  giveMenuOpen=false;
+  giveMenuEl.style.display='none';
+  for(const k in keys) keys[k]=false;
+  if(gameStarted){ showHUD(true); clickHint.style.display='flex'; }
+}
+
 // ── ITEM PICKUP ───────────────────────────────────────────
 function giveBlock(id){
   // Try to stack on existing hotbar slot
@@ -2157,8 +2287,8 @@ function requestLock(){
   const req = canvas.requestPointerLock();
   if(req && typeof req.then === 'function') req.catch(()=>{});
 }
-canvas.addEventListener('click', ()=>{ if(gameReady&&!locked&&!paused&&!chatOpen&&!inventoryOpen) requestLock(); });
-clickHint.addEventListener('click', ()=>{ if(!chatOpen&&!inventoryOpen) requestLock(); });
+canvas.addEventListener('click', ()=>{ if(gameReady&&!locked&&!paused&&!chatOpen&&!inventoryOpen&&!giveMenuOpen) requestLock(); });
+clickHint.addEventListener('click', ()=>{ if(!chatOpen&&!inventoryOpen&&!giveMenuOpen) requestLock(); });
 document.getElementById('resume-btn').addEventListener('click', requestLock);
 pauseScreen.addEventListener('click', e=>{ if(e.target===pauseScreen) requestLock(); });
 document.addEventListener('pointerlockerror', ()=>{ console.warn('Pointer lock failed'); });
@@ -2183,6 +2313,8 @@ document.addEventListener('pointerlockchange',()=>{
       chatAreaEl.style.display='flex';
       chatInput.focus();
     } else if(inventoryOpen){
+      showHUD(false);
+    } else if(giveMenuOpen){
       showHUD(false);
     } else if(gameStarted){
       showHUD(false);
@@ -2247,6 +2379,7 @@ document.addEventListener('keydown',e=>{
   }
   keys[e.code]=true;
   if(e.code==='Escape'){
+    if(giveMenuOpen){ closeGiveMenu(); return; }
     if(inventoryOpen){ closeInventory(); return; }
     if(locked) document.exitPointerLock();
     else if(paused&&gameStarted) requestLock();
@@ -2283,15 +2416,62 @@ window.addEventListener('resize',()=>{
 });
 
 // ── START BUTTON ─────────────────────────────────────────
-document.getElementById('play-btn').addEventListener('click', async()=>{
-  overlayEl.style.display='none';
+// ── WORLD CREATION SCREEN ────────────────────────────────
+const wcScreen  = document.getElementById('world-create-screen');
+const wcGmBtn   = document.getElementById('wc-gm');
+const wcChBtn   = document.getElementById('wc-ch');
+const wcSeedInp = document.getElementById('wc-seed');
+
+let _wcGamemode = 'survival';
+let _wcCheats   = false;
+
+wcGmBtn.addEventListener('click',()=>{
+  _wcGamemode = _wcGamemode==='survival' ? 'creative' : 'survival';
+  wcGmBtn.textContent = _wcGamemode.toUpperCase();
+  wcGmBtn.classList.toggle('wc-on', _wcGamemode==='creative');
+});
+
+wcChBtn.addEventListener('click',()=>{
+  _wcCheats = !_wcCheats;
+  wcChBtn.textContent = _wcCheats ? 'ON' : 'OFF';
+  wcChBtn.classList.toggle('wc-on', _wcCheats);
+});
+
+function hashStr(s){
+  let h=0;
+  for(let i=0;i<s.length;i++) h=(Math.imul(31,h)+s.charCodeAt(i))|0;
+  return (h>>>0);
+}
+
+document.getElementById('wc-create').addEventListener('click', async()=>{
+  const rawSeed = wcSeedInp.value.trim();
+  if(rawSeed==='') worldSeed = (Math.random()*1e9)|0;
+  else if(/^\d+$/.test(rawSeed)) worldSeed = parseInt(rawSeed)&0x7fffffff;
+  else worldSeed = hashStr(rawSeed);
+  initPerm(worldSeed);
+  gamemode = _wcGamemode;
+  cheatsEnabled = _wcCheats;
+  wcScreen.style.display='none';
   await generateWorld();
   gameReady=true;
   gameStarted=true;
   prevT=performance.now();
   buildHotbar(); buildHealth();
-  // Always show click-to-play — pointer lock must come from a fresh direct user click
   clickHint.style.display='flex';
+});
+
+document.getElementById('wc-cancel').addEventListener('click',()=>{
+  wcScreen.style.display='none';
+  overlayEl.style.display='flex';
+});
+
+document.getElementById('play-btn').addEventListener('click',()=>{
+  overlayEl.style.display='none';
+  // Reset toggles to defaults each time
+  _wcGamemode='survival'; wcGmBtn.textContent='SURVIVAL'; wcGmBtn.classList.remove('wc-on');
+  _wcCheats=false; wcChBtn.textContent='OFF'; wcChBtn.classList.remove('wc-on');
+  wcSeedInp.value='';
+  wcScreen.style.display='flex';
 });
 
 // ── MAIN LOOP ────────────────────────────────────────────
