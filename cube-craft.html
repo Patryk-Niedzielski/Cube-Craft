@@ -696,7 +696,12 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
           <div data-i18n="ctrl_sprint">SHIFT — Sprint</div>
           <div data-i18n="ctrl_break">LMB (hold) — Break block</div>
           <div data-i18n="ctrl_place">RMB — Place block</div>
-          <div data-i18n="ctrl_hotbar">1-6 / Scroll — Hotbar</div>
+          <div data-i18n="ctrl_hotbar">1-9 / Scroll — Hotbar</div>
+          <div data-i18n="ctrl_inv">E — Inventory</div>
+          <div data-i18n="ctrl_chat">T — Chat</div>
+          <div data-i18n="ctrl_cmd">/ — Command</div>
+          <div data-i18n="ctrl_fly">Space×2 — Fly (Creative)</div>
+          <div data-i18n="ctrl_spec_speed">CTRL — Fast fly (Spectator)</div>
           <div data-i18n="ctrl_pause">ESC — Pause</div>
           <div data-i18n="ctrl_debug">F3 — Debug info</div>
         </div>
@@ -774,7 +779,7 @@ const PLR_W    = 0.4;
 // ── BLOCK IDs ─────────────────────────────────────────────
 const AIR=0,GRASS=1,DIRT=2,STONE=3,WOOD=4,LEAVES=5,SAND=6,BEDROCK=7,WATER=8,FOLIAGE=9,GLASS=10;
 
-const BLOCK_NAME=['Air','Grass','Dirt','Stone','Wood','Leaves','Sand','Bedrock','Water','Grass','Glass'];
+const BLOCK_NAME=['Air','Grass','Dirt','Stone','Wood','Leaves','Sand','Bedrock','Water','Tall Grass','Glass'];
 const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3];
 const TEX_IDX={
   [GRASS]:   [0,2,1],
@@ -2588,7 +2593,7 @@ document.addEventListener('keydown',e=>{
   if(e.code==='Slash' && locked && gameStarted){ e.preventDefault(); openChat('/'); document.exitPointerLock(); return; }
   if(e.code==='Space' && locked && gameStarted && gamemode==='creative'){
     const now=performance.now();
-    if(now-_lastSpaceTime<300){ player.flying=!player.flying; if(player.flying) player.vel.set(0,0,0); }
+    if(now-_lastSpaceTime<300){ player.flying=!player.flying; if(player.flying){ player.vel.set(0,0,0); keys['Space']=false; } }
     _lastSpaceTime=now;
   }
   if(e.code==='F3'){ showDbg=!showDbg; dbgEl.style.display=(locked&&showDbg)?'block':'none'; }
@@ -2766,7 +2771,7 @@ function loop(t){
   {
     handGroup.visible = player.selectedBlock !== AIR && gamemode !== 'spectator';
     const spd = Math.sqrt(player.vel.x*player.vel.x + player.vel.z*player.vel.z);
-    if(spd > 0.5 && player.onGround) handBobPhase += dt * 9;
+    if(spd > 0.5 && player.onGround && !player.flying) handBobPhase += dt * 9;
     const bob = Math.sin(handBobPhase);
 
     let hpx = HAND_REST.px + bob * 0.012;
@@ -2901,7 +2906,9 @@ const LANGUAGES = {
     loading_txt:'GENEROWANIE ŚWIATA...', dbg_hand:'Blok w ręce:', btn_back_opts:'← Powrót',
     ctrl_move:'WASD — Ruch', ctrl_jump:'SPACE — Skok', ctrl_sprint:'SHIFT — Sprint',
     ctrl_break:'LMB (trzymaj) — Kopanie', ctrl_place:'RMB — Stawianie bloku',
-    ctrl_hotbar:'1-6 / Scroll — Hotbar', ctrl_pause:'ESC — Pauza', ctrl_debug:'F3 — Debug info',
+    ctrl_hotbar:'1-9 / Scroll — Hotbar', ctrl_inv:'E — Ekwipunek', ctrl_chat:'T — Czat',
+    ctrl_cmd:'/ — Komenda', ctrl_fly:'Space×2 — Latanie (Kreatyw)', ctrl_spec_speed:'CTRL — Szybki lot (Widz)',
+    ctrl_pause:'ESC — Pauza', ctrl_debug:'F3 — Debug info',
     about_title:'CUBE CRAFT v0.2', about_author:'Autor: Patryk Niedzielski',
     about_engine:'Silnik: Three.js r160', about_ai:'AI: Claude Sonnet 4.6',
     about_desc:'Gra voxelowa inspirowana Minecraftem. Proceduralny teren, woda, lasy, plaże.'
@@ -2939,7 +2946,9 @@ const LANGUAGES = {
     loading_txt:'GENERATING WORLD...', dbg_hand:'Block in hand:', btn_back_opts:'← Back',
     ctrl_move:'WASD — Move', ctrl_jump:'SPACE — Jump', ctrl_sprint:'SHIFT — Sprint',
     ctrl_break:'LMB (hold) — Break block', ctrl_place:'RMB — Place block',
-    ctrl_hotbar:'1-6 / Scroll — Hotbar', ctrl_pause:'ESC — Pause', ctrl_debug:'F3 — Debug info',
+    ctrl_hotbar:'1-9 / Scroll — Hotbar', ctrl_inv:'E — Inventory', ctrl_chat:'T — Chat',
+    ctrl_cmd:'/ — Command', ctrl_fly:'Space×2 — Fly (Creative)', ctrl_spec_speed:'CTRL — Fast fly (Spectator)',
+    ctrl_pause:'ESC — Pause', ctrl_debug:'F3 — Debug info',
     about_title:'CUBE CRAFT v0.2', about_author:'Author: Patryk Niedzielski',
     about_engine:'Engine: Three.js r160', about_ai:'AI: Claude Sonnet 4.6',
     about_desc:'Voxel game inspired by Minecraft. Procedural terrain, water, forests, beaches.'
@@ -3326,7 +3335,8 @@ const BRIGHT_NAMES=['Moody','Dim','Normal','Bright','Brighter','Max'];
 let brightIdx=parseInt(localStorage.getItem('cubecraft_bright')||'2');
 if(brightIdx<0||brightIdx>=BRIGHT_VALS.length) brightIdx=2;
 function applyBrightness(){
-  canvas.style.filter=brightIdx===2?'':'brightness('+BRIGHT_VALS[brightIdx]+')';
+  const bv=BRIGHT_VALS[brightIdx];
+  canvas.style.filter=`brightness(${bv}) saturate(1.12) contrast(1.04)`;
 }
 function updateBrightnessLabel(){
   const el=document.getElementById('brightness-label');
