@@ -648,10 +648,10 @@ const PLR_H    = 1.75;
 const PLR_W    = 0.4;
 
 // ── BLOCK IDs ─────────────────────────────────────────────
-const AIR=0,GRASS=1,DIRT=2,STONE=3,WOOD=4,LEAVES=5,SAND=6,BEDROCK=7,WATER=8,FOLIAGE=9;
+const AIR=0,GRASS=1,DIRT=2,STONE=3,WOOD=4,LEAVES=5,SAND=6,BEDROCK=7,WATER=8,FOLIAGE=9,GLASS=10;
 
-const BLOCK_NAME=['Air','Grass','Dirt','Stone','Wood','Leaves','Sand','Bedrock','Water','Grass'];
-const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05];
+const BLOCK_NAME=['Air','Grass','Dirt','Stone','Wood','Leaves','Sand','Bedrock','Water','Grass','Glass'];
+const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3];
 const TEX_IDX={
   [GRASS]:   [0,2,1],
   [DIRT]:    [2,2,2],
@@ -662,10 +662,11 @@ const TEX_IDX={
   [BEDROCK]: [8,8,8],
   [WATER]:   [9,9,9],
   [FOLIAGE]: [10,10,10],
+  [GLASS]:   [11,11,11],
 };
 // SOLID: player collides with these
 const SOLID=new Uint8Array(256);
-[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK].forEach(id=>SOLID[id]=1);
+[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,GLASS].forEach(id=>SOLID[id]=1);
 // OPAQUE: completely hides adjacent faces (no leaves, no water)
 const OPAQUE=new Uint8Array(256);
 [GRASS,DIRT,STONE,WOOD,SAND,BEDROCK].forEach(id=>OPAQUE[id]=1);
@@ -756,7 +757,7 @@ class Chunk{
   constructor(cx,cz){
     this.cx=cx; this.cz=cz;
     this.data=new Uint8Array(CHUNK*HEIGHT*CHUNK);
-    this.mesh=null; this.waterMesh=null; this.foliageMesh=null; this.dirty=true;
+    this.mesh=null; this.waterMesh=null; this.foliageMesh=null; this.glassMesh=null; this.dirty=true;
   }
   idx(x,y,z){return (x*HEIGHT+y)*CHUNK+z;}
   get(x,y,z){
@@ -954,12 +955,18 @@ class World{
       chunk.foliageMesh.geometry.dispose();
       chunk.foliageMesh=null;
     }
+    if(chunk.glassMesh){
+      this.scene.remove(chunk.glassMesh);
+      chunk.glassMesh.geometry.dispose();
+      chunk.glassMesh=null;
+    }
 
-    // Three geometries: opaque blocks, water (transparent), foliage (alpha-tested X-cross)
+    // Four geometries: opaque, water, foliage, glass (transparent)
     const pos=[],uv=[],col=[],idx=[];
     const wpos=[],wuv=[],wcol=[],wtop=[],widx=[];
     const fpos=[],fuv=[],fcol=[],fidx=[];
-    let vi=0, wvi=0, fvi=0;
+    const gpos=[],guv=[],gcol=[],gidx=[];
+    let vi=0, wvi=0, fvi=0, gvi=0;
     const ox=chunk.cx*CHUNK, oz=chunk.cz*CHUNK;
 
     for(let x=0;x<CHUNK;x++) for(let y=0;y<HEIGHT;y++) for(let z=0;z<CHUNK;z++){
@@ -981,6 +988,29 @@ class World{
         fuv.push(ci/N_TILES,0, (ci+1)/N_TILES,0, (ci+1)/N_TILES,1, ci/N_TILES,1);
         fcol.push(sh,sh,sh, sh,sh,sh, sh,sh,sh, sh,sh,sh);
         fvi+=4;
+        continue;
+      }
+
+      if(id===GLASS){
+        const ci=11;
+        for(const f of FACES){
+          const [dx,dy,dz]=f.d;
+          const nx=x+dx, ny=y+dy, nz=z+dz;
+          let nb;
+          if(nx>=0&&nx<CHUNK&&nz>=0&&nz<CHUNK) nb=chunk.get(nx,ny,nz);
+          else nb=this.getBlock(ox+nx,ny,oz+nz);
+          if(nb<0) nb=AIR;
+          if(OPAQUE[nb]||nb===GLASS) continue;
+          gidx.push(gvi,gvi+1,gvi+2, gvi,gvi+2,gvi+3);
+          for(let k=0;k<4;k++){
+            const [vx,vy,vz]=f.v[k];
+            const [lu,lv]=f.uv[k];
+            gpos.push(ox+x+vx, y+vy, oz+z+vz);
+            guv.push((ci+lu)/N_TILES, lv);
+            gcol.push(f.sh,f.sh,f.sh);
+          }
+          gvi+=4;
+        }
         continue;
       }
 
@@ -1077,6 +1107,16 @@ class World{
       this.scene.add(chunk.foliageMesh);
     }
 
+    if(gpos.length){
+      const ggeo=new THREE.BufferGeometry();
+      ggeo.setAttribute('position', new THREE.Float32BufferAttribute(gpos,3));
+      ggeo.setAttribute('uv',       new THREE.Float32BufferAttribute(guv, 2));
+      ggeo.setAttribute('color',    new THREE.Float32BufferAttribute(gcol,3));
+      ggeo.setIndex(gidx);
+      chunk.glassMesh=new THREE.Mesh(ggeo, glassMat);
+      this.scene.add(chunk.glassMesh);
+    }
+
     chunk.dirty=false;
   }
 
@@ -1094,6 +1134,7 @@ class World{
         if(c.mesh){this.scene.remove(c.mesh);c.mesh.geometry.dispose();c.mesh.material.dispose();c.mesh=null;}
         if(c.waterMesh){this.scene.remove(c.waterMesh);c.waterMesh.geometry.dispose();c.waterMesh.material.dispose();c.waterMesh=null;}
         if(c.foliageMesh){this.scene.remove(c.foliageMesh);c.foliageMesh.geometry.dispose();c.foliageMesh=null;}
+        if(c.glassMesh){this.scene.remove(c.glassMesh);c.glassMesh.geometry.dispose();c.glassMesh=null;}
         this.chunks.delete(k);
       }
     }
@@ -1487,6 +1528,34 @@ for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
   tsp(10,15, 6,...lb); tsp(10,15, 5,...lb);
 })();
 
+// Tile 11 — GLASS (beveled border, semi-transparent pale-blue center)
+(()=>{
+  const T=11, S=TS;
+  // Outer border: dark gray, fully opaque
+  atx.fillStyle='rgba(70,70,70,1)';
+  atx.fillRect(T*S,   0,   S, 1);   // top
+  atx.fillRect(T*S,   S-1, S, 1);   // bottom
+  atx.fillRect(T*S,   1,   1, S-2); // left
+  atx.fillRect(T*S+S-1, 1, 1, S-2); // right
+  // Inner highlight: top-left bevel (bright)
+  atx.fillStyle='rgba(210,210,210,1)';
+  atx.fillRect(T*S+1, 1, S-2, 1);   // top inner
+  atx.fillRect(T*S+1, 2, 1, S-3);   // left inner
+  // Inner shadow: bottom-right bevel (dark)
+  atx.fillStyle='rgba(45,45,45,1)';
+  atx.fillRect(T*S+2, S-2, S-3, 1); // bottom inner
+  atx.fillRect(T*S+S-2, 2, 1, S-3); // right inner
+  // Center fill: semi-transparent pale blue (25% opacity)
+  atx.fillStyle='rgba(185,232,255,0.25)';
+  atx.fillRect(T*S+2, 2, S-4, S-4);
+  // Four pane corner squares: slightly more visible
+  atx.fillStyle='rgba(210,240,255,0.38)';
+  atx.fillRect(T*S+2, 2, 5, 5);
+  atx.fillRect(T*S+9, 2, 5, 5);
+  atx.fillRect(T*S+2, 9, 5, 5);
+  atx.fillRect(T*S+9, 9, 5, 5);
+})();
+
 const atlasTexture = new THREE.CanvasTexture(atlasCvs);
 atlasTexture.magFilter     = THREE.NearestFilter;  // crisp pixels, no blurring
 atlasTexture.minFilter     = THREE.NearestFilter;
@@ -1508,6 +1577,15 @@ const foliageMat = new THREE.MeshBasicMaterial({
   vertexColors: true,
   transparent: true,
   alphaTest: 0.1,
+  side: THREE.DoubleSide
+});
+
+// Shared material for glass faces (alpha-blended, visible from both sides, no depth write)
+const glassMat = new THREE.MeshBasicMaterial({
+  map: atlasTexture,
+  vertexColors: true,
+  transparent: true,
+  depthWrite: false,
   side: THREE.DoubleSide
 });
 
@@ -1627,7 +1705,7 @@ const keys={};
 let locked=false, gameReady=false, gameStarted=false, paused=false;
 let gamemode='survival', inventoryOpen=false, chatOpen=false, creativePageIdx=0;
 const CREATIVE_PAGE_SIZE=27;
-const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,WATER,FOLIAGE];
+const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS];
 const DEFAULT_HOTBAR=new Array(9).fill(AIR);
 let showDbg=false;
 // Mining
