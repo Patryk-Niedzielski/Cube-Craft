@@ -2479,7 +2479,32 @@ document.addEventListener('keydown',e=>{
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
 });
 document.addEventListener('keyup',e=>{ if(!chatOpen) keys[e.code]=false; });
+const CMD_COMPLETIONS={
+  gamemode:['survival','creative'],
+  give:[],
+};
+
+function tabComplete(val){
+  if(!val.startsWith('/')) return val;
+  const parts=val.slice(1).split(/\s+/);
+  if(parts.length===1){
+    // Complete command name
+    const partial=parts[0].toLowerCase();
+    const match=Object.keys(CMD_COMPLETIONS).find(c=>c.startsWith(partial)&&c!==partial);
+    if(match) return '/'+match+' ';
+  } else if(parts.length===2){
+    // Complete argument
+    const cmd=parts[0].toLowerCase();
+    const partial=parts[1].toLowerCase();
+    const args=CMD_COMPLETIONS[cmd]||[];
+    const match=args.find(a=>a.startsWith(partial)&&a!==partial);
+    if(match) return '/'+cmd+' '+match;
+  }
+  return val;
+}
+
 chatInput.addEventListener('keydown',e=>{
+  if(e.code==='Tab'){ e.preventDefault(); e.stopPropagation(); chatInput.value=tabComplete(chatInput.value); chatInput.setSelectionRange(chatInput.value.length,chatInput.value.length); return; }
   if(e.code==='Enter'){ e.preventDefault(); e.stopPropagation(); const t=chatInput.value.trim(); if(t) processCommand(t); closeChat(); return; }
   if(e.code==='Escape'){ e.preventDefault(); e.stopPropagation(); closeChat(); return; }
   e.stopPropagation();
