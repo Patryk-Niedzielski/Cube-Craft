@@ -1311,12 +1311,11 @@ class Player{
     this.inventory=new Array(27).fill(AIR);
     this.inventoryCounts=new Array(27).fill(0);
     this.slot=0;
+    this.flying=false;
   }
   get selectedBlock(){ return this.hotbar[this.slot]; }
 
   update(dt,keys){
-    const sprint=keys['ShiftLeft']||keys['ShiftRight'];
-    const spd=sprint?RUN_SPD:WALK_SPD;
     const s=Math.sin(this.yaw), c=Math.cos(this.yaw);
     const fwdX=-s, fwdZ=-c, rtX=c, rtZ=-s;
     let mx=0, mz=0;
@@ -1325,6 +1324,42 @@ class Player{
     if(keys['KeyA']||keys['ArrowLeft'])  {mx-=rtX; mz-=rtZ;}
     if(keys['KeyD']||keys['ArrowRight']) {mx+=rtX; mz+=rtZ;}
     const len=Math.sqrt(mx*mx+mz*mz);
+
+    // ── Spectator: noclip free-fly ghost ──────────────────────
+    if(gamemode==='spectator'){
+      const flySpd=(keys['ShiftLeft']||keys['ShiftRight'])?RUN_SPD*3:RUN_SPD*1.5;
+      const cp=Math.cos(this.pitch), sp=Math.sin(this.pitch);
+      let fx=0,fy=0,fz=0;
+      if(keys['KeyW']||keys['ArrowUp'])  {fx+=-s*cp;fy+=sp;fz+=-c*cp;}
+      if(keys['KeyS']||keys['ArrowDown']){fx+= s*cp;fy+=-sp;fz+= c*cp;}
+      if(keys['KeyA']||keys['ArrowLeft']) {fx-=c;fz+=s;}
+      if(keys['KeyD']||keys['ArrowRight']){fx+=c;fz-=s;}
+      if(keys['Space']){fy+=1;}
+      if(keys['ShiftLeft']||keys['ShiftRight']){fy-=1;}
+      const fl=Math.sqrt(fx*fx+fy*fy+fz*fz)||1;
+      this.pos.x+=fx/fl*flySpd*dt; this.pos.y+=fy/fl*flySpd*dt; this.pos.z+=fz/fl*flySpd*dt;
+      this.vel.set(0,0,0);
+      this.cam.position.set(this.pos.x, this.pos.y+PLR_H-0.08, this.pos.z);
+      this.cam.rotation.order='YXZ'; this.cam.rotation.y=this.yaw; this.cam.rotation.x=this.pitch;
+      return;
+    }
+
+    // ── Creative fly ──────────────────────────────────────────
+    if(this.flying && gamemode==='creative'){
+      const flySpd=RUN_SPD*1.5;
+      if(len>0){mx=mx/len*flySpd; mz=mz/len*flySpd;} else {mx=0;mz=0;}
+      let fy=0;
+      if(keys['Space']) fy=flySpd;
+      if(keys['ShiftLeft']||keys['ShiftRight']) fy=-flySpd;
+      this.pos.x+=mx*dt; this.pos.y+=fy*dt; this.pos.z+=mz*dt;
+      this.vel.set(0,0,0); this.onGround=false;
+      this.cam.position.set(this.pos.x, this.pos.y+PLR_H-0.08, this.pos.z);
+      this.cam.rotation.order='YXZ'; this.cam.rotation.y=this.yaw; this.cam.rotation.x=this.pitch;
+      return;
+    }
+
+    const sprint=keys['ShiftLeft']||keys['ShiftRight'];
+    const spd=sprint?RUN_SPD:WALK_SPD;
 
     // ── Water detection ───────────────────────────────────────
     const bx=Math.floor(this.pos.x), bz=Math.floor(this.pos.z);
@@ -1363,13 +1398,13 @@ class Player{
     } else {
       this.air=Math.min(this.maxAir, this.air+dt*4);      // refills fast
     }
-    if(this.headInWater && this.air<=0 && gamemode!=='creative'){
+    if(this.headInWater && this.air<=0 && gamemode==='survival'){
       this.drownTimer+=dt;
       if(this.drownTimer>=1.0){ this.hp=Math.max(0,this.hp-2); this.drownTimer=0; }
     } else {
       this.drownTimer=0;
     }
-    if(gamemode==='creative') this.hp=this.maxHp;
+    if(gamemode==='creative'||gamemode==='spectator') this.hp=this.maxHp;
 
     this.cam.position.set(this.pos.x, this.pos.y+PLR_H-0.08, this.pos.z);
     this.cam.rotation.order='YXZ';
@@ -1837,6 +1872,7 @@ let locked=false, gameReady=false, gameStarted=false, paused=false;
 let gamemode='survival', inventoryOpen=false, chatOpen=false, creativePageIdx=0, giveMenuOpen=false;
 let cheatsEnabled=false;
 let worldMods=new Map(), trackingMods=false;
+let _lastSpaceTime=0;
 const CREATIVE_PAGE_SIZE=27;
 const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS];
 const DEFAULT_HOTBAR=new Array(9).fill(AIR);
@@ -1975,7 +2011,7 @@ function buildHotbar(){
 }
 
 function buildHealth(){
-  if(gamemode==='creative'){ healthEl.style.display='none'; return; }
+  if(gamemode==='creative'||gamemode==='spectator'){ healthEl.style.display='none'; return; }
   healthEl.style.display='flex';
   healthEl.innerHTML='';
   const hp=player.hp;
@@ -2011,10 +2047,17 @@ function showHUD(on){
 // ── GAMEMODE ──────────────────────────────────────────────
 function setGamemode(mode){
   gamemode=mode;
+  player.flying=false;
   if(mode==='creative'){
     player.hp=player.maxHp;
     gmBadge.style.display='block';
+    gmBadge.textContent='CREATIVE';
     addChatMsg('Gamemode set to Creative','ok');
+  } else if(mode==='spectator'){
+    player.hp=player.maxHp;
+    gmBadge.style.display='block';
+    gmBadge.textContent='SPECTATOR';
+    addChatMsg('Gamemode set to Spectator','ok');
   } else {
     player.hotbar=new Array(9).fill(AIR);
     player.hotbarCounts=new Array(9).fill(0);
@@ -2048,7 +2091,8 @@ function processCommand(raw){
     const m=(parts[1]||'').toLowerCase();
     if(m==='creative') setGamemode('creative');
     else if(m==='survival') setGamemode('survival');
-    else addChatMsg('Usage: /gamemode creative|survival','err');
+    else if(m==='spectator') setGamemode('spectator');
+    else addChatMsg('Usage: /gamemode survival|creative|spectator','err');
   } else if(cmd==='give'){
     openGiveMenu();
   } else {
@@ -2461,6 +2505,7 @@ function getAim(){
 
 canvas.addEventListener('mousedown',e=>{
   if(!locked||paused) return;
+  if(gamemode==='spectator') return;
   if(e.button===0){
     // Start mining
     mining=true; mineProg=0; mineTarget=null;
@@ -2510,9 +2555,14 @@ document.addEventListener('keydown',e=>{
     return;
   }
   if(e.code==='KeyE' && inventoryOpen){ e.preventDefault(); closeInventory(); return; }
-  if(e.code==='KeyE' && locked && gameStarted){ e.preventDefault(); openInventory(); return; }
+  if(e.code==='KeyE' && locked && gameStarted && gamemode!=='spectator'){ e.preventDefault(); openInventory(); return; }
   if(e.code==='KeyT' && locked && gameStarted){ e.preventDefault(); openChat(); document.exitPointerLock(); return; }
   if(e.code==='Slash' && locked && gameStarted){ e.preventDefault(); openChat('/'); document.exitPointerLock(); return; }
+  if(e.code==='Space' && locked && gameStarted && gamemode==='creative'){
+    const now=performance.now();
+    if(now-_lastSpaceTime<300){ player.flying=!player.flying; if(player.flying) player.vel.set(0,0,0); }
+    _lastSpaceTime=now;
+  }
   if(e.code==='F3'){ showDbg=!showDbg; dbgEl.style.display=(locked&&showDbg)?'block':'none'; }
   if(e.code>='Digit1'&&e.code<='Digit9'){
     player.slot=parseInt(e.code[5])-1; buildHotbar();
@@ -2521,7 +2571,7 @@ document.addEventListener('keydown',e=>{
 });
 document.addEventListener('keyup',e=>{ if(!chatOpen) keys[e.code]=false; });
 const CMD_COMPLETIONS={
-  gamemode:['survival','creative'],
+  gamemode:['survival','creative','spectator'],
   give:[],
 };
 
@@ -2574,10 +2624,11 @@ const wcSeedInp = document.getElementById('wc-seed');
 let _wcGamemode = 'survival';
 let _wcCheats   = false;
 
+const GM_CYCLE=['survival','creative','spectator'];
 wcGmBtn.addEventListener('click',()=>{
-  _wcGamemode = _wcGamemode==='survival' ? 'creative' : 'survival';
+  _wcGamemode = GM_CYCLE[(GM_CYCLE.indexOf(_wcGamemode)+1)%GM_CYCLE.length];
   wcGmBtn.textContent = _wcGamemode.toUpperCase();
-  wcGmBtn.classList.toggle('wc-on', _wcGamemode==='creative');
+  wcGmBtn.classList.toggle('wc-on', _wcGamemode!=='survival');
 });
 
 wcChBtn.addEventListener('click',()=>{
@@ -2685,7 +2736,7 @@ function loop(t){
 
   // Hand animation
   {
-    handGroup.visible = player.selectedBlock !== AIR;
+    handGroup.visible = player.selectedBlock !== AIR && gamemode !== 'spectator';
     const spd = Math.sqrt(player.vel.x*player.vel.x + player.vel.z*player.vel.z);
     if(spd > 0.5 && player.onGround) handBobPhase += dt * 9;
     const bob = Math.sin(handBobPhase);
@@ -2744,16 +2795,16 @@ function loop(t){
 
   // Aim + highlight
   const aim=getAim();
-  if(aim){
+  if(aim && gamemode!=='spectator'){
     hlMesh.position.set(aim.bx+0.5, aim.by+0.5, aim.bz+0.5);
     hlMesh.visible=true;
 
     // Mining progress
     if(mining){
       const id=world.getBlock(aim.bx,aim.by,aim.bz);
-      const hard=BLOCK_HARD[id]??1;
-      if(hard===Infinity){
-        // Unbreakable
+      const hard=gamemode==='creative'?0.05:(BLOCK_HARD[id]??1);
+      if(BLOCK_HARD[id]===Infinity && gamemode!=='creative'){
+        // Unbreakable in survival
         breakBarWrap.style.display='none';
       } else {
         // Reset progress if target changed
@@ -2779,7 +2830,7 @@ function loop(t){
     }
   } else {
     hlMesh.visible=false;
-    mining=false; mineProg=0; mineTarget=null;
+    if(gamemode!=='spectator'){ mining=false; mineProg=0; mineTarget=null; }
     breakBarWrap.style.display='none';
   }
 
