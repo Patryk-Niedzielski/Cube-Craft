@@ -913,8 +913,8 @@ class Chunk{
       // blocks, measured). Wobble weight is deliberately tiny so it only nudges
       // the shoreline — a strong wobble shatters the blob into many small lakes
       // and carves donut rings, which is what made earlier versions ugly.
-      const seaN = noise2(wx*0.0013+911.7, wz*0.0013+733.1)
-                 + noise2(wx*0.021+88.2,   wz*0.021+150.6)*0.05;
+      const seaN = noise2(wx*0.001+911.7, wz*0.001+733.1)
+                 + noise2(wx*0.021+88.2,  wz*0.021+150.6)*0.05;
 
       let h;
       if(cont < -0.30){
@@ -933,7 +933,7 @@ class Chunk{
 
       // ─── OCCASIONAL SEA — steep shore (thin sand rim) into a deep flat basin.
       // Sharp ramp over a small noise band → narrow beach instead of a wide sand puddle.
-      const SEA_THRESH = 0.62;
+      const SEA_THRESH = 0.68;
       if(seaN > SEA_THRESH){
         const t = Math.min(1, (seaN - SEA_THRESH) / 0.08);   // 0 at shore → 1 deep
         const e = 1 - (1 - t) * (1 - t);                     // ease-out: plunge fast, flatten deep
