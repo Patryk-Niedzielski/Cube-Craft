@@ -909,10 +909,12 @@ class Chunk{
       const hill  = fbm(wx, wz);
       const det   = noise2(wx*0.10,  wz*0.10)*0.06;
       const mt    = Math.max(0, cont)*Math.max(0, hill)*3.2;
-      // Occasional sea: low-freq noise → a few large lakes across the world.
-      // Two octaves give the shoreline organic wobble instead of a plain blob.
-      const seaN = noise2(wx*0.0045+911.7, wz*0.0045+733.1)
-                 + noise2(wx*0.013+88.2,  wz*0.013+150.6)*0.28;
+      // Occasional sea: very low-freq base → a few big bodies (~2-3 per 1000²
+      // blocks, measured). Wobble weight is deliberately tiny so it only nudges
+      // the shoreline — a strong wobble shatters the blob into many small lakes
+      // and carves donut rings, which is what made earlier versions ugly.
+      const seaN = noise2(wx*0.003+911.7, wz*0.003+733.1)
+                 + noise2(wx*0.021+88.2,  wz*0.021+150.6)*0.05;
 
       let h;
       if(cont < -0.30){
@@ -931,11 +933,11 @@ class Chunk{
 
       // ─── OCCASIONAL SEA — steep shore (thin sand rim) into a deep flat basin.
       // Sharp ramp over a small noise band → narrow beach instead of a wide sand puddle.
-      const SEA_THRESH = 0.50;
+      const SEA_THRESH = 0.42;
       if(seaN > SEA_THRESH){
-        const t = Math.min(1, (seaN - SEA_THRESH) / 0.10);   // 0 at shore → 1 deep
+        const t = Math.min(1, (seaN - SEA_THRESH) / 0.08);   // 0 at shore → 1 deep
         const e = 1 - (1 - t) * (1 - t);                     // ease-out: plunge fast, flatten deep
-        const floor = Math.round(SEA + 2 - e * 13);          // SEA+2 (rim) → SEA-11 (deep)
+        const floor = Math.round(SEA + 2 - e * 14);          // SEA+2 (rim) → SEA-12 (deep)
         h = Math.min(h, floor);
       }
 
