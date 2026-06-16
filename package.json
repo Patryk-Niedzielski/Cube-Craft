@@ -14,12 +14,15 @@
     "files": [
       "main.js",
       "cube-craft.html",
+      "assets/**",
       "node_modules/three/build/**",
       "node_modules/three/examples/jsm/**"
     ],
+    "icon": "assets/icon",
     "mac": {
       "category": "public.app-category.games",
       "identity": null,
+      "icon": "assets/icon.icns",
       "target": [
         {
           "target": "dmg",
@@ -37,6 +40,7 @@
       }
     },
     "win": {
+      "icon": "assets/icon.ico",
       "target": [
         {
           "target": "nsis",
