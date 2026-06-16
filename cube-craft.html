@@ -60,6 +60,13 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
   border-bottom-color:#fff;border-right-color:#fff;
 }
 .slot-icon{width:32px;height:32px;image-rendering:pixelated;display:block}
+.slot-tip{
+  display:none;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);
+  background:rgba(16,0,32,0.92);color:#fff;font-size:6px;font-family:'Press Start 2P',monospace;
+  padding:4px 7px;white-space:nowrap;pointer-events:none;z-index:50;
+  border:1px solid #555;line-height:1.4;
+}
+.slot:hover .slot-tip{display:block}
 .slot-count{
   position:absolute;bottom:1px;right:2px;
   font-size:7px;color:#fff;font-family:'Press Start 2P',monospace;line-height:1;
@@ -157,10 +164,10 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
 }
 .inv-slot img{width:32px;height:32px;image-rendering:pixelated;display:block}
 .inv-slot-tip{
-  display:none;position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);
-  background:rgba(0,0,0,0.85);color:#fff;font-size:6px;
-  padding:2px 4px;white-space:nowrap;pointer-events:none;z-index:5;
-  border:1px solid #555;
+  display:none;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);
+  background:rgba(16,0,32,0.92);color:#fff;font-size:6px;font-family:'Press Start 2P',monospace;
+  padding:4px 7px;white-space:nowrap;pointer-events:none;z-index:50;
+  border:1px solid #555;line-height:1.4;
 }
 .inv-slot:hover .inv-slot-tip{display:block}
 /* ── WORLD CREATE SCREEN ── */
@@ -3097,7 +3104,10 @@ function buildHotbar(){
       const img=document.createElement('img');
       img.className='slot-icon';
       img.src=makeBlockIcon(id);
-      slot.append(img);
+      const tip=document.createElement('div');
+      tip.className='slot-tip';
+      tip.textContent=BLOCK_NAME[id];
+      slot.append(img,tip);
       const cnt=player.hotbarCounts[i];
       if(cnt>1){
         const badge=document.createElement('span');
@@ -3371,7 +3381,10 @@ function openGiveMenu(){
     const img=document.createElement('img');
     img.src=makeBlockIcon(id);
     img.style.cssText='width:36px;height:36px;image-rendering:pixelated';
-    cell.appendChild(img);
+    const tip=document.createElement('div');
+    tip.className='inv-slot-tip';
+    tip.textContent=BLOCK_NAME[id];
+    cell.append(img,tip);
     cell.addEventListener('click',()=>{
       const amt=gamemode==='creative'?0:64;
       let placed=false;
