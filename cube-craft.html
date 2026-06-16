@@ -3447,11 +3447,21 @@ function buildCraftGrid(){
     outEl.append(img,tip,badge);
     outEl.classList.add('has-output');
     outEl.style.cursor='pointer';
-    outEl.onclick=()=>{
+    outEl.onclick=(e)=>{
       const r=computeCraftOutput();if(!r)return;
-      craftCounts[r.srcSlot]--;
-      if(craftCounts[r.srcSlot]<=0){craftSlots[r.srcSlot]=AIR;craftCounts[r.srcSlot]=0;}
-      for(let n=0;n<r.count;n++) giveBlock(r.id);
+      if(e.shiftKey){
+        // Craft all possible at once
+        while(true){
+          const rr=computeCraftOutput();if(!rr)break;
+          craftCounts[rr.srcSlot]--;
+          if(craftCounts[rr.srcSlot]<=0){craftSlots[rr.srcSlot]=AIR;craftCounts[rr.srcSlot]=0;}
+          for(let n=0;n<rr.count;n++) giveBlock(rr.id);
+        }
+      } else {
+        craftCounts[r.srcSlot]--;
+        if(craftCounts[r.srcSlot]<=0){craftSlots[r.srcSlot]=AIR;craftCounts[r.srcSlot]=0;}
+        for(let n=0;n<r.count;n++) giveBlock(r.id);
+      }
       buildHotbar();buildInvHotbar();buildCraftGrid();
     };
   } else {
