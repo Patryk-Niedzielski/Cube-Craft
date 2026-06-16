@@ -1,0 +1,49 @@
+{
+  "name": "cube-craft",
+  "version": "1.0.0",
+  "description": "Cube Craft – a voxel block-building game",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:mac": "electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.cubecraft.game",
+    "productName": "Cube Craft",
+    "files": [
+      "main.js",
+      "cube-craft.html",
+      "node_modules/three/build/**",
+      "node_modules/three/examples/jsm/**"
+    ],
+    "mac": {
+      "category": "public.app-category.games",
+      "identity": null,
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ]
+    },
+    "dmg": {
+      "title": "Cube Craft",
+      "window": {
+        "width": 540,
+        "height": 380
+      }
+    }
+  },
+  "dependencies": {
+    "three": "0.160.0"
+  },
+  "devDependencies": {
+    "electron": "^28.3.3",
+    "electron-builder": "^24.13.3"
+  },
+  "allowScripts": {
+    "electron@28.3.3": true
+  }
+}
