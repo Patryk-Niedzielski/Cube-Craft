@@ -290,6 +290,25 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
   border:1px solid #555;
 }
 .tpbiome-cell:hover .tpbiome-tooltip{display:block;}
+/* ── DEATH SCREEN ── */
+#death-screen{
+  position:fixed;inset:0;display:none;flex-direction:column;
+  align-items:center;justify-content:center;gap:20px;
+  background:rgba(0,0,0,0.5);z-index:30;
+  font-family:'Press Start 2P',monospace;
+}
+#death-title{
+  color:#ff2222;
+  font-size:clamp(1.4rem,4.5vw,2.4rem);
+  text-shadow:3px 3px 0 #7a0000,0 0 24px rgba(255,0,0,0.4);
+  letter-spacing:0.06em;
+  animation:death-pulse 2s ease-in-out infinite;
+}
+@keyframes death-pulse{
+  0%,100%{transform:scale(1);text-shadow:3px 3px 0 #7a0000,0 0 24px rgba(255,0,0,0.4);}
+  50%{transform:scale(1.04);text-shadow:3px 3px 0 #7a0000,0 0 40px rgba(255,0,0,0.7);}
+}
+#death-btn-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
 /* ── GAMEMODE BADGE ── */
 #gm-badge{
   position:fixed;top:8px;right:8px;
@@ -708,6 +727,15 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
   </div>
 </div>
 
+<!-- ── DEATH SCREEN ── -->
+<div id="death-screen">
+  <div id="death-title">YOU DIED!</div>
+  <div id="death-btn-row">
+    <button class="mc-btn" style="width:180px" onclick="respawnPlayer()">Respawn</button>
+    <button class="mc-btn" style="width:180px;background:#5a3a3a;border-top-color:#8a5a5a;border-left-color:#8a5a5a;border-right-color:#2a1a1a;border-bottom-color:#2a1a1a" onclick="doSaveAndQuit()">Exit to Menu</button>
+  </div>
+</div>
+
 <!-- ── OPTIONS SCREEN ── -->
 <div id="options-screen">
   <div id="options-box">
@@ -1001,8 +1029,8 @@ const B_PLAINS=0, B_FOREST=1, B_DESERT=2, B_TUNDRA=3, B_TAIGA=4, B_JUNGLE=5;
 
 function biomeAt(wx, wz){
   // Two large-scale noise axes: temperature and humidity
-  const temp  = noise2(wx*0.0028 + 200.5, wz*0.0028 + 300.1); // -1..1, cold→hot
-  const humid = noise2(wx*0.0028 + 400.2, wz*0.0028 + 500.7); // -1..1, dry→wet
+  const temp  = noise2(wx*0.0019 + 200.5, wz*0.0019 + 300.1); // -1..1, cold→hot
+  const humid = noise2(wx*0.0019 + 400.2, wz*0.0019 + 500.7); // -1..1, dry→wet
   if(temp < -0.20) return humid > 0.05 ? B_TAIGA   : B_TUNDRA;
   if(temp >  0.22) return humid > 0.05 ? B_JUNGLE  : B_DESERT;
   return humid > 0.12 ? B_FOREST : B_PLAINS;
@@ -2978,6 +3006,8 @@ function updateMobs(dt) {
 const keys={};
 let locked=false, gameReady=false, gameStarted=false, paused=false;
 let gamemode='survival', inventoryOpen=false, chatOpen=false, creativePageIdx=0, giveMenuOpen=false, tpbiomeMenuOpen=false;
+let playerDead=false;
+let playerSpawnPos={x:8.5, y:SEA+6, z:8.5};
 let cheatsEnabled=false;
 let worldMods=new Map(), trackingMods=false;
 let _lastSpaceTime=0, _suppressSpaceFly=false;
@@ -3009,6 +3039,7 @@ const progEl       = document.getElementById('prog');
 const overlayEl    = document.getElementById('overlay');
 const clickHint    = document.getElementById('click-hint');
 const pauseScreen  = document.getElementById('pause-screen');
+const deathScreen  = document.getElementById('death-screen');
 const xhair        = document.getElementById('xhair');
 const hudEl        = document.getElementById('hud');
 const hotbarEl     = document.getElementById('hotbar');
@@ -3461,7 +3492,10 @@ function openTpbiomeMenu(){
       closeTpbiomeMenu();
       const loc=findNearestBiome(def.id);
       if(!loc){ addChatMsg('No '+def.name+' biome found nearby.','err'); return; }
-      player.pos.set(loc.x+0.5, 120, loc.z+0.5);
+      // Ensure the target chunk is generated so surfaceY works
+      world.getChunk(Math.floor(loc.x/CHUNK), Math.floor(loc.z/CHUNK), true);
+      const sy=world.surfaceY(loc.x, loc.z);
+      player.pos.set(loc.x+0.5, sy+1.05, loc.z+0.5);
       player.vel.set(0,0,0);
       addChatMsg('Teleported to '+def.name+' biome.');
     });
@@ -3754,6 +3788,7 @@ async function generateWorld(){
   const sy=world.surfaceY(spawnX,spawnZ);
   player.pos.set(spawnX+0.5, sy+1.05, spawnZ+0.5);
   player.vel.set(0,0,0);
+  playerSpawnPos={x:player.pos.x, y:player.pos.y, z:player.pos.z};
   // Sync camera — skierowana lekko w dół żeby za menu widać teren + wodę
   camera.position.set(player.pos.x, player.pos.y+PLR_H-0.08, player.pos.z);
   camera.rotation.order='YXZ';
@@ -3774,14 +3809,27 @@ pauseScreen.addEventListener('click', e=>{ if(e.target===pauseScreen) requestLoc
 
 function doSaveAndQuit(){
   saveWorld();
-  gameStarted=false; gameReady=false; paused=false;
+  gameStarted=false; gameReady=false; paused=false; playerDead=false;
   locked=false;
   if(document.exitPointerLock) document.exitPointerLock();
   pauseScreen.style.display='none';
+  deathScreen.style.display='none';
   clearMobs();
   const worlds=getWorlds();
   if(worlds.length>0) openWorldSelect();
   else overlayEl.style.display='flex';
+}
+
+function respawnPlayer(){
+  playerDead=false;
+  player.hp=player.maxHp;
+  player.vel.set(0,0,0);
+  player.pos.set(playerSpawnPos.x, playerSpawnPos.y, playerSpawnPos.z);
+  deathScreen.style.display='none';
+  buildHealth();
+  showHUD(true);
+  const req=canvas.requestPointerLock();
+  if(req&&typeof req.then==='function') req.catch(()=>{ showHUD(false); clickHint.style.display='flex'; });
 }
 document.addEventListener('pointerlockerror', ()=>{ console.warn('Pointer lock failed'); });
 
@@ -4045,7 +4093,7 @@ function loop(t){
   const dt=Math.min((t-prevT)/1000, 0.05);
   prevT=t;
 
-  if(!gameStarted||paused){
+  if(!gameStarted||paused||playerDead){
     handGroup.visible = false;
     renderer.render(scene,camera);
     return;
@@ -4056,6 +4104,15 @@ function loop(t){
   player.update(dt,keys);
   world.loadAround(player.pos.x, player.pos.z);
   updateMobs(dt);
+
+  // Death check (survival only)
+  if(player.hp<=0 && gamemode==='survival'){
+    playerDead=true;
+    if(locked) document.exitPointerLock();
+    showHUD(false);
+    deathScreen.style.display='flex';
+    return;
+  }
 
   // Wave animation — update time uniform on all loaded water meshes
   const wt=t*0.001;
@@ -4735,6 +4792,7 @@ window.toggleFullscreen = toggleFullscreen;
 window.closeInventory   = closeInventory;
 window.closeGiveMenu    = closeGiveMenu;
 window.closeTpbiomeMenu = closeTpbiomeMenu;
+window.respawnPlayer    = respawnPlayer;
 
 // Wire "Opcje..." buttons
 document.querySelectorAll('.open-options').forEach(b=>b.onclick=openOptions);
