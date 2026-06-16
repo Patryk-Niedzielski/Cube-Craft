@@ -553,7 +553,7 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
       <button class="mc-btn open-options" data-i18n="btn_options">Options...</button>
       <button class="mc-btn" onclick="openControlsTab()" data-i18n="btn_controls_lbl">Controls</button>
     </div>
-    <button class="mc-btn" style="margin-top:4px;background:#5a3a3a;border-top-color:#8a5a5a;border-left-color:#8a5a5a;border-right-color:#2a1a1a;border-bottom-color:#2a1a1a" onclick="location.reload()" data-i18n="btn_quit">Quit Game</button>
+    <button class="mc-btn" style="margin-top:4px;background:#5a3a3a;border-top-color:#8a5a5a;border-left-color:#8a5a5a;border-right-color:#2a1a1a;border-bottom-color:#2a1a1a" onclick="window.close()" data-i18n="btn_quit">Quit Game</button>
   </div>
 </div>
 <div id="overlay-footer">
@@ -650,7 +650,7 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
       <button class="mc-btn" id="btn-seed" onclick="showSeed()" data-i18n="btn_seed">World Seed</button>
       <button class="mc-btn" onclick="location.reload()" data-i18n="btn_new_world">New World</button>
     </div>
-    <button class="mc-btn" style="margin-top:4px;background:#5a3a3a;border-top-color:#8a5a5a;border-left-color:#8a5a5a;border-right-color:#2a1a1a;border-bottom-color:#2a1a1a" onclick="location.reload()" data-i18n="btn_save_quit">Save and Quit</button>
+    <button class="mc-btn" style="margin-top:4px;background:#5a3a3a;border-top-color:#8a5a5a;border-left-color:#8a5a5a;border-right-color:#2a1a1a;border-bottom-color:#2a1a1a" onclick="doSaveAndQuit()" data-i18n="btn_save_quit">Save and Quit</button>
   </div>
 </div>
 
@@ -1396,6 +1396,7 @@ class Player{
     this.inventoryCounts=new Array(27).fill(0);
     this.slot=0;
     this.flying=false;
+    this.bobPhase=0;
   }
   get selectedBlock(){ return this.hotbar[this.slot]; }
 
@@ -1508,7 +1509,10 @@ class Player{
     }
     if(gamemode==='creative'||gamemode==='spectator') this.hp=this.maxHp;
 
-    this.cam.position.set(this.pos.x, this.pos.y+PLR_H-0.08, this.pos.z);
+    const hspd=Math.sqrt(this.vel.x*this.vel.x+this.vel.z*this.vel.z);
+    if(hspd>0.5&&this.onGround&&!this.flying) this.bobPhase+=dt*9;
+    const camBob=this.onGround&&!this.flying?Math.sin(this.bobPhase)*0.028:0;
+    this.cam.position.set(this.pos.x, this.pos.y+PLR_H-0.08+camBob, this.pos.z);
     this.cam.rotation.order='YXZ';
     this.cam.rotation.y=this.yaw;
     this.cam.rotation.x=this.pitch;
@@ -1882,6 +1886,15 @@ const handMat = new THREE.MeshBasicMaterial({map: atlasTexture, depthTest: false
 const handMesh = new THREE.Mesh(handGeo, handMat);
 handMesh.renderOrder = 999;
 handGroup.add(handMesh);
+
+// Empty-hand fist: skin-colored arm shown when holding nothing
+const fistGeo = new THREE.BoxGeometry(0.20, 0.44, 0.20);
+const fistMat = new THREE.MeshBasicMaterial({color: 0xF0C090, depthTest: false});
+const fistMesh = new THREE.Mesh(fistGeo, fistMat);
+fistMesh.renderOrder = 999;
+fistMesh.position.set(0.01, -0.04, 0);
+fistMesh.rotation.set(0.18, 0, 0);
+handGroup.add(fistMesh);
 
 // Resting position: bottom-right corner of view, block tilted at isometric angle
 const HAND_REST = {px:0.58, py:-0.46, pz:-0.70, rx:0.12, ry:-0.38, rz:0.07};
@@ -2622,24 +2635,62 @@ class Mob {
   }
 
   _updateFish(dt) {
+    const bx=Math.floor(this.pos.x), by=Math.floor(this.pos.y), bz=Math.floor(this.pos.z);
+    const inWater = world.getBlock(bx, by, bz) === WATER;
+
+    if (!inWater) {
+      // Suffocation timer
+      this._outOfWaterTime = (this._outOfWaterTime || 0) + dt;
+      if (this._outOfWaterTime >= 5) { this._dead = true; return; }
+
+      // Fall to ground
+      this._flopVel = (this._flopVel || 0) + GRAVITY * dt;
+      this.pos.y += this._flopVel * dt;
+      // Simple ground collision
+      const groundY = Math.floor(this.pos.y);
+      if (!world.getBlock(bx, groundY, bz) !== AIR) {
+        const floorY = Math.ceil(this.pos.y);
+        if (SOLID[world.getBlock(bx, floorY - 1, bz)]) {
+          this.pos.y = floorY;
+          // Flop bounce
+          this._flopPhase = (this._flopPhase || 0) + dt * 5;
+          const bounce = Math.max(0, Math.sin(this._flopPhase)) * 0.18;
+          this.pos.y = floorY + bounce;
+          this._flopVel = 0;
+        }
+      }
+
+      // Lie on side
+      this.group.position.copy(this.pos);
+      this.group.rotation.y = this.yaw;
+      this.group.rotation.z = Math.PI / 2;
+      // Twitch tail
+      this._flopPhase = (this._flopPhase || 0) + dt * 5;
+      if (this.group.userData.tail) {
+        this.group.userData.tail.rotation.y = Math.sin(this._flopPhase * 2) * 0.6;
+      }
+      return;
+    }
+
+    // Back in water — reset
+    this._outOfWaterTime = 0;
+    this._flopVel = 0;
+    this.group.rotation.z = 0;
+
     this.animPhase += dt * 2.5;
     const spd = this.cfg.spd;
-
     this.yaw += Math.sin(this.animPhase * 0.4) * dt * 0.6;
     const nx = this.pos.x - Math.sin(this.yaw) * spd * dt;
     const nz = this.pos.z - Math.cos(this.yaw) * spd * dt;
     const ny = this.pos.y + Math.sin(this.animPhase * 0.8) * 0.15 * dt;
-
     if (world.getBlock(Math.floor(nx), Math.floor(ny), Math.floor(nz)) === WATER) {
       this.pos.set(nx, ny, nz);
     } else {
       this.yaw += Math.PI + (Math.random() - 0.5) * 0.8;
     }
-
     if (this.group.userData.tail) {
       this.group.userData.tail.rotation.y = Math.sin(this.animPhase * 3) * 0.45;
     }
-
     this._syncTransform();
   }
 
@@ -2665,9 +2716,10 @@ function updateMobs(dt) {
   for (const m of mobs) m.update(dt);
   if (!gameStarted) return;
 
-  // Despawn mobs that have wandered too far from the player
+  // Remove dead or too-far mobs
   for (let i = mobs.length - 1; i >= 0; i--) {
     const m = mobs[i];
+    if (m._dead) { m.remove(); mobs.splice(i, 1); continue; }
     const dx = m.pos.x - player.pos.x, dz = m.pos.z - player.pos.z;
     if (dx*dx + dz*dz > MOB_DESPAWN_R2) { m.remove(); mobs.splice(i, 1); }
   }
@@ -3428,6 +3480,18 @@ canvas.addEventListener('click', ()=>{ if(gameReady&&!locked&&!paused&&!chatOpen
 clickHint.addEventListener('click', ()=>{ if(!chatOpen&&!inventoryOpen&&!giveMenuOpen) requestLock(); });
 document.getElementById('resume-btn').addEventListener('click', requestLock);
 pauseScreen.addEventListener('click', e=>{ if(e.target===pauseScreen) requestLock(); });
+
+function doSaveAndQuit(){
+  saveWorld();
+  gameStarted=false; gameReady=false; paused=false;
+  locked=false;
+  if(document.exitPointerLock) document.exitPointerLock();
+  pauseScreen.style.display='none';
+  clearMobs();
+  const worlds=getWorlds();
+  if(worlds.length>0) openWorldSelect();
+  else overlayEl.style.display='flex';
+}
 document.addEventListener('pointerlockerror', ()=>{ console.warn('Pointer lock failed'); });
 
 document.addEventListener('pointerlockchange',()=>{
@@ -3722,7 +3786,9 @@ function loop(t){
 
   // Hand animation
   {
-    handGroup.visible = player.selectedBlock !== AIR && gamemode !== 'spectator';
+    handGroup.visible = gamemode !== 'spectator';
+    handMesh.visible = player.selectedBlock !== AIR;
+    fistMesh.visible = player.selectedBlock === AIR;
     const spd = Math.sqrt(player.vel.x*player.vel.x + player.vel.z*player.vel.z);
     if(spd > 0.5 && player.onGround && !player.flying) handBobPhase += dt * 9;
     const bob = Math.sin(handBobPhase);
