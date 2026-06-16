@@ -33,7 +33,7 @@ jobs:
             **Cube Craft v0.01** — automatically updated on every push to main.
 
             ### Install
-            1. Download `Cube Craft-1.0.0-universal.dmg`
+            1. Download `Cube Craft-0.0.1-universal.dmg`
             2. Open the DMG and drag **Cube Craft** into Applications
             3. First launch: right-click → Open (unsigned app)
           artifacts: "dist/*.dmg"
