@@ -13,10 +13,10 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            build_cmd: CSC_IDENTITY_AUTO_DISCOVERY=false npm run build:mac
+            build_cmd: CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac --publish never
             artifact: dist/*.dmg
           - os: windows-latest
-            build_cmd: npm run build:win
+            build_cmd: npx electron-builder --win --publish never
             artifact: dist/*.exe
 
     runs-on: ${{ matrix.os }}
