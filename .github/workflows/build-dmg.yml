@@ -1,4 +1,4 @@
-name: Build & Release DMG
+name: Build & Release
 
 on:
   push:
@@ -9,7 +9,18 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            build_cmd: CSC_IDENTITY_AUTO_DISCOVERY=false npm run build:mac
+            artifact: dist/*.dmg
+          - os: windows-latest
+            build_cmd: npm run build:win
+            artifact: dist/*.exe
+
+    runs-on: ${{ matrix.os }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -21,8 +32,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build DMG
-        run: CSC_IDENTITY_AUTO_DISCOVERY=false npm run build:mac
+      - name: Build
+        run: ${{ matrix.build_cmd }}
 
       - name: Upload to GitHub Release
         uses: ncipollo/release-action@v1
@@ -33,12 +44,11 @@ jobs:
             **Cube Craft v0.01** — automatically updated on every push to main.
 
             ### Install
-            1. Download `Cube Craft-0.0.1-universal.dmg`
-            2. Open the DMG and drag **Cube Craft** into Applications
-            3. First launch: right-click → Open (unsigned app)
-          artifacts: "dist/*.dmg"
+            - **macOS:** Download `Cube Craft-0.0.1-universal.dmg`, open it and drag to Applications. First launch: right-click → Open (unsigned app)
+            - **Windows:** Download `Cube Craft Setup 0.0.1.exe` and run the installer
+          artifacts: ${{ matrix.artifact }}
           artifactContentType: application/octet-stream
           allowUpdates: true
-          removeArtifacts: true
+          omitBodyDuringUpdate: true
           makeLatest: true
           token: ${{ secrets.GITHUB_TOKEN }}
