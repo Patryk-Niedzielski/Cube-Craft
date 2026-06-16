@@ -170,6 +170,25 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
   border:1px solid #555;line-height:1.4;
 }
 .inv-slot:hover .inv-slot-tip{display:block}
+/* ── INVENTORY UPPER SECTION ── */
+#inv-upper{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
+#inv-player-wrap{display:flex;gap:4px;align-items:flex-start}
+#inv-armor-col{display:flex;flex-direction:column;gap:4px}
+.inv-armor-slot{opacity:0.75;position:relative}
+.armor-placeholder{font-size:16px;line-height:1;pointer-events:none;user-select:none;opacity:0.5}
+#inv-player-canvas{
+  border:2px solid;
+  border-top-color:#373737;border-left-color:#373737;
+  border-bottom-color:#fff;border-right-color:#fff;
+  background:#697c94;image-rendering:pixelated;display:block;
+}
+#inv-crafting-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;padding-top:12px}
+#inv-craft-label{font-size:7px;color:#333;margin-bottom:6px;text-shadow:1px 1px 0 rgba(255,255,255,0.5);font-family:'Press Start 2P',monospace}
+#inv-craft-row{display:flex;align-items:center;gap:8px}
+#inv-craft-grid{display:grid;grid-template-columns:repeat(2,40px);gap:4px}
+#inv-craft-arrow{font-size:18px;color:#444;font-weight:bold;line-height:1}
+#inv-craft-output{position:relative}
+#inv-craft-output.has-output{outline:2px solid #a0a040;background:#9a9a60}
 /* ── WORLD CREATE SCREEN ── */
 /* ── SHARED: full-screen dirt-background menu ── */
 .mc-dirt-screen{
@@ -693,6 +712,25 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
 <div id="inv-screen">
   <div id="inv-panel">
     <div id="inv-title">INVENTORY</div>
+    <div id="inv-upper">
+      <div id="inv-player-wrap">
+        <div id="inv-armor-col">
+          <div class="inv-slot inv-armor-slot" id="inv-armor-head"><span class="armor-placeholder">⛑</span><div class="inv-slot-tip">Helmet</div></div>
+          <div class="inv-slot inv-armor-slot" id="inv-armor-chest"><span class="armor-placeholder">🦺</span><div class="inv-slot-tip">Chestplate</div></div>
+          <div class="inv-slot inv-armor-slot" id="inv-armor-legs"><span class="armor-placeholder">👖</span><div class="inv-slot-tip">Leggings</div></div>
+          <div class="inv-slot inv-armor-slot" id="inv-armor-feet"><span class="armor-placeholder">👟</span><div class="inv-slot-tip">Boots</div></div>
+        </div>
+        <canvas id="inv-player-canvas" width="64" height="108"></canvas>
+      </div>
+      <div id="inv-crafting-wrap">
+        <div id="inv-craft-label">Crafting</div>
+        <div id="inv-craft-row">
+          <div id="inv-craft-grid"></div>
+          <div id="inv-craft-arrow">▶</div>
+          <div id="inv-craft-output" class="inv-slot"><div class="inv-slot-tip">Output</div></div>
+        </div>
+      </div>
+    </div>
     <div class="inv-label" id="inv-grid-label">INVENTORY <span style="font-size:6px;opacity:0.6">(right-click to clear)</span></div>
     <div id="inv-main-grid"></div>
     <div id="inv-page-nav">
@@ -905,12 +943,12 @@ const PLR_W    = 0.4;
 // ── BLOCK IDs ─────────────────────────────────────────────
 const AIR=0,GRASS=1,DIRT=2,STONE=3,WOOD=4,LEAVES=5,SAND=6,BEDROCK=7,WATER=8,FOLIAGE=9,GLASS=10;
 const PIG_EGG=11,COW_EGG=12,WOLF_EGG=13,CAT_EGG=14,CHICKEN_EGG=15,FISH_EGG=16;
-const SNOW=17, PINE_LEAVES=18, FLOWER_RED=19, FLOWER_YELLOW=20;
+const SNOW=17, PINE_LEAVES=18, FLOWER_RED=19, FLOWER_YELLOW=20, PLANK=21;
 const SPAWN_EGG_MOB={[PIG_EGG]:'pig',[COW_EGG]:'cow',[WOLF_EGG]:'wolf',[CAT_EGG]:'cat',[CHICKEN_EGG]:'chicken',[FISH_EGG]:'fish'};
 
 const BLOCK_NAME=['Air','Grass','Dirt','Stone','Wood','Leaves','Sand','Bedrock','Water','Tall Grass','Glass',
-  'Pig Egg','Cow Egg','Wolf Egg','Cat Egg','Chicken Egg','Fish Egg','Snow','Pine Leaves','Poppy','Dandelion'];
-const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3, 0,0,0,0,0,0, 0.2, 0.25, 0.0, 0.0];
+  'Pig Egg','Cow Egg','Wolf Egg','Cat Egg','Chicken Egg','Fish Egg','Snow','Pine Leaves','Poppy','Dandelion','Oak Plank'];
+const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3, 0,0,0,0,0,0, 0.2, 0.25, 0.0, 0.0, 0.7];
 const TEX_IDX={
   [GRASS]:   [0,2,1],
   [DIRT]:    [2,2,2],
@@ -932,13 +970,14 @@ const TEX_IDX={
   [PINE_LEAVES]: [19,19,19],
   [FLOWER_RED]:  [20,20,20],
   [FLOWER_YELLOW]:[21,21,21],
+  [PLANK]:        [22,22,22],
 };
 // SOLID: player collides with these
 const SOLID=new Uint8Array(256);
-[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,GLASS,SNOW,PINE_LEAVES].forEach(id=>SOLID[id]=1);
+[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,GLASS,SNOW,PINE_LEAVES,PLANK].forEach(id=>SOLID[id]=1);
 // OPAQUE: completely hides adjacent faces (no leaves, no water)
 const OPAQUE=new Uint8Array(256);
-[GRASS,DIRT,STONE,WOOD,SAND,BEDROCK,SNOW].forEach(id=>OPAQUE[id]=1);
+[GRASS,DIRT,STONE,WOOD,SAND,BEDROCK,SNOW,PLANK].forEach(id=>OPAQUE[id]=1);
 
 // ── FACE GEOMETRY ─────────────────────────────────────────
 // 't': 0=top,1=bottom,2=side  'sh': directional shade multiplier
@@ -1627,9 +1666,9 @@ class Player{
       if(_suppressSpaceFly){ _suppressSpaceFly=false; }
       else if(keys['Space']) fy=flySpd;
       if(keys['ShiftLeft']||keys['ShiftRight']) fy=-flySpd;
-      this.pos.x+=mx*dt;
-      this.pos.y+=fy*dt;
-      this.pos.z+=mz*dt;
+      this._moveX(mx*dt);
+      this._moveY(fy*dt);
+      this._moveZ(mz*dt);
       this.cam.position.set(this.pos.x, this.pos.y+PLR_H-0.08, this.pos.z);
       this.cam.rotation.order='YXZ'; this.cam.rotation.y=this.yaw; this.cam.rotation.x=this.pitch;
       return;
@@ -2075,6 +2114,16 @@ for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
   [[7,4],[8,4],[7,5],[8,5],[7,6],[8,6]].forEach(([x,y])=>tsp(21,x,y,...ctr));
 })();
 
+// Tile 22 — OAK PLANK (horizontal planks, warm tan)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const sep=y%4===3, edge=y%4===0;
+  const grain=(th(22*TS+x,y)*14)|0;
+  let r=186+grain, g=148+(grain>>1), b=100+(grain>>2);
+  if(sep){r=130;g=98;b=62;}
+  else if(edge){r=Math.min(255,r+12);g=Math.min(255,g+10);b=Math.min(255,b+8);}
+  tsp(22,x,y,r,g,b);
+}
+
 const atlasTexture = new THREE.CanvasTexture(atlasCvs);
 atlasTexture.magFilter     = THREE.NearestFilter;  // crisp pixels, no blurring
 atlasTexture.minFilter     = THREE.NearestFilter;
@@ -2113,14 +2162,14 @@ const handGroup = new THREE.Group();
 camera.add(handGroup);
 
 const handGeo = new THREE.BoxGeometry(0.35, 0.35, 0.35);
-const handMat = new THREE.MeshBasicMaterial({map: atlasTexture, depthTest: false, transparent: true, alphaTest: 0.1});
+const handMat = new THREE.MeshBasicMaterial({map: atlasTexture, depthTest: false, transparent: true, alphaTest: 0.01});
 const handMesh = new THREE.Mesh(handGeo, handMat);
 handMesh.renderOrder = 999;
 handGroup.add(handMesh);
 
 // Empty-hand fist: skin-colored arm shown when holding nothing
 const fistGeo = new THREE.BoxGeometry(0.20, 0.44, 0.20);
-const fistMat = new THREE.MeshBasicMaterial({color: 0xF0C090, depthTest: false});
+const fistMat = new THREE.MeshBasicMaterial({color: 0xF0C090, depthTest: false, transparent: true});
 const fistMesh = new THREE.Mesh(fistGeo, fistMat);
 fistMesh.renderOrder = 999;
 fistMesh.position.set(0.01, -0.04, 0);
@@ -2184,6 +2233,7 @@ const BREAK_SND = {
   [PINE_LEAVES]: [{f:'bandpass',hz:680, q:1.0, v:0.28, d:0.10}],
   [FLOWER_RED]:  [{f:'bandpass',hz:500, q:0.9, v:0.20, d:0.08}],
   [FLOWER_YELLOW]:[{f:'bandpass',hz:500, q:0.9, v:0.20, d:0.08}],
+  [PLANK]:        [{f:'bandpass',hz:380, q:0.8, v:0.28, d:0.14}],
 };
 
 function playBreakSound(blockId){
@@ -2229,6 +2279,7 @@ const PLACE_SND = {
   [PINE_LEAVES]: {f:'bandpass', hz:430, q:0.9, v:0.22, d:0.07},
   [FLOWER_RED]:  {f:'bandpass', hz:380, q:0.8, v:0.16, d:0.06},
   [FLOWER_YELLOW]:{f:'bandpass',hz:380, q:0.8, v:0.16, d:0.06},
+  [PLANK]:        {f:'bandpass', hz:300, q:0.7, v:0.22, d:0.10},
 };
 function playPlaceSound(blockId){
   const sp = PLACE_SND[blockId] || PLACE_SND[STONE];
@@ -2248,6 +2299,69 @@ function playPlaceSound(blockId){
   src.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
   src.start(now); src.stop(now+sp.d+0.01);
 }
+
+// ── DROPPED ITEMS ─────────────────────────────────────────────────
+class DroppedItem{
+  constructor(id,x,y,z){
+    this.id=id;
+    this.pos=new THREE.Vector3(x,y,z);
+    this.vel=new THREE.Vector3((Math.random()-.5)*1.4,2.5+Math.random(),(Math.random()-.5)*1.4);
+    this.bobPhase=Math.random()*Math.PI*2;
+    this.rotSpeed=(Math.random()>.5?1:-1)*(1.8+Math.random());
+    this.onGround=false;
+    this.age=0;
+    const isBill=id===FOLIAGE||id===FLOWER_RED||id===FLOWER_YELLOW;
+    const geo=new THREE.BoxGeometry(0.28,0.28,0.28);
+    const mat=new THREE.MeshBasicMaterial({map:atlasTexture,transparent:true,alphaTest:isBill?0.5:0.01,depthWrite:!isBill});
+    this.mesh=new THREE.Mesh(geo,mat);
+    this.mesh.renderOrder=1;
+    scene.add(this.mesh);
+    const ti=TEX_IDX[id];
+    if(ti){
+      const tiles=[ti[2],ti[2],ti[0],ti[1],ti[2],ti[2]];
+      const uv=geo.attributes.uv;
+      for(let f=0;f<6;f++){const ci=tiles[f],b=f*4;uv.setXY(b,ci/N_TILES,1);uv.setXY(b+1,(ci+1)/N_TILES,1);uv.setXY(b+2,ci/N_TILES,0);uv.setXY(b+3,(ci+1)/N_TILES,0);}
+      uv.needsUpdate=true;
+    }
+  }
+  update(dt){
+    this.age+=dt;
+    if(!this.onGround){this.vel.y=Math.max(this.vel.y+GRAVITY*dt,-20);}
+    else{this.vel.x*=Math.pow(0.7,dt*20);this.vel.z*=Math.pow(0.7,dt*20);}
+    this.pos.x+=this.vel.x*dt;
+    this.pos.y+=this.vel.y*dt;
+    this.pos.z+=this.vel.z*dt;
+    const bx=Math.floor(this.pos.x),bz=Math.floor(this.pos.z),by=Math.floor(this.pos.y-0.15);
+    if(SOLID[world.getBlock(bx,by,bz)]&&this.vel.y<=0){
+      this.pos.y=by+1.15;this.vel.y=0;this.onGround=true;
+    } else if(!SOLID[world.getBlock(bx,Math.floor(this.pos.y),bz)]){this.onGround=false;}
+    if(this.pos.y<0.5){this.pos.y=0.5;this.vel.y=0;this.onGround=true;}
+    this.bobPhase+=dt*2.8;
+    const bob=this.onGround?Math.sin(this.bobPhase)*0.06:0;
+    this.mesh.position.set(this.pos.x,this.pos.y+bob,this.pos.z);
+    this.mesh.rotation.y+=this.rotSpeed*dt;
+  }
+  canCollect(){return this.age>0.8;}
+  distSq(p){const dx=this.pos.x-p.x,dy=(this.pos.y-0.14)-p.y,dz=this.pos.z-p.z;return dx*dx+dy*dy+dz*dz;}
+  remove(){scene.remove(this.mesh);this.mesh.geometry.dispose();this.mesh.material.dispose();}
+}
+const droppedItems=[];
+function spawnDroppedItem(id,x,y,z,vel=null){
+  if(id===AIR)return;
+  const item=new DroppedItem(id,x,y,z);
+  if(vel)item.vel.set(vel.x,vel.y,vel.z);
+  droppedItems.push(item);
+}
+function updateDroppedItems(dt){
+  for(let i=droppedItems.length-1;i>=0;i--){
+    const item=droppedItems[i];
+    item.update(dt);
+    if(item.canCollect()&&item.distSq(player.pos)<2.25){
+      giveBlock(item.id);item.remove();droppedItems.splice(i,1);
+    }
+  }
+}
+function clearDroppedItems(){droppedItems.forEach(d=>d.remove());droppedItems.length=0;}
 
 // ── GAME STATE ────────────────────────────────────────────
 const world=new World(scene);
@@ -2822,7 +2936,8 @@ class Mob {
       const fnz = Math.floor(this.pos.z - Math.cos(this.yaw) * reach);
       const fy  = Math.floor(this.pos.y + 0.3);
       const fwdId = world.getBlock(fnx, fy, fnz);
-      if (this._solid(fnx, fy, fnz) || this._solid(fnx, fy + 1, fnz) || fwdId === WATER) {
+      if (this._solid(fnx, fy, fnz) || this._solid(fnx, fy + 1, fnz) || fwdId === WATER ||
+          world.getBlock(fnx, fy - 1, fnz) === WATER || world.getBlock(fnx, fy - 2, fnz) === WATER) {
         this.yaw += Math.PI * (0.75 + Math.random() * 0.5);
         vx = 0; vz = 0;
         this.wanderTimer = 1 + Math.random() * 1.5;
@@ -3013,12 +3128,13 @@ let worldMods=new Map(), trackingMods=false;
 let _lastSpaceTime=0, _suppressSpaceFly=false;
 const CREATIVE_PAGE_SIZE=27;
 const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,LEAVES,PINE_LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS,SNOW,
-  FLOWER_RED,FLOWER_YELLOW,PIG_EGG,COW_EGG,WOLF_EGG,CAT_EGG,CHICKEN_EGG,FISH_EGG];
+  FLOWER_RED,FLOWER_YELLOW,PLANK,PIG_EGG,COW_EGG,WOLF_EGG,CAT_EGG,CHICKEN_EGG,FISH_EGG];
 const DEFAULT_HOTBAR=new Array(9).fill(AIR);
 let showDbg=false;
 // Mining
 let mining=false, mineTarget=null, mineProg=0;
 let handBobPhase=0, handSwingT=-1, handPlaceT=-1;
+let qDropTimer=0;
 const HAND_SWING_SPD=5.5, HAND_PLACE_SPD=7.0;
 
 // ── MENU BACKGROUND — pre-generate terrain so the main menu looks at ground ──
@@ -3277,6 +3393,117 @@ function closeChat(){
 }
 
 // ── INVENTORY ─────────────────────────────────────────────
+// Crafting grid state (2×2)
+const craftSlots=[AIR,AIR,AIR,AIR], craftCounts=[0,0,0,0];
+
+const CRAFT_RECIPES=[
+  {in:WOOD, out:PLANK, outCount:4},
+];
+
+function computeCraftOutput(){
+  for(const rec of CRAFT_RECIPES){
+    for(let i=0;i<4;i++){
+      if(craftSlots[i]===rec.in) return {id:rec.out, count:rec.outCount, srcSlot:i};
+    }
+  }
+  return null;
+}
+
+function buildCraftGrid(){
+  const gridEl=document.getElementById('inv-craft-grid');
+  const outEl=document.getElementById('inv-craft-output');
+  if(!gridEl||!outEl) return;
+  gridEl.innerHTML='';
+  for(let i=0;i<4;i++){
+    const s=document.createElement('div');
+    s.className='inv-slot';
+    const id=craftSlots[i];
+    if(id!==AIR){
+      const img=document.createElement('img');img.src=makeBlockIcon(id);
+      const tip=document.createElement('div');tip.className='inv-slot-tip';tip.textContent=BLOCK_NAME[id];
+      s.append(img,tip);
+      if(craftCounts[i]>1){const b=document.createElement('span');b.className='slot-count';b.textContent=craftCounts[i];s.append(b);}
+    }
+    s.addEventListener('click',()=>{
+      const si=player.slot;
+      const hId=player.hotbar[si],hCnt=player.hotbarCounts[si];
+      player.hotbar[si]=craftSlots[i];player.hotbarCounts[si]=craftCounts[i];
+      craftSlots[i]=hId;craftCounts[i]=hCnt;
+      buildHotbar();buildInvHotbar();buildCraftGrid();
+    });
+    s.addEventListener('contextmenu',e=>{e.preventDefault();craftSlots[i]=AIR;craftCounts[i]=0;buildCraftGrid();});
+    gridEl.appendChild(s);
+  }
+  // Output
+  // Remove old children except the tip
+  const oldTip=outEl.querySelector('.inv-slot-tip');
+  outEl.innerHTML='';
+  if(oldTip)outEl.appendChild(oldTip);
+  const recipe=computeCraftOutput();
+  if(recipe){
+    const img=document.createElement('img');img.src=makeBlockIcon(recipe.id);img.style.cssText='width:32px;height:32px;image-rendering:pixelated';
+    const tip=document.createElement('div');tip.className='inv-slot-tip';tip.textContent=BLOCK_NAME[recipe.id]+' \xd7'+recipe.count;
+    const badge=document.createElement('span');badge.className='slot-count';badge.textContent=recipe.count;
+    outEl.append(img,tip,badge);
+    outEl.classList.add('has-output');
+    outEl.style.cursor='pointer';
+    outEl.onclick=()=>{
+      const r=computeCraftOutput();if(!r)return;
+      craftCounts[r.srcSlot]--;
+      if(craftCounts[r.srcSlot]<=0){craftSlots[r.srcSlot]=AIR;craftCounts[r.srcSlot]=0;}
+      for(let n=0;n<r.count;n++) giveBlock(r.id);
+      buildHotbar();buildInvHotbar();buildCraftGrid();
+    };
+  } else {
+    const tip=document.createElement('div');tip.className='inv-slot-tip';tip.textContent='Output';
+    outEl.appendChild(tip);
+    outEl.classList.remove('has-output');
+    outEl.style.cursor='default';
+    outEl.onclick=null;
+  }
+}
+
+function drawPlayerModel(){
+  const cvs=document.getElementById('inv-player-canvas');
+  if(!cvs)return;
+  const ctx=cvs.getContext('2d');
+  const W=cvs.width,H=cvs.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#697c94';ctx.fillRect(0,0,W,H);
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,0.22)';
+  ctx.beginPath();ctx.ellipse(W/2,H-4,12,3,0,0,Math.PI*2);ctx.fill();
+  const p=(x,y,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(x,y,w,h);};
+  const cx=Math.floor(W/2);
+  // Boots
+  p(cx-9,H-12,7,8,'#6b4b28');p(cx+2,H-12,7,8,'#6b4b28');
+  // Legs
+  p(cx-9,H-30,7,18,'#3040a8');p(cx+2,H-30,7,18,'#3040a8');
+  // Belt
+  p(cx-9,H-31,18,2,'#1a2a6a');
+  // Body
+  p(cx-10,H-52,20,21,'#4a68c8');
+  // Buttons/detail
+  p(cx-1,H-50,2,16,'#3a58b8');
+  // Neck
+  p(cx-3,H-55,6,4,'#F0C090');
+  // Left arm
+  p(cx-16,H-52,6,24,'#3a58b8');p(cx-16,H-29,6,6,'#F0C090');
+  // Right arm
+  p(cx+10,H-52,6,24,'#3a58b8');p(cx+10,H-29,6,6,'#F0C090');
+  // Head
+  p(cx-11,H-76,22,21,'#F0C090');
+  // Hair
+  p(cx-11,H-76,22,7,'#5a3a1a');
+  p(cx-11,H-69,2,10,'#5a3a1a');
+  p(cx+9,H-69,2,10,'#5a3a1a');
+  // Eyes
+  p(cx-7,H-64,4,4,'#222');
+  p(cx+3,H-64,4,4,'#222');
+  // Nose hint
+  p(cx-1,H-58,2,3,'#d4a878');
+}
+
 function buildInvHotbar(){
   invHotbarRow.innerHTML='';
   player.hotbar.forEach((id,i)=>{
@@ -3380,6 +3607,8 @@ function buildInvScreen(){
     buildInvMainGrid();
   }
   buildInvHotbar();
+  buildCraftGrid();
+  drawPlayerModel();
 }
 
 function openInventory(){
@@ -3732,10 +3961,29 @@ function giveBlock(id){
   // Inventory full — block dropped (discarded)
 }
 
+function dropSelectedItem(){
+  const i=player.slot;
+  const id=player.hotbar[i];
+  if(id===AIR||player.hotbarCounts[i]<=0)return;
+  const ang=player.yaw;
+  spawnDroppedItem(
+    id,
+    player.pos.x-Math.sin(ang)*0.5,
+    player.pos.y+PLR_H*0.55,
+    player.pos.z-Math.cos(ang)*0.5,
+    {x:-Math.sin(ang)*4, y:2.8, z:-Math.cos(ang)*4}
+  );
+  droppedItems[droppedItems.length-1].age=0.5;
+  player.hotbarCounts[i]--;
+  if(player.hotbarCounts[i]<=0){player.hotbar[i]=AIR;player.hotbarCounts[i]=0;}
+  buildHotbar();
+}
+
 // ── WORLD GENERATION ─────────────────────────────────────
 async function generateWorld(){
   loadingEl.style.display='flex';
   clearMobs();
+  clearDroppedItems();
   world.clear();   // wipe any chunks from a previous world so the new seed/terrain applies
   const total=(rdist*2+1)**2;
   let done=0;
@@ -3815,6 +4063,7 @@ function doSaveAndQuit(){
   pauseScreen.style.display='none';
   deathScreen.style.display='none';
   clearMobs();
+  clearDroppedItems();
   const worlds=getWorlds();
   if(worlds.length>0) openWorldSelect();
   else overlayEl.style.display='flex';
@@ -4104,6 +4353,12 @@ function loop(t){
   player.update(dt,keys);
   world.loadAround(player.pos.x, player.pos.z);
   updateMobs(dt);
+  // Q-drop
+  if(keys['KeyQ']&&!chatOpen&&!inventoryOpen&&!paused&&gamemode!=='spectator'){
+    qDropTimer-=dt;
+    if(qDropTimer<=0){dropSelectedItem();qDropTimer=0.13;}
+  } else { qDropTimer=0; }
+  updateDroppedItems(dt);
 
   // Death check (survival only)
   if(player.hp<=0 && gamemode==='survival'){
@@ -4224,7 +4479,13 @@ function loop(t){
         if(pct>=1){
           playBreakSound(id);
           world.setBlock(aim.bx,aim.by,aim.bz,AIR);
-          if(gamemode==='survival' && id!==AIR) giveBlock(id);
+          if(gamemode==='survival' && id!==AIR) spawnDroppedItem(id,aim.bx+0.5,aim.by+0.5,aim.bz+0.5);
+          // Break unsupported foliage/flowers above
+          const aboveId=world.getBlock(aim.bx,aim.by+1,aim.bz);
+          if(aboveId===FOLIAGE||aboveId===FLOWER_RED||aboveId===FLOWER_YELLOW){
+            world.setBlock(aim.bx,aim.by+1,aim.bz,AIR);
+            spawnDroppedItem(aboveId,aim.bx+0.5,aim.by+1.5,aim.bz+0.5);
+          }
           mineProg=0; mineTarget=null;
           breakBarWrap.style.display='none';
         }
