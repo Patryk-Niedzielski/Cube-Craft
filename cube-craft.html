@@ -246,6 +246,43 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
 }
 #give-panel-title{font-size:9px;color:#333;margin-bottom:10px;text-shadow:1px 1px 0 rgba(255,255,255,0.6)}
 #give-grid{display:grid;grid-template-columns:repeat(9,40px);gap:4px}
+/* ── TELEPORT BIOME MENU ── */
+#tpbiome-menu{
+  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+  z-index:22;background:rgba(0,0,0,0.55);
+}
+#tpbiome-panel{
+  background:#c6c6c6;padding:16px 18px 18px;
+  border:3px solid;
+  border-top-color:#fff;border-left-color:#fff;
+  border-bottom-color:#555;border-right-color:#555;
+  font-family:'Press Start 2P',monospace;
+}
+#tpbiome-title{font-size:9px;color:#333;margin-bottom:14px;text-shadow:1px 1px 0 rgba(255,255,255,0.6)}
+#tpbiome-grid{display:flex;gap:10px;justify-content:center}
+.tpbiome-cell{
+  display:flex;flex-direction:column;align-items:center;
+  cursor:pointer;padding:8px 6px 6px;
+  border:2px solid #888;background:#8b8b8b;
+  position:relative;user-select:none;
+  border-top-color:#fff;border-left-color:#fff;
+  border-bottom-color:#444;border-right-color:#444;
+}
+.tpbiome-cell:hover{background:#a0a0a0;}
+.tpbiome-cell:active{
+  border-top-color:#444;border-left-color:#444;
+  border-bottom-color:#fff;border-right-color:#fff;
+}
+.tpbiome-cell img{width:48px;height:48px;image-rendering:pixelated;display:block;}
+.tpbiome-tooltip{
+  position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);
+  background:rgba(16,0,32,0.92);color:#fff;
+  font-family:'Press Start 2P',monospace;font-size:6px;line-height:1.5;
+  padding:5px 8px;white-space:nowrap;pointer-events:none;
+  display:none;z-index:200;
+  border:1px solid #555;
+}
+.tpbiome-cell:hover .tpbiome-tooltip{display:block;}
 /* ── GAMEMODE BADGE ── */
 #gm-badge{
   position:fixed;top:8px;right:8px;
@@ -601,6 +638,16 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
     <div id="give-grid"></div>
     <div style="margin-top:10px;display:flex;justify-content:flex-end">
       <button class="mc-btn" style="width:100px;font-size:7px" onclick="closeGiveMenu()">Close [ESC]</button>
+    </div>
+  </div>
+</div>
+
+<div id="tpbiome-menu">
+  <div id="tpbiome-panel">
+    <div id="tpbiome-title">TELEPORT TO BIOME</div>
+    <div id="tpbiome-grid"></div>
+    <div style="margin-top:12px;display:flex;justify-content:flex-end">
+      <button class="mc-btn" style="width:100px;font-size:7px" onclick="closeTpbiomeMenu()">Close [ESC]</button>
     </div>
   </div>
 </div>
@@ -2923,7 +2970,7 @@ function updateMobs(dt) {
 
 const keys={};
 let locked=false, gameReady=false, gameStarted=false, paused=false;
-let gamemode='survival', inventoryOpen=false, chatOpen=false, creativePageIdx=0, giveMenuOpen=false;
+let gamemode='survival', inventoryOpen=false, chatOpen=false, creativePageIdx=0, giveMenuOpen=false, tpbiomeMenuOpen=false;
 let cheatsEnabled=false;
 let worldMods=new Map(), trackingMods=false;
 let _lastSpaceTime=0, _suppressSpaceFly=false;
@@ -2980,6 +3027,8 @@ const invHotbarRow      = document.getElementById('inv-hotbar-row');
 const gmBadge           = document.getElementById('gm-badge');
 const giveMenuEl        = document.getElementById('give-menu');
 const giveGridEl        = document.getElementById('give-grid');
+const tpbiomeMenuEl     = document.getElementById('tpbiome-menu');
+const tpbiomeGridEl     = document.getElementById('tpbiome-grid');
 invPrevBtn.addEventListener('click',()=>{ creativePageIdx--; buildCreativeGrid(); });
 invNextBtn.addEventListener('click',()=>{ creativePageIdx++; buildCreativeGrid(); });
 
@@ -3152,6 +3201,8 @@ function processCommand(raw){
     else addChatMsg('Usage: /gamemode survival|creative|spectator','err');
   } else if(cmd==='give'){
     openGiveMenu();
+  } else if(cmd==='tpb'||cmd==='tpbiome'){
+    openTpbiomeMenu();
   } else {
     addChatMsg('Unknown command: '+txt,'err');
   }
@@ -3177,7 +3228,7 @@ function closeChat(){
   chatInputWrap.style.display='none';
   chatAreaEl.style.display='none';
   for(const k in keys) keys[k]=false;
-  if(gameStarted && !inventoryOpen && !giveMenuOpen){
+  if(gameStarted && !inventoryOpen && !giveMenuOpen && !tpbiomeMenuOpen){
     showHUD(true);
     const req=canvas.requestPointerLock();
     if(req&&typeof req.then==='function') req.catch(()=>{ showHUD(false); clickHint.style.display='flex'; });
@@ -3344,6 +3395,71 @@ function openGiveMenu(){
 function closeGiveMenu(){
   giveMenuOpen=false;
   giveMenuEl.style.display='none';
+  for(const k in keys) keys[k]=false;
+  if(gameStarted){
+    showHUD(true);
+    const req=canvas.requestPointerLock();
+    if(req&&typeof req.then==='function') req.catch(()=>{ showHUD(false); clickHint.style.display='flex'; });
+  }
+}
+
+// ── TELEPORT-TO-BIOME MENU ────────────────────────────────
+const BIOME_DEFS=[
+  {id:B_PLAINS,  name:'Plains',  block:GRASS},
+  {id:B_FOREST,  name:'Forest',  block:LEAVES},
+  {id:B_DESERT,  name:'Desert',  block:SAND},
+  {id:B_TUNDRA,  name:'Tundra',  block:SNOW},
+  {id:B_TAIGA,   name:'Taiga',   block:PINE_LEAVES},
+  {id:B_JUNGLE,  name:'Jungle',  block:WOOD},
+];
+
+function findNearestBiome(targetBiome){
+  const px=Math.floor(player.pos.x), pz=Math.floor(player.pos.z);
+  if(biomeAt(px,pz)===targetBiome) return {x:px,z:pz};
+  const step=48;
+  for(let r=step;r<=7000;r+=step){
+    for(let i=-r;i<=r;i+=step){
+      const candidates=[
+        {x:px+i,z:pz-r},{x:px+i,z:pz+r},
+        {x:px-r,z:pz+i},{x:px+r,z:pz+i},
+      ];
+      for(const c of candidates){
+        if(biomeAt(c.x,c.z)===targetBiome) return c;
+      }
+    }
+  }
+  return null;
+}
+
+function openTpbiomeMenu(){
+  tpbiomeMenuOpen=true;
+  showHUD(false);
+  tpbiomeGridEl.innerHTML='';
+  BIOME_DEFS.forEach(def=>{
+    const cell=document.createElement('div');
+    cell.className='tpbiome-cell';
+    const img=document.createElement('img');
+    img.src=makeBlockIcon(def.block);
+    const tip=document.createElement('div');
+    tip.className='tpbiome-tooltip';
+    tip.textContent=def.name;
+    cell.append(img,tip);
+    cell.addEventListener('click',()=>{
+      closeTpbiomeMenu();
+      const loc=findNearestBiome(def.id);
+      if(!loc){ addChatMsg('No '+def.name+' biome found nearby.','err'); return; }
+      player.pos.set(loc.x+0.5, 120, loc.z+0.5);
+      player.vel.set(0,0,0);
+      addChatMsg('Teleported to '+def.name+' biome.');
+    });
+    tpbiomeGridEl.appendChild(cell);
+  });
+  tpbiomeMenuEl.style.display='flex';
+}
+
+function closeTpbiomeMenu(){
+  tpbiomeMenuOpen=false;
+  tpbiomeMenuEl.style.display='none';
   for(const k in keys) keys[k]=false;
   if(gameStarted){
     showHUD(true);
@@ -3638,8 +3754,8 @@ function requestLock(){
   const req = canvas.requestPointerLock();
   if(req && typeof req.then === 'function') req.catch(()=>{});
 }
-canvas.addEventListener('click', ()=>{ if(gameReady&&!locked&&!paused&&!chatOpen&&!inventoryOpen&&!giveMenuOpen) requestLock(); });
-clickHint.addEventListener('click', ()=>{ if(!chatOpen&&!inventoryOpen&&!giveMenuOpen) requestLock(); });
+canvas.addEventListener('click', ()=>{ if(gameReady&&!locked&&!paused&&!chatOpen&&!inventoryOpen&&!giveMenuOpen&&!tpbiomeMenuOpen) requestLock(); });
+clickHint.addEventListener('click', ()=>{ if(!chatOpen&&!inventoryOpen&&!giveMenuOpen&&!tpbiomeMenuOpen) requestLock(); });
 document.getElementById('resume-btn').addEventListener('click', requestLock);
 pauseScreen.addEventListener('click', e=>{ if(e.target===pauseScreen) requestLock(); });
 
@@ -3678,6 +3794,8 @@ document.addEventListener('pointerlockchange',()=>{
     } else if(inventoryOpen){
       showHUD(false);
     } else if(giveMenuOpen){
+      showHUD(false);
+    } else if(tpbiomeMenuOpen){
       showHUD(false);
     } else if(gameStarted){
       showHUD(false);
@@ -3760,6 +3878,7 @@ document.addEventListener('keydown',e=>{
   keys[e.code]=true;
   if(e.code==='Escape'){
     if(giveMenuOpen){ closeGiveMenu(); return; }
+    if(tpbiomeMenuOpen){ closeTpbiomeMenu(); return; }
     if(inventoryOpen){ closeInventory(); return; }
     if(locked) document.exitPointerLock();
     else if(paused&&gameStarted) requestLock();
@@ -3788,6 +3907,8 @@ document.addEventListener('keyup',e=>{ if(!chatOpen) keys[e.code]=false; });
 const CMD_COMPLETIONS={
   gamemode:['survival','creative','spectator'],
   give:[],
+  tpb:[],
+  tpbiome:[],
 };
 
 function tabComplete(val){
@@ -4600,6 +4721,7 @@ window.toggleFpsCounter = toggleFpsCounter;
 window.toggleFullscreen = toggleFullscreen;
 window.closeInventory   = closeInventory;
 window.closeGiveMenu    = closeGiveMenu;
+window.closeTpbiomeMenu = closeTpbiomeMenu;
 
 // Wire "Opcje..." buttons
 document.querySelectorAll('.open-options').forEach(b=>b.onclick=openOptions);
