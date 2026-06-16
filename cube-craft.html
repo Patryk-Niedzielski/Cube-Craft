@@ -2101,62 +2101,78 @@ const MOB_SKIN = (() => {
 
   // ── WOLF (golden retriever) ─────────────────────────────
   {
-    const W = { g:'#C8860A', l:'#F0C060', d:'#8A5500', n:'#1A0A00', e:'#3A2000', w:'#FFF5D0' };
+    const W = { g:'#C8860A', l:'#F0C060', d:'#A06810', n:'#0A0500', e:'#1C0E00', w:'#FFF5D0', m:'#E09820' };
+    // Face: 2-row eyes, defined muzzle, light chin
     const hFront2 = _PT([
       'gggggggg',
-      'gggggggg',
-      'geggggeg',  // eyes at col 1,6
-      'gggggggg',
+      'gdgggdgg',
+      'geggggeg',
+      'geggggeg',
       'gllllllg',
-      'glnnnnlg',  // nose block
+      'glnnnnlg',
       'gllllllg',
+      'gwwggwwg',
+    ], W);
+    // Head sides: symmetric so it looks right on both left & right
+    const hSide = _PT([
+      'dggggggd',
+      'gggggggg',
+      'gggggggg',
+      'gggggggg',
+      'gggggggg',
+      'glllllgg',
+      'glllllgg',
       'gggggggg',
     ], W);
+    // Head top: ear patches at corners, lighter snout toward front
     const hTop2 = _PT([
-      'dddddddd',
+      'ddggggdd',
       'dgggggdg',
       'gggggggg',
       'gggggggg',
-      'glllllgg',  // lighter snout top
+      'glllllgg',
       'glllllgg',
       'gggggggg',
       'gggggggg',
     ], W);
+    // Body side: uniform golden, lighter belly — no saddle
     const bSide = _PT([
       'gggggggg',
-      'gdddddgg',  // saddle
-      'gdddddgg',
-      'gdddddgg',
       'gggggggg',
       'gggggggg',
-      'glllllgg',  // lighter belly area
+      'gggggggg',
+      'gggggggg',
+      'glllllgg',
+      'glllllgg',
       'gggggggg',
     ], W);
+    // Back: subtle fur texture using mid-gold
     const bTop = _PT([
+      'ggmgggmg',
+      'gmgggmgg',
       'gggggggg',
-      'gdddddgg',
-      'gddddddg',
-      'gdddddgg',
-      'gdddddgg',
-      'gddddddg',
-      'gdddddgg',
+      'ggmggggg',
+      'gggggmgg',
       'gggggggg',
+      'gmgggmgg',
+      'ggmgggmg',
     ], W);
+    // Chest: creamy light fur
     const chest = _PT([
-      'gggggggg',
       'glllllgg',
       'gllllllg',
-      'glllllgg',
-      'glllllgg',
+      'gwwwwwwg',
+      'gllllllg',
+      'gllllllg',
+      'gwwwwwwg',
       'gllllllg',
       'glllllgg',
-      'gggggggg',
     ], W);
     S.wolf = {
-      head: _MA(bSide, bSide, hTop2, 0xC8860A, 0xC8860A, hFront2, 0xC8860A),
-      body: _MA(bSide, bSide, bTop, 0x8A5500, bSide, chest, 0xC8860A),
+      head: _MA(hSide, hSide, hTop2, 0xC8860A, 0xC8860A, hFront2, 0xC8860A),
+      body: _MA(bSide, bSide, bTop, 0xC8860A, bSide, chest, 0xC8860A),
       leg:  _FM(0xC8860A),
-      ear:  _FM(0x8A5500),
+      ear:  _FM(0xA06810),
       tail: _FM(0xF0C060),
     };
   }
