@@ -1,0 +1,44 @@
+name: Build & Release DMG
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build DMG
+        run: CSC_IDENTITY_AUTO_DISCOVERY=false npm run build:mac
+
+      - name: Upload to GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: latest
+          name: "Cube Craft – Latest Build"
+          body: |
+            Latest build of **Cube Craft** — automatically updated on every push to main.
+
+            ### Install
+            1. Download `Cube.Craft-1.0.0-universal.dmg`
+            2. Open the DMG and drag **Cube Craft** into Applications
+            3. First launch: right-click → Open (unsigned app)
+          artifacts: "dist/*.dmg"
+          artifactContentType: application/octet-stream
+          allowUpdates: true
+          removeArtifacts: true
+          makeLatest: true
+          token: ${{ secrets.GITHUB_TOKEN }}
