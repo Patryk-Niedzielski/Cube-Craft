@@ -164,58 +164,73 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
 }
 .inv-slot:hover .inv-slot-tip{display:block}
 /* ── WORLD CREATE SCREEN ── */
-#world-create-screen{
-  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
-  z-index:25;background:rgba(0,0,0,0.72);
-}
-#wc-box{
-  background:#c6c6c6;padding:20px 22px 16px;width:310px;
-  border:3px solid;
-  border-top-color:#fff;border-left-color:#fff;
-  border-bottom-color:#555;border-right-color:#555;
+/* ── SHARED: full-screen dirt-background menu ── */
+.mc-dirt-screen{
+  position:fixed;inset:0;display:none;flex-direction:column;
+  align-items:center;z-index:25;overflow-y:auto;
+  background-color:#1a0d06;
+  background-image:
+    repeating-linear-gradient(0deg,   rgba(0,0,0,0.10) 0px, rgba(0,0,0,0.10) 1px, transparent 1px, transparent 4px),
+    repeating-linear-gradient(90deg,  rgba(0,0,0,0.07) 0px, rgba(0,0,0,0.07) 1px, transparent 1px, transparent 4px),
+    radial-gradient(ellipse at 30% 20%, rgba(80,38,8,0.35) 0%, transparent 60%),
+    radial-gradient(ellipse at 70% 80%, rgba(50,20,4,0.35) 0%, transparent 60%);
   font-family:'Press Start 2P',monospace;
 }
-.wc-title{font-size:9px;color:#333;margin-bottom:14px;text-align:center;text-shadow:1px 1px 0 rgba(255,255,255,0.6)}
-.wc-label{font-size:6px;color:#333;display:block;margin-bottom:3px;text-shadow:1px 1px 0 rgba(255,255,255,0.5)}
-.wc-field{margin-bottom:10px}
-.wc-input{
-  width:100%;box-sizing:border-box;background:#000;color:#fff;
-  font-family:'Press Start 2P',monospace;font-size:7px;
-  padding:5px 6px;outline:none;border:2px solid #666;
+.mc-screen-inner{
+  display:flex;flex-direction:column;align-items:center;
+  width:min(600px,92vw);padding:40px 0 32px;
 }
-.wc-input:focus{border-color:#aaa}
-.wc-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-.wc-toggle{font-size:7px !important;padding:4px 12px !important;width:auto !important;min-width:80px}
-.wc-toggle.wc-on{
-  background:#3a6b3a;
-  border-top-color:#5a9a5a;border-left-color:#5a9a5a;
-  border-right-color:#1a3a1a;border-bottom-color:#1a3a1a;
+.mc-screen-title{
+  color:#fff;font-size:clamp(0.9rem,2.5vw,1.3rem);
+  text-shadow:2px 2px 0 #000;margin-bottom:24px;letter-spacing:0.04em;
 }
-.wc-btns{display:flex;gap:8px;margin-top:14px}
+/* Wide full-width buttons used in both screens */
+.mc-btn-full{
+  width:100%;padding:12px 0;margin-bottom:6px;font-size:clamp(7px,1.4vw,10px) !important;
+  text-align:center;cursor:pointer;
+}
+/* Text input (world name / seed) */
+.mc-field-wrap{width:100%;margin-bottom:14px;}
+.mc-field-lbl{
+  display:block;font-size:7px;color:#fff;margin-bottom:5px;
+  text-shadow:1px 1px 0 #000;letter-spacing:0.08em;
+}
+.mc-field-inp{
+  width:100%;box-sizing:border-box;
+  background:#000;color:#fff;caret-color:#fff;
+  font-family:'Press Start 2P',monospace;font-size:9px;
+  padding:10px 8px;outline:none;border:2px solid #555;
+}
+.mc-field-inp:focus{border-color:#aaa;}
+/* Two-button row (Create + Cancel) */
+.mc-btn-row-2{display:flex;gap:6px;width:100%;margin-top:10px;}
+.mc-btn-row-2 .mc-btn-full{flex:1;}
+
+/* ── WORLD CREATE SCREEN specific ── */
+#world-create-screen{ /* handled by .mc-dirt-screen */ }
+.wc-on{ background:#5a7a3a !important; border-top-color:#8ab860 !important; border-left-color:#8ab860 !important; }
+
 /* ── WORLD SELECT SCREEN ── */
-#world-select-screen{
-  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
-  z-index:25;background:rgba(0,0,0,0.72);
-}
-#ws-box{
-  background:#c6c6c6;padding:20px 22px 16px;width:360px;
-  border:3px solid;
-  border-top-color:#fff;border-left-color:#fff;
-  border-bottom-color:#555;border-right-color:#555;
-  font-family:'Press Start 2P',monospace;
-}
-#ws-list{max-height:280px;overflow-y:auto;margin-bottom:10px;}
+#ws-list{width:100%;max-height:52vh;overflow-y:auto;margin-bottom:14px;}
 .ws-entry{
-  display:flex;align-items:center;justify-content:space-between;gap:8px;
-  background:#8b8b8b;padding:8px;margin-bottom:4px;
+  display:flex;align-items:center;gap:10px;
+  width:100%;box-sizing:border-box;padding:10px;margin-bottom:2px;
+  cursor:pointer;
+  background:rgba(0,0,0,0.45);
   border:2px solid;
-  border-top-color:#aaa;border-left-color:#aaa;
-  border-bottom-color:#444;border-right-color:#444;
+  border-top-color:rgba(255,255,255,0.12);border-left-color:rgba(255,255,255,0.12);
+  border-bottom-color:rgba(0,0,0,0.6);border-right-color:rgba(0,0,0,0.6);
+  transition:background 0.08s;
 }
+.ws-entry:hover{background:rgba(255,255,255,0.12);}
+.ws-entry.ws-selected{
+  background:rgba(60,100,200,0.35);
+  border-top-color:rgba(120,160,255,0.4);border-left-color:rgba(120,160,255,0.4);
+}
+.ws-icon{width:56px;height:56px;image-rendering:pixelated;flex-shrink:0;}
 .ws-info{flex:1;min-width:0;}
-.ws-name{font-size:7px;color:#fff;text-shadow:1px 1px 0 #000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.ws-meta{font-size:5px;color:#ddd;margin-top:3px;text-shadow:1px 1px 0 #000;}
-.ws-play{font-size:6px!important;padding:4px 8px!important;width:auto!important;white-space:nowrap;}
+.ws-name{font-size:9px;color:#fff;text-shadow:1px 1px 0 #000;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ws-meta{font-size:6px;color:#aaa;text-shadow:1px 1px 0 #000;}
 /* ── GIVE MENU ── */
 #give-menu{
   position:fixed;inset:0;display:none;align-items:center;justify-content:center;
@@ -547,40 +562,34 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
 </div>
 
 <!-- ── WORLD SELECT SCREEN ── -->
-<div id="world-select-screen">
-  <div id="ws-box">
-    <div class="wc-title">SELECT WORLD</div>
+<div id="world-select-screen" class="mc-dirt-screen">
+  <div class="mc-screen-inner">
+    <div class="mc-screen-title">Select World</div>
     <div id="ws-list"></div>
-    <div class="wc-btns">
-      <button class="mc-btn" id="ws-new-btn">Create New World</button>
-      <button class="mc-btn" id="ws-cancel-btn">Cancel</button>
+    <div class="mc-btn-row-2">
+      <button class="mc-btn mc-btn-full" id="ws-new-btn">Create New World</button>
+      <button class="mc-btn mc-btn-full" id="ws-cancel-btn">Cancel</button>
     </div>
   </div>
 </div>
 
 <!-- ── WORLD CREATE SCREEN ── -->
-<div id="world-create-screen">
-  <div id="wc-box">
-    <div class="wc-title">CREATE NEW WORLD</div>
-    <div class="wc-field">
-      <span class="wc-label">WORLD NAME</span>
-      <input class="wc-input" id="wc-name" type="text" value="New World" maxlength="24" spellcheck="false" autocomplete="off">
+<div id="world-create-screen" class="mc-dirt-screen">
+  <div class="mc-screen-inner">
+    <div class="mc-screen-title">Create New World</div>
+    <div class="mc-field-wrap">
+      <span class="mc-field-lbl">World Name</span>
+      <input class="mc-field-inp" id="wc-name" type="text" value="New World" maxlength="24" spellcheck="false" autocomplete="off">
     </div>
-    <div class="wc-field">
-      <span class="wc-label">SEED <span style="font-size:5px;opacity:0.6">(blank = random)</span></span>
-      <input class="wc-input" id="wc-seed" type="text" placeholder="" maxlength="20" spellcheck="false" autocomplete="off">
+    <button class="mc-btn mc-btn-full" id="wc-gm">Game Mode: Survival</button>
+    <button class="mc-btn mc-btn-full" id="wc-ch">Allow Cheats: OFF</button>
+    <div class="mc-field-wrap" style="margin-top:10px">
+      <span class="mc-field-lbl">Seed <span style="opacity:0.5;font-size:5px">(blank = random)</span></span>
+      <input class="mc-field-inp" id="wc-seed" type="text" maxlength="20" spellcheck="false" autocomplete="off">
     </div>
-    <div class="wc-row">
-      <span class="wc-label">GAME MODE</span>
-      <button class="mc-btn wc-toggle" id="wc-gm">SURVIVAL</button>
-    </div>
-    <div class="wc-row">
-      <span class="wc-label">ALLOW CHEATS</span>
-      <button class="mc-btn wc-toggle" id="wc-ch">OFF</button>
-    </div>
-    <div class="wc-btns">
-      <button class="mc-btn" id="wc-create">Create World</button>
-      <button class="mc-btn" id="wc-cancel">Cancel</button>
+    <div class="mc-btn-row-2">
+      <button class="mc-btn mc-btn-full" id="wc-create">Create New World</button>
+      <button class="mc-btn mc-btn-full" id="wc-cancel">Cancel</button>
     </div>
   </div>
 </div>
@@ -3214,6 +3223,8 @@ async function startFromSave(save, worldId){
 const wsScreen = document.getElementById('world-select-screen');
 const wsList   = document.getElementById('ws-list');
 
+let _wsSelectedId = null;
+
 function openWorldSelect(){
   overlayEl.style.display='none';
   wcScreen.style.display='none';
@@ -3223,25 +3234,83 @@ function openWorldSelect(){
     openWorldCreate();
     return;
   }
-  for(const w of worlds){
-    const entry = document.createElement('div');
-    entry.className='ws-entry';
-    const date = w.lastPlayed ? new Date(w.lastPlayed).toLocaleDateString() : '';
-    entry.innerHTML=`
-      <div class="ws-info">
-        <div class="ws-name">${w.name}</div>
-        <div class="ws-meta">${(w.gamemode||'survival').toUpperCase()} · ${date}</div>
-      </div>`;
-    const playBtn = document.createElement('button');
-    playBtn.className='mc-btn ws-play';
-    playBtn.textContent='Play';
-    playBtn.addEventListener('click', async()=>{
+  _wsSelectedId = null;
+
+  // Add Play/Delete buttons below the list inside the screen
+  let wsActionRow = document.getElementById('ws-action-row');
+  if(!wsActionRow){
+    wsActionRow = document.createElement('div');
+    wsActionRow.id='ws-action-row';
+    wsActionRow.className='mc-btn-row-2';
+    wsActionRow.style.marginBottom='6px';
+    const playSelBtn = document.createElement('button');
+    playSelBtn.id='ws-play-sel';
+    playSelBtn.className='mc-btn mc-btn-full';
+    playSelBtn.textContent='Play Selected World';
+    playSelBtn.disabled=true;
+    playSelBtn.addEventListener('click', async()=>{
+      if(!_wsSelectedId) return;
+      const w = getWorlds().find(x=>x.id===_wsSelectedId);
+      if(!w) return;
       const save = getWorldSave(w.id);
       if(!save) return;
       wsScreen.style.display='none';
       await startFromSave(save, w.id);
     });
-    entry.appendChild(playBtn);
+    const delSelBtn = document.createElement('button');
+    delSelBtn.id='ws-del-sel';
+    delSelBtn.className='mc-btn mc-btn-full';
+    delSelBtn.textContent='Delete Selected';
+    delSelBtn.disabled=true;
+    delSelBtn.addEventListener('click',()=>{
+      if(!_wsSelectedId) return;
+      if(!confirm('Delete this world? This cannot be undone.')) return;
+      let worlds2 = getWorlds().filter(x=>x.id!==_wsSelectedId);
+      saveWorlds(worlds2);
+      localStorage.removeItem('cubecraft_world_'+_wsSelectedId);
+      openWorldSelect();
+    });
+    wsActionRow.appendChild(playSelBtn);
+    wsActionRow.appendChild(delSelBtn);
+    // Insert before the bottom button row
+    const bottomRow = document.querySelector('#world-select-screen .mc-btn-row-2:last-child');
+    wsScreen.querySelector('.mc-screen-inner').insertBefore(wsActionRow, bottomRow);
+  }
+  document.getElementById('ws-play-sel').disabled=true;
+  document.getElementById('ws-del-sel').disabled=true;
+
+  for(const w of worlds){
+    const entry = document.createElement('div');
+    entry.className='ws-entry';
+    entry.dataset.id=w.id;
+    const date = w.lastPlayed ? new Date(w.lastPlayed).toLocaleDateString() : '';
+    const gm = (w.gamemode||'survival');
+    const gmLabel = gm.charAt(0).toUpperCase()+gm.slice(1);
+
+    const icon = document.createElement('img');
+    icon.className='ws-icon';
+    icon.src=makeBlockIcon(GRASS);
+
+    const info = document.createElement('div');
+    info.className='ws-info';
+    info.innerHTML=`<div class="ws-name">${w.name}</div><div class="ws-meta">${gmLabel} · ${date}</div>`;
+
+    entry.appendChild(icon);
+    entry.appendChild(info);
+
+    entry.addEventListener('click',()=>{
+      document.querySelectorAll('.ws-entry').forEach(e=>e.classList.remove('ws-selected'));
+      entry.classList.add('ws-selected');
+      _wsSelectedId=w.id;
+      document.getElementById('ws-play-sel').disabled=false;
+      document.getElementById('ws-del-sel').disabled=false;
+    });
+    entry.addEventListener('dblclick', async()=>{
+      const save = getWorldSave(w.id);
+      if(!save) return;
+      wsScreen.style.display='none';
+      await startFromSave(save, w.id);
+    });
     wsList.appendChild(entry);
   }
   wsScreen.style.display='flex';
@@ -3249,8 +3318,8 @@ function openWorldSelect(){
 
 function openWorldCreate(){
   wsScreen.style.display='none';
-  _wcGamemode='survival'; wcGmBtn.textContent='SURVIVAL'; wcGmBtn.classList.remove('wc-on');
-  _wcCheats=false; wcChBtn.textContent='OFF'; wcChBtn.classList.remove('wc-on');
+  _wcGamemode='survival'; wcGmBtn.textContent='Game Mode: Survival'; wcGmBtn.classList.remove('wc-on');
+  _wcCheats=false; wcChBtn.textContent='Allow Cheats: OFF'; wcChBtn.classList.remove('wc-on');
   wcSeedInp.value='';
   document.getElementById('wc-name').value='New World';
   wcScreen.style.display='flex';
@@ -3547,13 +3616,14 @@ let _wcCheats   = false;
 const GM_CYCLE=['survival','creative','spectator'];
 wcGmBtn.addEventListener('click',()=>{
   _wcGamemode = GM_CYCLE[(GM_CYCLE.indexOf(_wcGamemode)+1)%GM_CYCLE.length];
-  wcGmBtn.textContent = _wcGamemode.toUpperCase();
+  const label = _wcGamemode.charAt(0).toUpperCase()+_wcGamemode.slice(1);
+  wcGmBtn.textContent = 'Game Mode: '+label;
   wcGmBtn.classList.toggle('wc-on', _wcGamemode!=='survival');
 });
 
 wcChBtn.addEventListener('click',()=>{
   _wcCheats = !_wcCheats;
-  wcChBtn.textContent = _wcCheats ? 'ON' : 'OFF';
+  wcChBtn.textContent = 'Allow Cheats: '+(_wcCheats ? 'ON' : 'OFF');
   wcChBtn.classList.toggle('wc-on', _wcCheats);
 });
 
