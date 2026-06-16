@@ -778,8 +778,11 @@ const PLR_W    = 0.4;
 
 // ── BLOCK IDs ─────────────────────────────────────────────
 const AIR=0,GRASS=1,DIRT=2,STONE=3,WOOD=4,LEAVES=5,SAND=6,BEDROCK=7,WATER=8,FOLIAGE=9,GLASS=10;
+const PIG_EGG=11,COW_EGG=12,WOLF_EGG=13,CAT_EGG=14,CHICKEN_EGG=15,FISH_EGG=16;
+const SPAWN_EGG_MOB={[PIG_EGG]:'pig',[COW_EGG]:'cow',[WOLF_EGG]:'wolf',[CAT_EGG]:'cat',[CHICKEN_EGG]:'chicken',[FISH_EGG]:'fish'};
 
-const BLOCK_NAME=['Air','Grass','Dirt','Stone','Wood','Leaves','Sand','Bedrock','Water','Tall Grass','Glass'];
+const BLOCK_NAME=['Air','Grass','Dirt','Stone','Wood','Leaves','Sand','Bedrock','Water','Tall Grass','Glass',
+  'Pig Egg','Cow Egg','Wolf Egg','Cat Egg','Chicken Egg','Fish Egg'];
 const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3];
 const TEX_IDX={
   [GRASS]:   [0,2,1],
@@ -790,8 +793,14 @@ const TEX_IDX={
   [SAND]:    [7,7,7],
   [BEDROCK]: [8,8,8],
   [WATER]:   [9,9,9],
-  [FOLIAGE]: [10,10,10],
-  [GLASS]:   [11,11,11],
+  [FOLIAGE]:     [10,10,10],
+  [GLASS]:       [11,11,11],
+  [PIG_EGG]:     [12,12,12],
+  [COW_EGG]:     [13,13,13],
+  [WOLF_EGG]:    [14,14,14],
+  [CAT_EGG]:     [15,15,15],
+  [CHICKEN_EGG]: [16,16,16],
+  [FISH_EGG]:    [17,17,17],
 };
 // SOLID: player collides with these
 const SOLID=new Uint8Array(256);
@@ -1598,7 +1607,7 @@ hlMesh.visible=false;
 scene.add(hlMesh);
 
 // ── TEXTURE ATLAS (16×16 pixel art, 16 tiles → 256×16 px, power-of-2) ───────
-const N_TILES = 16;
+const N_TILES = 24;
 const TS      = 16;
 const atlasCvs = document.createElement('canvas');
 atlasCvs.width  = TS * N_TILES;  // 256
@@ -1767,6 +1776,25 @@ for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
   atx.fillRect(T*S+9, 9, 5, 5);
 })();
 
+// Spawn egg tile helper: solid base color + 2×2 spots
+function _eggTile(T, base, spot){
+  atx.fillStyle=base; atx.fillRect(T*TS,0,TS,TS);
+  atx.fillStyle=spot;
+  [[2,2],[10,2],[14,6],[1,8],[7,6],[12,10],[4,13],[10,13]].forEach(([x,y])=>atx.fillRect(T*TS+x,y,2,2));
+}
+// Tile 12 — Pig Egg (coral pink + green)
+_eggTile(12,'#F08080','#4CAF50');
+// Tile 13 — Cow Egg (dark brown + silver)
+_eggTile(13,'#2C1810','#B0B0B0');
+// Tile 14 — Wolf Egg (golden + white)
+_eggTile(14,'#C8860A','#FFF5D0');
+// Tile 15 — Cat Egg (orange + cream)
+_eggTile(15,'#E8761C','#FFEFD5');
+// Tile 16 — Chicken Egg (white + red)
+_eggTile(16,'#F5F5F5','#E02020');
+// Tile 17 — Fish Egg (blue + orange)
+_eggTile(17,'#1E6FF5','#FF7700');
+
 const atlasTexture = new THREE.CanvasTexture(atlasCvs);
 atlasTexture.magFilter     = THREE.NearestFilter;  // crisp pixels, no blurring
 atlasTexture.minFilter     = THREE.NearestFilter;
@@ -1855,8 +1883,14 @@ const BREAK_SND = {
   [BEDROCK]: [{f:'bandpass',hz:1700,q:3.5, v:0.55, d:0.08},
               {f:'lowpass', hz:200, q:0.5, v:0.28, d:0.06}],
   [FOLIAGE]: [{f:'bandpass',hz:500, q:0.9, v:0.32, d:0.11}],
-  [GLASS]:   [{f:'bandpass',hz:3400,q:7.0, v:0.55, d:0.06},
-              {f:'bandpass',hz:1800,q:4.0, v:0.38, d:0.11}],
+  [GLASS]:       [{f:'bandpass',hz:3400,q:7.0, v:0.55, d:0.06},
+                  {f:'bandpass',hz:1800,q:4.0, v:0.38, d:0.11}],
+  [PIG_EGG]:     [{f:'lowpass', hz:200, q:0.6, v:0.20, d:0.08}],
+  [COW_EGG]:     [{f:'lowpass', hz:200, q:0.6, v:0.20, d:0.08}],
+  [WOLF_EGG]:    [{f:'lowpass', hz:200, q:0.6, v:0.20, d:0.08}],
+  [CAT_EGG]:     [{f:'lowpass', hz:200, q:0.6, v:0.20, d:0.08}],
+  [CHICKEN_EGG]: [{f:'lowpass', hz:200, q:0.6, v:0.20, d:0.08}],
+  [FISH_EGG]:    [{f:'lowpass', hz:200, q:0.6, v:0.20, d:0.08}],
 };
 
 function playBreakSound(blockId){
@@ -1891,7 +1925,13 @@ const PLACE_SND = {
   [LEAVES]:  {f:'bandpass', hz:430, q:0.9, v:0.22, d:0.07},
   [SAND]:    {f:'lowpass',  hz:150, q:0.4, v:0.25, d:0.11},
   [BEDROCK]: {f:'bandpass', hz:900, q:2.5, v:0.40, d:0.07},
-  [GLASS]:   {f:'bandpass', hz:2400,q:6.0, v:0.28, d:0.05},
+  [GLASS]:       {f:'bandpass', hz:2400,q:6.0, v:0.28, d:0.05},
+  [PIG_EGG]:     {f:'bandpass', hz:620, q:2.0, v:0.30, d:0.10},
+  [COW_EGG]:     {f:'bandpass', hz:620, q:2.0, v:0.30, d:0.10},
+  [WOLF_EGG]:    {f:'bandpass', hz:620, q:2.0, v:0.30, d:0.10},
+  [CAT_EGG]:     {f:'bandpass', hz:620, q:2.0, v:0.30, d:0.10},
+  [CHICKEN_EGG]: {f:'bandpass', hz:620, q:2.0, v:0.30, d:0.10},
+  [FISH_EGG]:    {f:'bandpass', hz:620, q:2.0, v:0.30, d:0.10},
 };
 function playPlaceSound(blockId){
   const sp = PLACE_SND[blockId] || PLACE_SND[STONE];
@@ -2629,7 +2669,8 @@ let cheatsEnabled=false;
 let worldMods=new Map(), trackingMods=false;
 let _lastSpaceTime=0;
 const CREATIVE_PAGE_SIZE=27;
-const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS];
+const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS,
+  PIG_EGG,COW_EGG,WOLF_EGG,CAT_EGG,CHICKEN_EGG,FISH_EGG];
 const DEFAULT_HOTBAR=new Array(9).fill(AIR);
 let showDbg=false;
 // Mining
@@ -3270,10 +3311,26 @@ canvas.addEventListener('mousedown',e=>{
     mining=true; mineProg=0; mineTarget=null;
     handSwingT=0; // start swing animation
   } else if(e.button===2){
-    // Instant place
     const blk=player.selectedBlock;
     if(blk===AIR) return;
     const t=getAim(); if(!t) return;
+
+    // Spawn egg: spawn mob on the aimed surface
+    if(SPAWN_EGG_MOB[blk]){
+      const type=SPAWN_EGG_MOB[blk];
+      mobs.push(new Mob(type, t.bx+t.nx+0.5, t.by+t.ny+1, t.bz+t.nz+0.5));
+      playPlaceSound(blk);
+      handPlaceT=0;
+      if(gamemode==='survival'){
+        const si=player.slot;
+        player.hotbarCounts[si]--;
+        if(player.hotbarCounts[si]<=0){ player.hotbar[si]=AIR; player.hotbarCounts[si]=0; }
+      }
+      buildHotbar();
+      return;
+    }
+
+    // Normal block placement
     const px=t.bx+t.nx, py=t.by+t.ny, pz=t.bz+t.nz;
     if(py<0||py>=HEIGHT) return;
     // Don't place inside player AABB
