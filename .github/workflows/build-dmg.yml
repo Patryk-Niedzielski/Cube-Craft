@@ -27,13 +27,13 @@ jobs:
       - name: Upload to GitHub Release
         uses: ncipollo/release-action@v1
         with:
-          tag: latest
-          name: "Cube Craft – Latest Build"
+          tag: v0.01
+          name: "Cube Craft v0.01"
           body: |
-            Latest build of **Cube Craft** — automatically updated on every push to main.
+            **Cube Craft v0.01** — automatically updated on every push to main.
 
             ### Install
-            1. Download `Cube.Craft-1.0.0-universal.dmg`
+            1. Download `Cube Craft-1.0.0-universal.dmg`
             2. Open the DMG and drag **Cube Craft** into Applications
             3. First launch: right-click → Open (unsigned app)
           artifacts: "dist/*.dmg"
