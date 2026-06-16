@@ -192,6 +192,30 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
   border-right-color:#1a3a1a;border-bottom-color:#1a3a1a;
 }
 .wc-btns{display:flex;gap:8px;margin-top:14px}
+/* ── WORLD SELECT SCREEN ── */
+#world-select-screen{
+  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+  z-index:25;background:rgba(0,0,0,0.72);
+}
+#ws-box{
+  background:#c6c6c6;padding:20px 22px 16px;width:360px;
+  border:3px solid;
+  border-top-color:#fff;border-left-color:#fff;
+  border-bottom-color:#555;border-right-color:#555;
+  font-family:'Press Start 2P',monospace;
+}
+#ws-list{max-height:280px;overflow-y:auto;margin-bottom:10px;}
+.ws-entry{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  background:#8b8b8b;padding:8px;margin-bottom:4px;
+  border:2px solid;
+  border-top-color:#aaa;border-left-color:#aaa;
+  border-bottom-color:#444;border-right-color:#444;
+}
+.ws-info{flex:1;min-width:0;}
+.ws-name{font-size:7px;color:#fff;text-shadow:1px 1px 0 #000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ws-meta{font-size:5px;color:#ddd;margin-top:3px;text-shadow:1px 1px 0 #000;}
+.ws-play{font-size:6px!important;padding:4px 8px!important;width:auto!important;white-space:nowrap;}
 /* ── GIVE MENU ── */
 #give-menu{
   position:fixed;inset:0;display:none;align-items:center;justify-content:center;
@@ -509,7 +533,6 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
     <span class="logo-sub">By Patryk Niedzielski [with the help of claude] <span id="mc-tagline"></span></span>
   </div>
   <div id="main-menu">
-    <button class="mc-btn" id="continue-btn" style="display:none;background:#3a6b3a;border-top-color:#5a9a5a;border-left-color:#5a9a5a;border-right-color:#1a3a1a;border-bottom-color:#1a3a1a">Continue</button>
     <button class="mc-btn" id="play-btn" data-i18n="btn_play">Singleplayer</button>
     <div class="mc-btn-row">
       <button class="mc-btn open-options" data-i18n="btn_options">Options...</button>
@@ -521,6 +544,18 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
 <div id="overlay-footer">
   <span class="footer-l">Cube Craft v0.01</span>
   <span class="footer-r">Copyright Copilot &amp; Patryk. Nie kopiować!</span>
+</div>
+
+<!-- ── WORLD SELECT SCREEN ── -->
+<div id="world-select-screen">
+  <div id="ws-box">
+    <div class="wc-title">SELECT WORLD</div>
+    <div id="ws-list"></div>
+    <div class="wc-btns">
+      <button class="mc-btn" id="ws-new-btn">Create New World</button>
+      <button class="mc-btn" id="ws-cancel-btn">Cancel</button>
+    </div>
+  </div>
 </div>
 
 <!-- ── WORLD CREATE SCREEN ── -->
@@ -1391,7 +1426,8 @@ class Player{
       const flySpd=RUN_SPD*1.5;
       if(len>0){mx=mx/len*flySpd; mz=mz/len*flySpd;} else {mx=0;mz=0;}
       let fy=0;
-      if(keys['Space']) fy=flySpd;
+      if(_suppressSpaceFly){ _suppressSpaceFly=false; }
+      else if(keys['Space']) fy=flySpd;
       if(keys['ShiftLeft']||keys['ShiftRight']) fy=-flySpd;
       this.pos.x+=mx*dt;
       this.pos.y+=fy*dt;
@@ -2667,7 +2703,7 @@ let locked=false, gameReady=false, gameStarted=false, paused=false;
 let gamemode='survival', inventoryOpen=false, chatOpen=false, creativePageIdx=0, giveMenuOpen=false;
 let cheatsEnabled=false;
 let worldMods=new Map(), trackingMods=false;
-let _lastSpaceTime=0;
+let _lastSpaceTime=0, _suppressSpaceFly=false;
 const CREATIVE_PAGE_SIZE=27;
 const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS,
   PIG_EGG,COW_EGG,WOLF_EGG,CAT_EGG,CHICKEN_EGG,FISH_EGG];
@@ -3094,10 +3130,31 @@ function closeGiveMenu(){
 }
 
 // ── WORLD SAVE / LOAD ─────────────────────────────────────
-const SAVE_KEY='cubecraft_save';
+// ── MULTI-WORLD SAVE SYSTEM ──────────────────────────────
+const WORLDS_KEY = 'cubecraft_worlds';
+const SAVE_KEY   = 'cubecraft_save'; // legacy only
+let currentWorldId = null;
+
+function getWorlds(){
+  try{ return JSON.parse(localStorage.getItem(WORLDS_KEY)||'[]'); } catch{ return []; }
+}
+function saveWorlds(list){ localStorage.setItem(WORLDS_KEY, JSON.stringify(list)); }
+function getWorldSave(id){
+  try{ return JSON.parse(localStorage.getItem('cubecraft_world_'+id)||'null'); } catch{ return null; }
+}
+
+// Migrate old single-save to multi-world on first load
+function migrateOldSave(){
+  if(localStorage.getItem(WORLDS_KEY)) return;
+  const raw = localStorage.getItem(SAVE_KEY);
+  if(!raw) return;
+  const id = 'w'+Date.now();
+  localStorage.setItem('cubecraft_world_'+id, raw);
+  saveWorlds([{id, name:'World 1', gamemode:'survival', lastPlayed:Date.now()}]);
+}
 
 function saveWorld(){
-  if(!gameStarted) return;
+  if(!gameStarted || !currentWorldId) return;
   const data={
     v:1, seed:worldSeed, gamemode, cheats:cheatsEnabled,
     player:{
@@ -3109,18 +3166,17 @@ function saveWorld(){
     },
     mods:Object.fromEntries(worldMods)
   };
-  try{ localStorage.setItem(SAVE_KEY, JSON.stringify(data)); }
-  catch(e){ console.warn('Save failed',e); }
-}
-
-function loadSave(){
   try{
-    const raw=localStorage.getItem(SAVE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch(e){ return null; }
+    localStorage.setItem('cubecraft_world_'+currentWorldId, JSON.stringify(data));
+    // Update lastPlayed in index
+    const worlds = getWorlds();
+    const w = worlds.find(w=>w.id===currentWorldId);
+    if(w){ w.lastPlayed=Date.now(); saveWorlds(worlds); }
+  } catch(e){ console.warn('Save failed',e); }
 }
 
-async function startFromSave(save){
+async function startFromSave(save, worldId){
+  currentWorldId = worldId;
   worldSeed=save.seed;
   initPerm(worldSeed);
   gamemode=save.gamemode||'survival';
@@ -3128,17 +3184,14 @@ async function startFromSave(save){
   trackingMods=false;
   worldMods=new Map();
   await generateWorld();
-  // Apply modifications without re-tracking them
   if(save.mods){
     for(const [key,id] of Object.entries(save.mods)){
       const [wx,wy,wz]=key.split(',').map(Number);
       world.setBlock(wx,wy,wz,id);
     }
-    // Re-populate worldMods so future saves include these changes
     for(const [key,id] of Object.entries(save.mods)) worldMods.set(key,id);
   }
   trackingMods=true;
-  // Restore player
   const p=save.player;
   if(p){
     player.pos.set(p.x,p.y,p.z);
@@ -3157,10 +3210,57 @@ async function startFromSave(save){
   clickHint.style.display='flex';
 }
 
-function updateContinueBtn(){
-  const btn=document.getElementById('continue-btn');
-  if(btn) btn.style.display=loadSave()?'block':'none';
+// ── WORLD SELECT SCREEN ──────────────────────────────────
+const wsScreen = document.getElementById('world-select-screen');
+const wsList   = document.getElementById('ws-list');
+
+function openWorldSelect(){
+  overlayEl.style.display='none';
+  wcScreen.style.display='none';
+  const worlds = getWorlds().sort((a,b)=>b.lastPlayed-a.lastPlayed);
+  wsList.innerHTML='';
+  if(worlds.length===0){
+    openWorldCreate();
+    return;
+  }
+  for(const w of worlds){
+    const entry = document.createElement('div');
+    entry.className='ws-entry';
+    const date = w.lastPlayed ? new Date(w.lastPlayed).toLocaleDateString() : '';
+    entry.innerHTML=`
+      <div class="ws-info">
+        <div class="ws-name">${w.name}</div>
+        <div class="ws-meta">${(w.gamemode||'survival').toUpperCase()} · ${date}</div>
+      </div>`;
+    const playBtn = document.createElement('button');
+    playBtn.className='mc-btn ws-play';
+    playBtn.textContent='Play';
+    playBtn.addEventListener('click', async()=>{
+      const save = getWorldSave(w.id);
+      if(!save) return;
+      wsScreen.style.display='none';
+      await startFromSave(save, w.id);
+    });
+    entry.appendChild(playBtn);
+    wsList.appendChild(entry);
+  }
+  wsScreen.style.display='flex';
 }
+
+function openWorldCreate(){
+  wsScreen.style.display='none';
+  _wcGamemode='survival'; wcGmBtn.textContent='SURVIVAL'; wcGmBtn.classList.remove('wc-on');
+  _wcCheats=false; wcChBtn.textContent='OFF'; wcChBtn.classList.remove('wc-on');
+  wcSeedInp.value='';
+  document.getElementById('wc-name').value='New World';
+  wcScreen.style.display='flex';
+}
+
+document.getElementById('ws-new-btn').addEventListener('click', openWorldCreate);
+document.getElementById('ws-cancel-btn').addEventListener('click',()=>{
+  wsScreen.style.display='none';
+  overlayEl.style.display='flex';
+});
 
 // ── ITEM PICKUP ───────────────────────────────────────────
 function giveBlock(id){
@@ -3376,7 +3476,11 @@ document.addEventListener('keydown',e=>{
   if(e.code==='Slash' && locked && gameStarted){ e.preventDefault(); openChat('/'); document.exitPointerLock(); return; }
   if(e.code==='Space' && locked && gameStarted && gamemode==='creative'){
     const now=performance.now();
-    if(now-_lastSpaceTime<300){ player.flying=!player.flying; if(player.flying){ player.vel.set(0,0,0); keys['Space']=false; } }
+    if(now-_lastSpaceTime<300){
+      player.flying=!player.flying;
+      player.vel.set(0,0,0);
+      if(player.flying) _suppressSpaceFly=true;
+    }
     _lastSpaceTime=now;
   }
   if(e.code==='F3'){ showDbg=!showDbg; dbgEl.style.display=(locked&&showDbg)?'block':'none'; }
@@ -3469,7 +3573,13 @@ document.getElementById('wc-create').addEventListener('click', async()=>{
   cheatsEnabled = _wcCheats;
   player.flying=false;
   trackingMods=false; worldMods=new Map();
-  localStorage.removeItem(SAVE_KEY);
+  // Create new world entry
+  const wName = document.getElementById('wc-name').value.trim() || 'New World';
+  const wId = 'w'+Date.now();
+  currentWorldId = wId;
+  const worlds = getWorlds();
+  worlds.push({id:wId, name:wName, gamemode:_wcGamemode, lastPlayed:Date.now()});
+  saveWorlds(worlds);
   wcScreen.style.display='none';
   await generateWorld();
   trackingMods=true;
@@ -3478,32 +3588,20 @@ document.getElementById('wc-create').addEventListener('click', async()=>{
   prevT=performance.now();
   buildHotbar(); buildHealth(); refreshGamemodeBadge();
   clickHint.style.display='flex';
-  updateContinueBtn();
 });
 
 document.getElementById('wc-cancel').addEventListener('click',()=>{
   wcScreen.style.display='none';
-  overlayEl.style.display='flex';
+  // Go back to world select if worlds exist, else main menu
+  const worlds = getWorlds();
+  if(worlds.length > 0) openWorldSelect();
+  else overlayEl.style.display='flex';
 });
 
-document.getElementById('play-btn').addEventListener('click',()=>{
-  overlayEl.style.display='none';
-  // Reset toggles to defaults each time
-  _wcGamemode='survival'; wcGmBtn.textContent='SURVIVAL'; wcGmBtn.classList.remove('wc-on');
-  _wcCheats=false; wcChBtn.textContent='OFF'; wcChBtn.classList.remove('wc-on');
-  wcSeedInp.value='';
-  wcScreen.style.display='flex';
-});
+document.getElementById('play-btn').addEventListener('click', openWorldSelect);
 
-// ── CONTINUE BUTTON ──────────────────────────────────────
-updateContinueBtn();
-document.getElementById('continue-btn').addEventListener('click', async()=>{
-  const save=loadSave();
-  if(!save) return;
-  overlayEl.style.display='none';
-  await startFromSave(save);
-  updateContinueBtn();
-});
+// Migrate any old single save on startup
+migrateOldSave();
 
 // ── AUTO-SAVE ─────────────────────────────────────────────
 setInterval(saveWorld, 30000);
