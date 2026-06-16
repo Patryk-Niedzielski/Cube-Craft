@@ -823,11 +823,12 @@ const PLR_W    = 0.4;
 // ── BLOCK IDs ─────────────────────────────────────────────
 const AIR=0,GRASS=1,DIRT=2,STONE=3,WOOD=4,LEAVES=5,SAND=6,BEDROCK=7,WATER=8,FOLIAGE=9,GLASS=10;
 const PIG_EGG=11,COW_EGG=12,WOLF_EGG=13,CAT_EGG=14,CHICKEN_EGG=15,FISH_EGG=16;
+const SNOW=17;
 const SPAWN_EGG_MOB={[PIG_EGG]:'pig',[COW_EGG]:'cow',[WOLF_EGG]:'wolf',[CAT_EGG]:'cat',[CHICKEN_EGG]:'chicken',[FISH_EGG]:'fish'};
 
 const BLOCK_NAME=['Air','Grass','Dirt','Stone','Wood','Leaves','Sand','Bedrock','Water','Tall Grass','Glass',
-  'Pig Egg','Cow Egg','Wolf Egg','Cat Egg','Chicken Egg','Fish Egg'];
-const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3];
+  'Pig Egg','Cow Egg','Wolf Egg','Cat Egg','Chicken Egg','Fish Egg','Snow'];
+const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3, 0,0,0,0,0,0, 0.2];
 const TEX_IDX={
   [GRASS]:   [0,2,1],
   [DIRT]:    [2,2,2],
@@ -845,13 +846,14 @@ const TEX_IDX={
   [CAT_EGG]:     [15,15,15],
   [CHICKEN_EGG]: [16,16,16],
   [FISH_EGG]:    [17,17,17],
+  [SNOW]:        [18,2,18],
 };
 // SOLID: player collides with these
 const SOLID=new Uint8Array(256);
-[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,GLASS].forEach(id=>SOLID[id]=1);
+[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,GLASS,SNOW].forEach(id=>SOLID[id]=1);
 // OPAQUE: completely hides adjacent faces (no leaves, no water)
 const OPAQUE=new Uint8Array(256);
-[GRASS,DIRT,STONE,WOOD,SAND,BEDROCK].forEach(id=>OPAQUE[id]=1);
+[GRASS,DIRT,STONE,WOOD,SAND,BEDROCK,SNOW].forEach(id=>OPAQUE[id]=1);
 
 // ── FACE GEOMETRY ─────────────────────────────────────────
 // 't': 0=top,1=bottom,2=side  'sh': directional shade multiplier
@@ -937,6 +939,18 @@ function fbm(x,z){
   return v/mx;
 }
 
+// ── BIOMES ────────────────────────────────────────────────
+const B_PLAINS=0, B_FOREST=1, B_DESERT=2, B_TUNDRA=3, B_TAIGA=4, B_JUNGLE=5;
+
+function biomeAt(wx, wz){
+  // Two large-scale noise axes: temperature and humidity
+  const temp  = noise2(wx*0.0028 + 200.5, wz*0.0028 + 300.1); // -1..1, cold→hot
+  const humid = noise2(wx*0.0028 + 400.2, wz*0.0028 + 500.7); // -1..1, dry→wet
+  if(temp < -0.20) return humid > 0.05 ? B_TAIGA   : B_TUNDRA;
+  if(temp >  0.22) return humid > 0.05 ? B_JUNGLE  : B_DESERT;
+  return humid > 0.12 ? B_FOREST : B_PLAINS;
+}
+
 // ── CHUNK CLASS ───────────────────────────────────────────
 class Chunk{
   constructor(cx,cz){
@@ -955,75 +969,69 @@ class Chunk{
   }
   generate(){
     const ox=this.cx*CHUNK, oz=this.cz*CHUNK;
-    const hmap=new Int32Array(CHUNK*CHUNK);
+    const hmap =new Int32Array(CHUNK*CHUNK);
+    const bmap =new Uint8Array(CHUNK*CHUNK);   // biome per column
 
-    // ── HEIGHT MAP ────────────────────────────────────────
+    // ── BIOME + HEIGHT MAP ────────────────────────────────────
     for(let x=0;x<CHUNK;x++) for(let z=0;z<CHUNK;z++){
       const wx=ox+x, wz=oz+z;
-
-      // Continental: skala 0.012 = cykl ~83 bloki → ocean na pewno w promieniu renderu
-      // Offset 37.3/61.7 żeby uniknąć cont=0 przy spawnie (noise2(0,0) zawsze = 0)
       const cont = noise2(wx*0.012 + 37.3, wz*0.012 + 61.7);
       const hill  = fbm(wx, wz);
-      const det   = noise2(wx*0.10,  wz*0.10)*0.06;
+      const det   = noise2(wx*0.10, wz*0.10)*0.06;
       const mt    = Math.max(0, cont)*Math.max(0, hill)*3.2;
-      // Occasional sea: very low-freq base → a few big bodies (~2-3 per 1000²
-      // blocks, measured). Wobble weight is deliberately tiny so it only nudges
-      // the shoreline — a strong wobble shatters the blob into many small lakes
-      // and carves donut rings, which is what made earlier versions ugly.
-      const seaN = noise2(wx*0.001+911.7, wz*0.001+733.1)
-                 + noise2(wx*0.021+88.2,  wz*0.021+150.6)*0.05;
+      const seaN  = noise2(wx*0.001+911.7, wz*0.001+733.1)
+                  + noise2(wx*0.021+88.2,  wz*0.021+150.6)*0.05;
+
+      // Biome (ocean columns get B_PLAINS as placeholder — unused)
+      const biome = biomeAt(wx, wz);
+      bmap[x*CHUNK+z] = biome;
+
+      // Per-biome hill scale
+      const hillScale =
+        biome===B_DESERT ? 4 :
+        biome===B_TUNDRA ? 3 :
+        biome===B_PLAINS ? 5 :
+        biome===B_FOREST ? 6 :
+        biome===B_TAIGA  ? 7 :
+        biome===B_JUNGLE ? 6 : 7;
 
       let h;
       if(cont < -0.30){
-        // ─── OCEAN
         h = SEA - 4 + Math.floor(hill*3);
-
       } else if(cont < -0.18){
-        // ─── NARROW BEACH — thin sand strip around water
-        const t = (cont + 0.30) / 0.12;              // 0..1
+        const t = (cont + 0.30) / 0.12;
         h = Math.floor(SEA - 1 + t * 5 + hill * t);
-
       } else {
-        // ─── LAND — grass, hills, mountains
-        h = Math.max(SEA+4, SEA + 4 + Math.floor(hill*7 + mt*12 + (cont+0.18)*6 + det*4));
+        h = Math.max(SEA+4, SEA + 4 + Math.floor(hill*hillScale + mt*12 + (cont+0.18)*6 + det*4));
       }
 
-      // ─── OCCASIONAL SEA — steep shore (thin sand rim) into a deep flat basin.
-      // Sharp ramp over a small noise band → narrow beach instead of a wide sand puddle.
       const SEA_THRESH = 0.68;
       if(seaN > SEA_THRESH){
-        const t = Math.min(1, (seaN - SEA_THRESH) / 0.08);   // 0 at shore → 1 deep
-        const e = 1 - (1 - t) * (1 - t);                     // ease-out: plunge fast, flatten deep
-        const floor = Math.round(SEA + 2 - e * 14);          // SEA+2 (rim) → SEA-12 (deep)
-        h = Math.min(h, floor);
+        const t = Math.min(1, (seaN - SEA_THRESH) / 0.08);
+        const e = 1 - (1-t)*(1-t);
+        h = Math.min(h, Math.round(SEA + 2 - e * 14));
       }
-
       hmap[x*CHUNK+z] = Math.max(1, Math.min(HEIGHT-3, h));
     }
 
-    // ── WYGŁADZANIE MAPY WYSOKOŚCI (3 przebiegi) ──────────────
-    // Każdy przebieg: każdy punkt = średnia z sąsiadów → łagodne zbocza
+    // ── SMOOTH HEIGHT MAP ─────────────────────────────────────
     for(let pass=0;pass<6;pass++){
       const tmp=new Int32Array(hmap);
       for(let x=1;x<CHUNK-1;x++) for(let z=1;z<CHUNK-1;z++){
         const h=hmap[x*CHUNK+z];
-        // Nie wygładzaj obszarów oceanu — tylko ląd i plażę
         if(h < SEA-2) continue;
-        const avg=Math.round((
+        tmp[x*CHUNK+z]=Math.round((
           hmap[(x-1)*CHUNK+z]+hmap[(x+1)*CHUNK+z]+
           hmap[x*CHUNK+(z-1)]+hmap[x*CHUNK+(z+1)]+h*2
         )/6);
-        tmp[x*CHUNK+z]=avg;
       }
       hmap.set(tmp);
     }
 
-    // ── LOCAL SLOPE (cliff detection) ─────────────────────────
+    // ── SLOPE ─────────────────────────────────────────────────
     const slope=new Float32Array(CHUNK*CHUNK);
     for(let x=0;x<CHUNK;x++) for(let z=0;z<CHUNK;z++){
-      const h=hmap[x*CHUNK+z];
-      let dm=0;
+      const h=hmap[x*CHUNK+z]; let dm=0;
       if(x>0)       dm=Math.max(dm,Math.abs(h-hmap[(x-1)*CHUNK+z]));
       if(x<CHUNK-1) dm=Math.max(dm,Math.abs(h-hmap[(x+1)*CHUNK+z]));
       if(z>0)       dm=Math.max(dm,Math.abs(h-hmap[x*CHUNK+(z-1)]));
@@ -1033,14 +1041,14 @@ class Chunk{
 
     // ── FILL BLOCKS ──────────────────────────────────────────
     for(let x=0;x<CHUNK;x++) for(let z=0;z<CHUNK;z++){
-      const h  = hmap[x*CHUNK+z];
-      const sl = slope[x*CHUNK+z];
-      // Klif tylko przy bardzo stromym nachyleniu — rzadkie zdarzenie
+      const h     = hmap[x*CHUNK+z];
+      const sl    = slope[x*CHUNK+z];
+      const biome = bmap[x*CHUNK+z];
       const cliff = sl >= 11;
-      // Skała na szczycie tylko przy bardzo wysokich górach
       const peak  = h > SEA+22;
-      // Plaża: od dna wody (h<=SEA) po linię brzegową (h<=SEA+2) — piasek dotyka wody
-      const beach = (h <= SEA+2);
+      const beach = h <= SEA+2;
+      const isDesert = biome===B_DESERT;
+      const isSnowy  = biome===B_TUNDRA || biome===B_TAIGA;
 
       for(let y=0;y<HEIGHT;y++){
         let b=AIR;
@@ -1049,51 +1057,84 @@ class Chunk{
         } else if(y < h-5){
           b=STONE;
         } else if(y < h){
-          b=(cliff||peak) ? STONE : DIRT;
+          b=(cliff||peak) ? STONE : (isDesert ? SAND : DIRT);
         } else if(y===h){
           if(beach)            b=SAND;
           else if(cliff||peak) b=STONE;
+          else if(isDesert)    b=SAND;
+          else if(isSnowy)     b=SNOW;
           else                 b=GRASS;
         }
         this.data[this.idx(x,y,z)]=b;
       }
       if(h < SEA){
-        for(let y=h+1; y<=SEA; y++) this.data[this.idx(x,y,z)]=WATER;
+        for(let y=h+1;y<=SEA;y++) this.data[this.idx(x,y,z)]=WATER;
       }
     }
 
-    // ── TREES (flat grass only, away from cliffs) ───────────────
+    // ── TREES ────────────────────────────────────────────────
     for(let x=2;x<=CHUNK-3;x++) for(let z=2;z<=CHUNK-3;z++){
-      const h  = hmap[x*CHUNK+z];
-      const sl = slope[x*CHUNK+z];
-      // No trees on water, beach, cliffs, mountain peaks
-      if(h<=SEA+2 || h>SEA+18 || sl>3) continue;
-      if(this.data[this.idx(x,h,z)]!==GRASS) continue;
-      if(noise2((ox+x)*0.22,(oz+z)*0.22)<0.50) continue;
-      const treeH=5+Math.floor(noise2((ox+x)*1.3,(oz+z)*1.7)*3);
+      const h     = hmap[x*CHUNK+z];
+      const sl    = slope[x*CHUNK+z];
+      const biome = bmap[x*CHUNK+z];
+      if(h<=SEA+2 || h>SEA+28 || sl>3) continue;
+
+      // Per-biome surface block and tree density threshold
+      const surfBlk = this.data[this.idx(x,h,z)];
+      const n = noise2((ox+x)*0.22,(oz+z)*0.22);
+
+      // Desert: no trees
+      if(biome===B_DESERT) continue;
+
+      // Density thresholds (lower = more trees)
+      const thresh =
+        biome===B_JUNGLE ? 0.10 :
+        biome===B_FOREST ? 0.22 :
+        biome===B_TAIGA  ? 0.55 :
+        biome===B_TUNDRA ? 0.82 :
+        0.60;  // Plains
+
+      if(surfBlk!==GRASS && surfBlk!==SNOW) continue;
+      if(n < thresh) continue;
+
+      // Tree height: jungle tallest, taiga tall+narrow
+      const treeH = biome===B_JUNGLE ? 8+Math.floor(noise2((ox+x)*1.1,(oz+z)*1.5)*5) :
+                    biome===B_TAIGA  ? 7+Math.floor(noise2((ox+x)*1.2,(oz+z)*1.6)*3) :
+                    5+Math.floor(noise2((ox+x)*1.3,(oz+z)*1.7)*3);
+
       for(let ty=h+1;ty<=h+treeH&&ty<HEIGHT;ty++)
         this.data[this.idx(x,ty,z)]=WOOD;
+
+      // Canopy: jungle/taiga use narrower profile
+      const narrow = biome===B_TAIGA || biome===B_JUNGLE;
       for(let ly=h+treeH-2;ly<=h+treeH+1;ly++){
         if(ly>=HEIGHT) continue;
-        const rad=(ly<=h+treeH-1)?3:2;
+        const rad = narrow
+          ? (ly<=h+treeH-1 ? 2 : 1)
+          : (ly<=h+treeH-1 ? 3 : 2);
         for(let lx=-rad;lx<=rad;lx++) for(let lz=-rad;lz<=rad;lz++){
           if(Math.abs(lx)===rad&&Math.abs(lz)===rad) continue;
-          const nx=x+lx, nz=z+lz;
-          if(nx<0||nx>=CHUNK||nz<0||nz>=CHUNK) continue;
-          if(this.data[this.idx(nx,ly,nz)]===AIR)
-            this.data[this.idx(nx,ly,nz)]=LEAVES;
+          const nx2=x+lx, nz2=z+lz;
+          if(nx2<0||nx2>=CHUNK||nz2<0||nz2>=CHUNK) continue;
+          if(this.data[this.idx(nx2,ly,nz2)]===AIR)
+            this.data[this.idx(nx2,ly,nz2)]=LEAVES;
         }
       }
       if(h+treeH+2<HEIGHT) this.data[this.idx(x,h+treeH+2,z)]=LEAVES;
     }
 
-    // ── FOLIAGE (short grass on grass surfaces) ───────────────
+    // ── FOLIAGE ──────────────────────────────────────────────
     for(let x=0;x<CHUNK;x++) for(let z=0;z<CHUNK;z++){
-      const h=hmap[x*CHUNK+z];
-      if(h<=SEA+1 || h>SEA+22) continue;
+      const h     = hmap[x*CHUNK+z];
+      const biome = bmap[x*CHUNK+z];
+      if(h<=SEA+1 || h>SEA+30) continue;
+      if(biome===B_DESERT || biome===B_TUNDRA) continue;  // no grass in desert/tundra
       if(this.data[this.idx(x,h,z)]!==GRASS) continue;
       if(this.data[this.idx(x,h+1,z)]!==AIR) continue;
-      if(noise2((ox+x)*0.28,(oz+z)*0.28)<0.05) continue;
+      // Jungle/forest denser, plains sparse
+      const thresh = biome===B_JUNGLE ? -0.30 :
+                     biome===B_FOREST ? -0.10 : 0.05;
+      if(noise2((ox+x)*0.28,(oz+z)*0.28) < thresh) continue;
       this.data[this.idx(x,h+1,z)]=FOLIAGE;
     }
   }
@@ -1656,7 +1697,7 @@ hlMesh.visible=false;
 scene.add(hlMesh);
 
 // ── TEXTURE ATLAS (16×16 pixel art, 16 tiles → 256×16 px, power-of-2) ───────
-const N_TILES = 24;
+const N_TILES = 25;
 const TS      = 16;
 const atlasCvs = document.createElement('canvas');
 atlasCvs.width  = TS * N_TILES;  // 256
@@ -1844,6 +1885,13 @@ _eggTile(16,'#F5F5F5','#E02020');
 // Tile 17 — Fish Egg (blue + orange)
 _eggTile(17,'#1E6FF5','#FF7700');
 
+// Tile 18 — SNOW  (bright white top, faint blue-grey tint for depth)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const n=th(18*TS+x,y);
+  if(n<0.07) tsp(18,x,y,210,218,228);        // subtle shadow pocket
+  else tpal(18,x,y,[[248,252,255],[242,248,254],[236,244,252],[230,240,250]]);
+}
+
 const atlasTexture = new THREE.CanvasTexture(atlasCvs);
 atlasTexture.magFilter     = THREE.NearestFilter;  // crisp pixels, no blurring
 atlasTexture.minFilter     = THREE.NearestFilter;
@@ -1949,6 +1997,7 @@ const BREAK_SND = {
   [CAT_EGG]:     [{f:'lowpass', hz:200, q:0.6, v:0.20, d:0.08}],
   [CHICKEN_EGG]: [{f:'lowpass', hz:200, q:0.6, v:0.20, d:0.08}],
   [FISH_EGG]:    [{f:'lowpass', hz:200, q:0.6, v:0.20, d:0.08}],
+  [SNOW]:        [{f:'lowpass', hz:180, q:0.5, v:0.22, d:0.18}],
 };
 
 function playBreakSound(blockId){
@@ -1990,6 +2039,7 @@ const PLACE_SND = {
   [CAT_EGG]:     {f:'bandpass', hz:620, q:2.0, v:0.30, d:0.10},
   [CHICKEN_EGG]: {f:'bandpass', hz:620, q:2.0, v:0.30, d:0.10},
   [FISH_EGG]:    {f:'bandpass', hz:620, q:2.0, v:0.30, d:0.10},
+  [SNOW]:        {f:'lowpass',  hz:160, q:0.4, v:0.18, d:0.14},
 };
 function playPlaceSound(blockId){
   const sp = PLACE_SND[blockId] || PLACE_SND[STONE];
@@ -2751,8 +2801,13 @@ function updateMobs(dt) {
         }
       }
     } else {
-      const sy = world.surfaceY(tx, tz);
-      if (world.getBlock(tx, sy, tz) === GRASS && sy > SEA) {
+      const sy  = world.surfaceY(tx, tz);
+      const top = world.getBlock(tx, sy, tz);
+      const biome = biomeAt(tx, tz);
+      // In desert only wolves/cats spawn (adapted predators); no pigs/cows/chickens
+      if(biome===B_DESERT && (type==='pig'||type==='cow'||type==='chicken')) continue;
+      // Allow spawn on grass OR snow surface
+      if((top===GRASS||top===SNOW) && sy > SEA){
         mobs.push(new Mob(type, tx + 0.5, sy + 1, tz + 0.5));
       }
     }
@@ -2766,7 +2821,7 @@ let cheatsEnabled=false;
 let worldMods=new Map(), trackingMods=false;
 let _lastSpaceTime=0, _suppressSpaceFly=false;
 const CREATIVE_PAGE_SIZE=27;
-const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS,
+const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS,SNOW,
   PIG_EGG,COW_EGG,WOLF_EGG,CAT_EGG,CHICKEN_EGG,FISH_EGG];
 const DEFAULT_HOTBAR=new Array(9).fill(AIR);
 let showDbg=false;
