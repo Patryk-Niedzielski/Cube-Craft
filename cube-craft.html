@@ -823,12 +823,12 @@ const PLR_W    = 0.4;
 // ── BLOCK IDs ─────────────────────────────────────────────
 const AIR=0,GRASS=1,DIRT=2,STONE=3,WOOD=4,LEAVES=5,SAND=6,BEDROCK=7,WATER=8,FOLIAGE=9,GLASS=10;
 const PIG_EGG=11,COW_EGG=12,WOLF_EGG=13,CAT_EGG=14,CHICKEN_EGG=15,FISH_EGG=16;
-const SNOW=17;
+const SNOW=17, PINE_LEAVES=18, FLOWER_RED=19, FLOWER_YELLOW=20;
 const SPAWN_EGG_MOB={[PIG_EGG]:'pig',[COW_EGG]:'cow',[WOLF_EGG]:'wolf',[CAT_EGG]:'cat',[CHICKEN_EGG]:'chicken',[FISH_EGG]:'fish'};
 
 const BLOCK_NAME=['Air','Grass','Dirt','Stone','Wood','Leaves','Sand','Bedrock','Water','Tall Grass','Glass',
-  'Pig Egg','Cow Egg','Wolf Egg','Cat Egg','Chicken Egg','Fish Egg','Snow'];
-const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3, 0,0,0,0,0,0, 0.2];
+  'Pig Egg','Cow Egg','Wolf Egg','Cat Egg','Chicken Egg','Fish Egg','Snow','Pine Leaves','Poppy','Dandelion'];
+const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3, 0,0,0,0,0,0, 0.2, 0.25, 0.0, 0.0];
 const TEX_IDX={
   [GRASS]:   [0,2,1],
   [DIRT]:    [2,2,2],
@@ -847,10 +847,13 @@ const TEX_IDX={
   [CHICKEN_EGG]: [16,16,16],
   [FISH_EGG]:    [17,17,17],
   [SNOW]:        [18,2,18],
+  [PINE_LEAVES]: [19,19,19],
+  [FLOWER_RED]:  [20,20,20],
+  [FLOWER_YELLOW]:[21,21,21],
 };
 // SOLID: player collides with these
 const SOLID=new Uint8Array(256);
-[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,GLASS,SNOW].forEach(id=>SOLID[id]=1);
+[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,GLASS,SNOW,PINE_LEAVES].forEach(id=>SOLID[id]=1);
 // OPAQUE: completely hides adjacent faces (no leaves, no water)
 const OPAQUE=new Uint8Array(256);
 [GRASS,DIRT,STONE,WOOD,SAND,BEDROCK,SNOW].forEach(id=>OPAQUE[id]=1);
@@ -1097,30 +1100,68 @@ class Chunk{
       if(surfBlk!==GRASS && surfBlk!==SNOW) continue;
       if(n < thresh) continue;
 
-      // Tree height: jungle tallest, taiga tall+narrow
-      const treeH = biome===B_JUNGLE ? 8+Math.floor(noise2((ox+x)*1.1,(oz+z)*1.5)*5) :
-                    biome===B_TAIGA  ? 7+Math.floor(noise2((ox+x)*1.2,(oz+z)*1.6)*3) :
-                    5+Math.floor(noise2((ox+x)*1.3,(oz+z)*1.7)*3);
-
-      for(let ty=h+1;ty<=h+treeH&&ty<HEIGHT;ty++)
-        this.data[this.idx(x,ty,z)]=WOOD;
-
-      // Canopy: jungle/taiga use narrower profile
-      const narrow = biome===B_TAIGA || biome===B_JUNGLE;
-      for(let ly=h+treeH-2;ly<=h+treeH+1;ly++){
-        if(ly>=HEIGHT) continue;
-        const rad = narrow
-          ? (ly<=h+treeH-1 ? 2 : 1)
-          : (ly<=h+treeH-1 ? 3 : 2);
-        for(let lx=-rad;lx<=rad;lx++) for(let lz=-rad;lz<=rad;lz++){
-          if(Math.abs(lx)===rad&&Math.abs(lz)===rad) continue;
-          const nx2=x+lx, nz2=z+lz;
-          if(nx2<0||nx2>=CHUNK||nz2<0||nz2>=CHUNK) continue;
-          if(this.data[this.idx(nx2,ly,nz2)]===AIR)
-            this.data[this.idx(nx2,ly,nz2)]=LEAVES;
+      if(biome===B_TAIGA){
+        // ── PINE TREE: tall trunk, layered triangular canopy ──
+        const treeH = 8+Math.floor(noise2((ox+x)*1.2,(oz+z)*1.6)*4);
+        for(let ty=h+1;ty<=h+treeH&&ty<HEIGHT;ty++)
+          this.data[this.idx(x,ty,z)]=WOOD;
+        // Layered pine canopy — 3 tiers from bottom, shrinking
+        const tiers=[[3,h+treeH-5],[2,h+treeH-3],[1,h+treeH-1]];
+        for(const [rad,base] of tiers){
+          for(let ly=base;ly<=base+1&&ly<HEIGHT;ly++){
+            for(let lx=-rad;lx<=rad;lx++) for(let lz=-rad;lz<=rad;lz++){
+              if(Math.abs(lx)===rad&&Math.abs(lz)===rad) continue;
+              const nx2=x+lx, nz2=z+lz;
+              if(nx2<0||nx2>=CHUNK||nz2<0||nz2>=CHUNK) continue;
+              if(this.data[this.idx(nx2,ly,nz2)]===AIR)
+                this.data[this.idx(nx2,ly,nz2)]=PINE_LEAVES;
+            }
+          }
         }
+        // Tip
+        if(h+treeH<HEIGHT) this.data[this.idx(x,h+treeH,z)]=PINE_LEAVES;
+
+      } else if(biome===B_JUNGLE){
+        // ── JUNGLE TREE: 2×2 trunk, wide multi-layer canopy ──
+        const treeH = 12+Math.floor(noise2((ox+x)*1.1,(oz+z)*1.5)*6);
+        // 2×2 trunk (only where chunk bounds allow)
+        for(let ty=h+1;ty<=h+treeH&&ty<HEIGHT;ty++){
+          this.data[this.idx(x,ty,z)]=WOOD;
+          if(x+1<CHUNK) this.data[this.idx(x+1,ty,z)]=WOOD;
+          if(z+1<CHUNK) this.data[this.idx(x,ty,z+1)]=WOOD;
+          if(x+1<CHUNK&&z+1<CHUNK) this.data[this.idx(x+1,ty,z+1)]=WOOD;
+        }
+        // Wide layered canopy: 4 layers, radius 4→3→3→2
+        const layers=[[4,h+treeH-3],[3,h+treeH-1],[3,h+treeH],[2,h+treeH+1]];
+        for(const [rad,ly] of layers){
+          if(ly>=HEIGHT) continue;
+          for(let lx=-rad;lx<=rad;lx++) for(let lz=-rad;lz<=rad;lz++){
+            if(Math.abs(lx)===rad&&Math.abs(lz)===rad) continue;
+            const nx2=x+lx, nz2=z+lz;
+            if(nx2<0||nx2>=CHUNK||nz2<0||nz2>=CHUNK) continue;
+            if(this.data[this.idx(nx2,ly,nz2)]===AIR)
+              this.data[this.idx(nx2,ly,nz2)]=LEAVES;
+          }
+        }
+
+      } else {
+        // ── OAK TREE (plains / forest) ────────────────────────
+        const treeH=5+Math.floor(noise2((ox+x)*1.3,(oz+z)*1.7)*3);
+        for(let ty=h+1;ty<=h+treeH&&ty<HEIGHT;ty++)
+          this.data[this.idx(x,ty,z)]=WOOD;
+        for(let ly=h+treeH-2;ly<=h+treeH+1;ly++){
+          if(ly>=HEIGHT) continue;
+          const rad=(ly<=h+treeH-1)?3:2;
+          for(let lx=-rad;lx<=rad;lx++) for(let lz=-rad;lz<=rad;lz++){
+            if(Math.abs(lx)===rad&&Math.abs(lz)===rad) continue;
+            const nx2=x+lx, nz2=z+lz;
+            if(nx2<0||nx2>=CHUNK||nz2<0||nz2>=CHUNK) continue;
+            if(this.data[this.idx(nx2,ly,nz2)]===AIR)
+              this.data[this.idx(nx2,ly,nz2)]=LEAVES;
+          }
+        }
+        if(h+treeH+2<HEIGHT) this.data[this.idx(x,h+treeH+2,z)]=LEAVES;
       }
-      if(h+treeH+2<HEIGHT) this.data[this.idx(x,h+treeH+2,z)]=LEAVES;
     }
 
     // ── FOLIAGE ──────────────────────────────────────────────
@@ -1128,7 +1169,7 @@ class Chunk{
       const h     = hmap[x*CHUNK+z];
       const biome = bmap[x*CHUNK+z];
       if(h<=SEA+1 || h>SEA+30) continue;
-      if(biome===B_DESERT || biome===B_TUNDRA) continue;  // no grass in desert/tundra
+      if(biome===B_DESERT || biome===B_TUNDRA) continue;
       if(this.data[this.idx(x,h,z)]!==GRASS) continue;
       if(this.data[this.idx(x,h+1,z)]!==AIR) continue;
       // Jungle/forest denser, plains sparse
@@ -1136,6 +1177,32 @@ class Chunk{
                      biome===B_FOREST ? -0.10 : 0.05;
       if(noise2((ox+x)*0.28,(oz+z)*0.28) < thresh) continue;
       this.data[this.idx(x,h+1,z)]=FOLIAGE;
+    }
+
+    // ── FLOWERS ──────────────────────────────────────────────
+    for(let x=0;x<CHUNK;x++) for(let z=0;z<CHUNK;z++){
+      const h     = hmap[x*CHUNK+z];
+      const biome = bmap[x*CHUNK+z];
+      if(h<=SEA+1 || h>SEA+30) continue;
+      if(biome===B_DESERT || biome===B_TUNDRA) continue;
+      if(this.data[this.idx(x,h,z)]!==GRASS) continue;
+      if(this.data[this.idx(x,h+1,z)]!==AIR) continue;
+      // Use a separate noise frequency so flowers don't align with foliage
+      const fn = noise2((ox+x)*0.19+77.3,(oz+z)*0.19+91.7);
+      if(fn < 0.62) continue;  // sparse — only ~20% of eligible spots
+      // Biome determines which flowers appear
+      const fn2 = noise2((ox+x)*0.31+11.1,(oz+z)*0.31+53.9);
+      let flowerBlock;
+      if(biome===B_PLAINS){
+        flowerBlock = FLOWER_YELLOW;  // open meadows: dandelions
+      } else if(biome===B_FOREST){
+        flowerBlock = FLOWER_RED;     // forest floor: poppies
+      } else if(biome===B_JUNGLE){
+        flowerBlock = fn2 > 0 ? FLOWER_RED : FLOWER_YELLOW;  // both
+      } else {
+        continue;  // taiga gets no flowers
+      }
+      this.data[this.idx(x,h+1,z)]=flowerBlock;
     }
   }
 }
@@ -1214,18 +1281,16 @@ class World{
       const id=chunk.get(x,y,z);
       if(id===AIR) continue;
 
-      if(id===FOLIAGE){
-        // X-cross: two diagonal quads, 0.8 blocks tall
-        const ci=10, h=0.8, sh=1.0;
-        // Quad A: (x,z)→(x+1,z+1) diagonal
+      if(id===FOLIAGE||id===FLOWER_RED||id===FLOWER_YELLOW){
+        // X-cross billboard: two diagonal quads
+        const ci=TEX_IDX[id][0], bh=0.9, sh=1.0;
         fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
-        fpos.push(ox+x,y,oz+z, ox+x+1,y,oz+z+1, ox+x+1,y+h,oz+z+1, ox+x,y+h,oz+z);
+        fpos.push(ox+x,y,oz+z, ox+x+1,y,oz+z+1, ox+x+1,y+bh,oz+z+1, ox+x,y+bh,oz+z);
         fuv.push(ci/N_TILES,0, (ci+1)/N_TILES,0, (ci+1)/N_TILES,1, ci/N_TILES,1);
         fcol.push(sh,sh,sh, sh,sh,sh, sh,sh,sh, sh,sh,sh);
         fvi+=4;
-        // Quad B: (x+1,z)→(x,z+1) diagonal
         fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
-        fpos.push(ox+x+1,y,oz+z, ox+x,y,oz+z+1, ox+x,y+h,oz+z+1, ox+x+1,y+h,oz+z);
+        fpos.push(ox+x+1,y,oz+z, ox+x,y,oz+z+1, ox+x,y+bh,oz+z+1, ox+x+1,y+bh,oz+z);
         fuv.push(ci/N_TILES,0, (ci+1)/N_TILES,0, (ci+1)/N_TILES,1, ci/N_TILES,1);
         fcol.push(sh,sh,sh, sh,sh,sh, sh,sh,sh, sh,sh,sh);
         fvi+=4;
@@ -1267,7 +1332,7 @@ class World{
         else nb=this.getBlock(ox+nx,ny,oz+nz);
         if(nb<0) nb=AIR;
         if(OPAQUE[nb]) continue;
-        if(nb===id && (id===LEAVES||id===WATER)) continue;
+        if(nb===id && (id===LEAVES||id===PINE_LEAVES||id===WATER)) continue;
         // Woda nie rysuje dolnej ściany (niewidoczna)
         if(isWater && f.t===1) continue;
 
@@ -1404,7 +1469,7 @@ class World{
     for(let i=0;i<64;i++){
       if(dist>maxDist) break;
       const id=this.getBlock(x,y,z);
-      if(SOLID[id]||id===FOLIAGE) return {bx:x,by:y,bz:z,nx,ny,nz};
+      if(SOLID[id]||id===FOLIAGE||id===FLOWER_RED||id===FLOWER_YELLOW) return {bx:x,by:y,bz:z,nx,ny,nz};
       if(tmx<tmy&&tmx<tmz){dist=tmx;tmx+=tdx;nx=-sx;ny=0;nz=0;x+=sx;}
       else if(tmy<tmz)    {dist=tmy;tmy+=tdy;nx=0;ny=-sy;nz=0;y+=sy;}
       else                {dist=tmz;tmz+=tdz;nx=0;ny=0;nz=-sz;z+=sz;}
@@ -1697,7 +1762,7 @@ hlMesh.visible=false;
 scene.add(hlMesh);
 
 // ── TEXTURE ATLAS (16×16 pixel art, 16 tiles → 256×16 px, power-of-2) ───────
-const N_TILES = 25;
+const N_TILES = 28;
 const TS      = 16;
 const atlasCvs = document.createElement('canvas');
 atlasCvs.width  = TS * N_TILES;  // 256
@@ -1888,9 +1953,45 @@ _eggTile(17,'#1E6FF5','#FF7700');
 // Tile 18 — SNOW  (bright white top, faint blue-grey tint for depth)
 for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
   const n=th(18*TS+x,y);
-  if(n<0.07) tsp(18,x,y,210,218,228);        // subtle shadow pocket
+  if(n<0.07) tsp(18,x,y,210,218,228);
   else tpal(18,x,y,[[248,252,255],[242,248,254],[236,244,252],[230,240,250]]);
 }
+
+// Tile 19 — PINE LEAVES  (dark spruce blue-green)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const n=th(19*TS+x,y), n2=th(19*TS+x+5,y+8);
+  if(n<0.12)      tsp(19,x,y, 14,44,14);   // dark gap
+  else if(n<0.28) tpal(19,x,y,[[22,68,22],[18,60,18]]);
+  else if(n<0.60) tpal(19,x,y,[[38,96,38],[32,88,32],[44,104,36]]);
+  else if(n2<0.4) tpal(19,x,y,[[56,118,48],[50,110,42]]);
+  else            tpal(19,x,y,[[46,106,38],[40,98,34]]);
+}
+
+// Tile 20 — POPPY (red flower on transparent bg — undrawn = alpha 0)
+(()=>{
+  const stem=[42,110,28], stk=[36,96,24];
+  const pk1=[210,30,30], pk2=[180,20,20], ctr=[255,210,60];
+  // Stem
+  for(let y=8;y<TS;y++){ tsp(20,7,y,...stem); tsp(20,8,y,...stk); }
+  // Petals
+  [[6,4],[7,3],[8,3],[9,4],[5,5],[10,5],[5,6],[10,6],[6,7],[9,7]].forEach(([x,y])=>tsp(20,x,y,...pk1));
+  [[7,4],[8,4],[6,5],[9,5],[6,6],[9,6],[7,7],[8,7]].forEach(([x,y])=>tsp(20,x,y,...pk2));
+  // Centre
+  tsp(20,7,5,...ctr); tsp(20,8,5,...ctr); tsp(20,7,6,...ctr); tsp(20,8,6,...ctr);
+})();
+
+// Tile 21 — DANDELION (yellow flower)
+(()=>{
+  const stem=[42,110,28], stk=[36,96,24];
+  const py1=[252,218,30], py2=[220,185,20], ctr=[255,255,180];
+  // Stem
+  for(let y=8;y<TS;y++){ tsp(21,7,y,...stem); tsp(21,8,y,...stk); }
+  // Petals — sunburst shape
+  [[7,2],[8,2],[6,3],[9,3],[5,4],[10,4],[5,5],[10,5],[5,6],[10,6],[6,7],[9,7],[7,8],[8,8]].forEach(([x,y])=>tsp(21,x,y,...py1));
+  [[6,4],[9,4],[6,5],[9,5],[6,6],[9,6]].forEach(([x,y])=>tsp(21,x,y,...py2));
+  // Centre
+  [[7,4],[8,4],[7,5],[8,5],[7,6],[8,6]].forEach(([x,y])=>tsp(21,x,y,...ctr));
+})();
 
 const atlasTexture = new THREE.CanvasTexture(atlasCvs);
 atlasTexture.magFilter     = THREE.NearestFilter;  // crisp pixels, no blurring
@@ -1998,6 +2099,9 @@ const BREAK_SND = {
   [CHICKEN_EGG]: [{f:'lowpass', hz:200, q:0.6, v:0.20, d:0.08}],
   [FISH_EGG]:    [{f:'lowpass', hz:200, q:0.6, v:0.20, d:0.08}],
   [SNOW]:        [{f:'lowpass', hz:180, q:0.5, v:0.22, d:0.18}],
+  [PINE_LEAVES]: [{f:'bandpass',hz:680, q:1.0, v:0.28, d:0.10}],
+  [FLOWER_RED]:  [{f:'bandpass',hz:500, q:0.9, v:0.20, d:0.08}],
+  [FLOWER_YELLOW]:[{f:'bandpass',hz:500, q:0.9, v:0.20, d:0.08}],
 };
 
 function playBreakSound(blockId){
@@ -2040,6 +2144,9 @@ const PLACE_SND = {
   [CHICKEN_EGG]: {f:'bandpass', hz:620, q:2.0, v:0.30, d:0.10},
   [FISH_EGG]:    {f:'bandpass', hz:620, q:2.0, v:0.30, d:0.10},
   [SNOW]:        {f:'lowpass',  hz:160, q:0.4, v:0.18, d:0.14},
+  [PINE_LEAVES]: {f:'bandpass', hz:430, q:0.9, v:0.22, d:0.07},
+  [FLOWER_RED]:  {f:'bandpass', hz:380, q:0.8, v:0.16, d:0.06},
+  [FLOWER_YELLOW]:{f:'bandpass',hz:380, q:0.8, v:0.16, d:0.06},
 };
 function playPlaceSound(blockId){
   const sp = PLACE_SND[blockId] || PLACE_SND[STONE];
@@ -2821,8 +2928,8 @@ let cheatsEnabled=false;
 let worldMods=new Map(), trackingMods=false;
 let _lastSpaceTime=0, _suppressSpaceFly=false;
 const CREATIVE_PAGE_SIZE=27;
-const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS,SNOW,
-  PIG_EGG,COW_EGG,WOLF_EGG,CAT_EGG,CHICKEN_EGG,FISH_EGG];
+const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,LEAVES,PINE_LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS,SNOW,
+  FLOWER_RED,FLOWER_YELLOW,PIG_EGG,COW_EGG,WOLF_EGG,CAT_EGG,CHICKEN_EGG,FISH_EGG];
 const DEFAULT_HOTBAR=new Array(9).fill(AIR);
 let showDbg=false;
 // Mining
