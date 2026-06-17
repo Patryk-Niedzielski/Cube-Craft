@@ -1015,9 +1015,10 @@ const AIR=0,GRASS=1,DIRT=2,STONE=3,WOOD=4,LEAVES=5,SAND=6,BEDROCK=7,WATER=8,FOLI
 const PIG_EGG=11,COW_EGG=12,WOLF_EGG=13,CAT_EGG=14,CHICKEN_EGG=15,FISH_EGG=16;
 const SNOW=17, PINE_LEAVES=18, FLOWER_RED=19, FLOWER_YELLOW=20, PLANK=21, CRAFT_TABLE=22;
 const STICK=23, WOOD_PICK=24, STONE_PICK=25;
+const GRAVEL=26, COBBLESTONE=27, MOSSY_COBBLE=28, CRACKED_STONE=29;
 
 // ── TOOL SYSTEM CONSTANTS ─────────────────────────────────
-const NEEDS_PICK  = new Set([STONE]);               // blocks that require a pickaxe
+const NEEDS_PICK  = new Set([STONE, COBBLESTONE, MOSSY_COBBLE, CRACKED_STONE]); // blocks that require a pickaxe
 const IS_PICK     = new Set([WOOD_PICK, STONE_PICK]);
 const TOOL_SPEED  = {[WOOD_PICK]:1.0, [STONE_PICK]:1.5}; // speed mult vs base stone hardness
 const TOOL_MAX_DUR= {[WOOD_PICK]:60,  [STONE_PICK]:130};
@@ -1027,8 +1028,8 @@ const SPAWN_EGG_MOB={[PIG_EGG]:'pig',[COW_EGG]:'cow',[WOLF_EGG]:'wolf',[CAT_EGG]
 
 const BLOCK_NAME=['Air','Grass','Dirt','Stone','Wood','Leaves','Sand','Bedrock','Water','Tall Grass','Glass',
   'Pig Egg','Cow Egg','Wolf Egg','Cat Egg','Chicken Egg','Fish Egg','Snow','Pine Leaves','Poppy','Dandelion','Oak Plank','Crafting Table',
-  'Stick','Wooden Pickaxe','Stone Pickaxe'];
-const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3, 0,0,0,0,0,0, 0.2, 0.25, 0.0, 0.0, 0.7, 1.0, 0,0,0];
+  'Stick','Wooden Pickaxe','Stone Pickaxe','Gravel','Cobblestone','Mossy Cobblestone','Cracked Stone'];
+const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3, 0,0,0,0,0,0, 0.2, 0.25, 0.0, 0.0, 0.7, 1.0, 0,0,0, 0.6, 1.0, 1.0, 1.1];
 const TEX_IDX={
   [GRASS]:   [0,2,1],
   [DIRT]:    [2,2,2],
@@ -1055,13 +1056,17 @@ const TEX_IDX={
   [STICK]:        [25,25,25],
   [WOOD_PICK]:    [26,26,26],
   [STONE_PICK]:   [27,27,27],
+  [GRAVEL]:       [28,28,28],
+  [COBBLESTONE]:  [29,29,29],
+  [MOSSY_COBBLE]: [30,30,30],
+  [CRACKED_STONE]:[31,31,31],
 };
 // SOLID: player collides with these
 const SOLID=new Uint8Array(256);
-[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,GLASS,SNOW,PINE_LEAVES,PLANK,CRAFT_TABLE].forEach(id=>SOLID[id]=1);
+[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,GLASS,SNOW,PINE_LEAVES,PLANK,CRAFT_TABLE,GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE].forEach(id=>SOLID[id]=1);
 // OPAQUE: completely hides adjacent faces (no leaves, no water)
 const OPAQUE=new Uint8Array(256);
-[GRASS,DIRT,STONE,WOOD,SAND,BEDROCK,SNOW,PLANK,CRAFT_TABLE].forEach(id=>OPAQUE[id]=1);
+[GRASS,DIRT,STONE,WOOD,SAND,BEDROCK,SNOW,PLANK,CRAFT_TABLE,GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE].forEach(id=>OPAQUE[id]=1);
 
 // ── FACE GEOMETRY ─────────────────────────────────────────
 // 't': 0=top,1=bottom,2=side  'sh': directional shade multiplier
@@ -1148,10 +1153,13 @@ function fbm(x,z){
 }
 
 // ── BIOMES ────────────────────────────────────────────────
-const B_PLAINS=0, B_FOREST=1, B_DESERT=2, B_TUNDRA=3, B_TAIGA=4, B_JUNGLE=5;
+const B_PLAINS=0, B_FOREST=1, B_DESERT=2, B_TUNDRA=3, B_TAIGA=4, B_JUNGLE=5, B_MOUNTAIN=6;
 
 function biomeAt(wx, wz){
-  // Two large-scale noise axes: temperature and humidity
+  // Mountain ridge noise — checked first so it overrides temperature/humidity
+  const elev  = noise2(wx*0.0004 + 700.3, wz*0.0004 + 800.6);
+  if(elev > 0.38) return B_MOUNTAIN;
+  // Temperature and humidity axes
   const temp  = noise2(wx*0.0006 + 200.5, wz*0.0006 + 300.1); // -1..1, cold→hot
   const humid = noise2(wx*0.0006 + 400.2, wz*0.0006 + 500.7); // -1..1, dry→wet
   if(temp < -0.20) return humid > 0.05 ? B_TAIGA   : B_TUNDRA;
@@ -1196,12 +1204,13 @@ class Chunk{
 
       // Per-biome hill scale
       const hillScale =
-        biome===B_DESERT ? 4 :
-        biome===B_TUNDRA ? 3 :
-        biome===B_PLAINS ? 5 :
-        biome===B_FOREST ? 6 :
-        biome===B_TAIGA  ? 7 :
-        biome===B_JUNGLE ? 6 : 7;
+        biome===B_DESERT   ? 4 :
+        biome===B_TUNDRA   ? 3 :
+        biome===B_PLAINS   ? 5 :
+        biome===B_FOREST   ? 6 :
+        biome===B_TAIGA    ? 7 :
+        biome===B_JUNGLE   ? 6 :
+        biome===B_MOUNTAIN ? 22 : 7;
 
       let h;
       if(cont < -0.30){
@@ -1255,8 +1264,10 @@ class Chunk{
       const cliff = sl >= 11;
       const peak  = h > SEA+22;
       const beach = h <= SEA+2;
-      const isDesert = biome===B_DESERT;
-      const isSnowy  = biome===B_TUNDRA || biome===B_TAIGA;
+      const isDesert   = biome===B_DESERT;
+      const isSnowy    = biome===B_TUNDRA || biome===B_TAIGA;
+      const isMountain = biome===B_MOUNTAIN;
+      const wx2=ox+x, wz2=oz+z;
 
       for(let y=0;y<HEIGHT;y++){
         let b=AIR;
@@ -1265,10 +1276,21 @@ class Chunk{
         } else if(y < h-5){
           b=STONE;
         } else if(y < h){
-          b=(cliff||peak) ? STONE : (isDesert ? SAND : DIRT);
+          if(isMountain){
+            const mn=noise2(wx2*0.35+133.5,wz2*0.35+244.7);
+            b = mn < -0.18 ? GRAVEL : mn < 0.30 ? COBBLESTONE : STONE;
+          } else {
+            b=(cliff||peak) ? STONE : (isDesert ? SAND : DIRT);
+          }
         } else if(y===h){
           if(beach)            b=SAND;
-          else if(cliff||peak) b=STONE;
+          else if(isMountain){
+            const mn=noise2(wx2*0.18+88.2,wz2*0.18+155.4);
+            if(h > SEA+30)     b=CRACKED_STONE;
+            else if(mn < -0.2) b=GRAVEL;
+            else if(mn <  0.2) b=COBBLESTONE;
+            else               b=MOSSY_COBBLE;
+          } else if(cliff||peak) b=STONE;
           else if(isDesert)    b=SAND;
           else if(isSnowy)     b=SNOW;
           else                 b=GRASS;
@@ -1291,8 +1313,8 @@ class Chunk{
       const surfBlk = this.data[this.idx(x,h,z)];
       const n = noise2((ox+x)*0.22,(oz+z)*0.22);
 
-      // Desert: no trees
-      if(biome===B_DESERT) continue;
+      // Desert / Mountain: no trees
+      if(biome===B_DESERT || biome===B_MOUNTAIN) continue;
 
       // Density thresholds (lower = more trees)
       const thresh =
@@ -1374,7 +1396,7 @@ class Chunk{
       const h     = hmap[x*CHUNK+z];
       const biome = bmap[x*CHUNK+z];
       if(h<=SEA+1 || h>SEA+30) continue;
-      if(biome===B_DESERT || biome===B_TUNDRA) continue;
+      if(biome===B_DESERT || biome===B_TUNDRA || biome===B_MOUNTAIN) continue;
       if(this.data[this.idx(x,h,z)]!==GRASS) continue;
       if(this.data[this.idx(x,h+1,z)]!==AIR) continue;
       // Jungle/forest denser, plains sparse
@@ -1389,7 +1411,7 @@ class Chunk{
       const h     = hmap[x*CHUNK+z];
       const biome = bmap[x*CHUNK+z];
       if(h<=SEA+1 || h>SEA+30) continue;
-      if(biome===B_DESERT || biome===B_TUNDRA) continue;
+      if(biome===B_DESERT || biome===B_TUNDRA || biome===B_MOUNTAIN) continue;
       if(this.data[this.idx(x,h,z)]!==GRASS) continue;
       if(this.data[this.idx(x,h+1,z)]!==AIR) continue;
       // Use a separate noise frequency so flowers don't align with foliage
@@ -1408,6 +1430,25 @@ class Chunk{
         continue;  // taiga gets no flowers
       }
       this.data[this.idx(x,h+1,z)]=flowerBlock;
+    }
+
+    // ── MOUNTAIN SPIKES ──────────────────────────────────────
+    for(let x=0;x<CHUNK;x++) for(let z=0;z<CHUNK;z++){
+      const biome = bmap[x*CHUNK+z];
+      if(biome!==B_MOUNTAIN) continue;
+      const h = hmap[x*CHUNK+z];
+      if(h <= SEA+6) continue;
+      const surf = this.data[this.idx(x,h,z)];
+      if(surf===AIR||surf===WATER||surf===GRAVEL) continue;
+      const sn = noise2((ox+x)*0.55+444.1,(oz+z)*0.55+555.2);
+      if(sn < 0.58) continue;  // ~21% of mountain surface
+      const spikeH = 2 + Math.floor(noise2((ox+x)*1.8+77.3,(oz+z)*1.8+88.4)*3.5);
+      const spikeBlock = h > SEA+26 ? CRACKED_STONE : COBBLESTONE;
+      for(let sy=1; sy<=spikeH; sy++){
+        if(h+sy >= HEIGHT) break;
+        if(this.data[this.idx(x,h+sy,z)]!==AIR) break;
+        this.data[this.idx(x,h+sy,z)]=spikeBlock;
+      }
     }
   }
 }
@@ -1976,7 +2017,7 @@ hlMesh.visible=false;
 scene.add(hlMesh);
 
 // ── TEXTURE ATLAS (16×16 pixel art, 16 tiles → 256×16 px, power-of-2) ───────
-const N_TILES = 30;
+const N_TILES = 32;
 const TS      = 16;
 const atlasCvs = document.createElement('canvas');
 atlasCvs.width  = TS * N_TILES;  // 256
@@ -2281,6 +2322,46 @@ for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
   tsp(27,3,8,...sd);tsp(27,2,9,...sd);tsp(27,1,10,...sd);tsp(27,0,11,...sd);
 }
 
+// Tile 28 — GRAVEL (grey with rounded dark pebbles, scree look)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const n=th(28*TS+x,y), n2=th(28*TS+x+9,y+4), n3=th(28*TS+x+3,y+11);
+  if(n<0.14) tsp(28,x,y, 96,96,96);       // dark pebble body
+  else if(n<0.26) tsp(28,x,y, 122,122,120); // pebble edge
+  else if(n3<0.10) tsp(28,x,y, 174,174,172); // bright highlight
+  else tpal(28,x,y,[[150,150,148],[142,142,140],[158,158,156],[146,146,144]]);
+}
+
+// Tile 29 — COBBLESTONE (rough irregular chunks with dark mortar seams)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const n=th(29*TS+x,y), n2=th(29*TS+x+6,y+3);
+  const bx=Math.floor(x/5), by=Math.floor(y/5);
+  const ox2=(by%2)*2, bx2=Math.floor((x+ox2)%10/5);
+  const lx=(x+ox2)%5, ly=y%5;
+  if(lx===0||ly===0) tsp(29,x,y, 74,72,70); // mortar
+  else if(n<0.08) tsp(29,x,y, 84,82,80);
+  else if(n2<0.12) tsp(29,x,y, 132,130,128);
+  else tpal(29,x,y,[[108,106,104],[102,100,98],[116,114,112],[120,118,116]]);
+}
+
+// Tile 30 — MOSSY COBBLESTONE (cobble base + green moss patches)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const n=th(30*TS+x,y), nm=th(30*TS+x+11,y+7);
+  const lx=(x+(Math.floor(y/5)%2)*2)%5, ly=y%5;
+  if(lx===0||ly===0) tsp(30,x,y, 66,72,60); // mossy mortar
+  else if(nm<0.30) tpal(30,x,y,[[52,86,34],[44,78,28],[60,94,38]]); // moss
+  else if(n<0.08) tsp(30,x,y, 78,80,74);
+  else tpal(30,x,y,[[102,106,98],[96,100,92],[110,114,106]]);
+}
+
+// Tile 31 — CRACKED STONE (dark fractured rock, prominent angular cracks)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const n=th(31*TS+x,y), n2=th(31*TS+x+8,y+5);
+  const diag1=(x+y*2)%11===0, diag2=(x*2+y)%9===0;
+  if(n<0.06||n2<0.06) tsp(31,x,y, 48,48,50);   // deep cracks
+  else if(diag1||diag2) tsp(31,x,y, 72,74,76);  // surface crack network
+  else tpal(31,x,y,[[112,114,118],[104,106,110],[120,122,126],[96,98,102]]);
+}
+
 const atlasTexture = new THREE.CanvasTexture(atlasCvs);
 atlasTexture.magFilter     = THREE.NearestFilter;  // crisp pixels, no blurring
 atlasTexture.minFilter     = THREE.NearestFilter;
@@ -2392,6 +2473,12 @@ const BREAK_SND = {
   [FLOWER_YELLOW]:[{f:'bandpass',hz:500, q:0.9, v:0.20, d:0.08}],
   [PLANK]:        [{f:'bandpass',hz:380, q:0.8, v:0.28, d:0.14}],
   [CRAFT_TABLE]:  [{f:'bandpass',hz:360, q:0.8, v:0.30, d:0.16}],
+  [GRAVEL]:       [{f:'lowpass', hz:220, q:0.5, v:0.35, d:0.18}],
+  [COBBLESTONE]:  [{f:'bandpass',hz:1400,q:3.0, v:0.50, d:0.09},
+                   {f:'lowpass', hz:180, q:0.5, v:0.25, d:0.07}],
+  [MOSSY_COBBLE]: [{f:'bandpass',hz:1200,q:2.8, v:0.45, d:0.10}],
+  [CRACKED_STONE]:[{f:'bandpass',hz:1600,q:3.5, v:0.52, d:0.08},
+                   {f:'lowpass', hz:160, q:0.5, v:0.22, d:0.06}],
 };
 
 function playBreakSound(blockId){
@@ -3288,6 +3375,7 @@ let _lastSpaceTime=0, _suppressSpaceFly=false;
 const CREATIVE_PAGE_SIZE=27;
 const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,LEAVES,PINE_LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS,SNOW,
   FLOWER_RED,FLOWER_YELLOW,PLANK,CRAFT_TABLE,STICK,WOOD_PICK,STONE_PICK,
+  GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE,
   PIG_EGG,COW_EGG,WOLF_EGG,CAT_EGG,CHICKEN_EGG,FISH_EGG];
 const DEFAULT_HOTBAR=new Array(9).fill(AIR);
 let showDbg=false;
@@ -4017,12 +4105,13 @@ function closeGiveMenu(){
 
 // ── TELEPORT-TO-BIOME MENU ────────────────────────────────
 const BIOME_DEFS=[
-  {id:B_PLAINS,  name:'Plains',  block:GRASS},
-  {id:B_FOREST,  name:'Forest',  block:LEAVES},
-  {id:B_DESERT,  name:'Desert',  block:SAND},
-  {id:B_TUNDRA,  name:'Tundra',  block:SNOW},
-  {id:B_TAIGA,   name:'Taiga',   block:PINE_LEAVES},
-  {id:B_JUNGLE,  name:'Jungle',  block:WOOD},
+  {id:B_PLAINS,   name:'Plains',    block:GRASS},
+  {id:B_FOREST,   name:'Forest',    block:LEAVES},
+  {id:B_DESERT,   name:'Desert',    block:SAND},
+  {id:B_TUNDRA,   name:'Tundra',    block:SNOW},
+  {id:B_TAIGA,    name:'Taiga',     block:PINE_LEAVES},
+  {id:B_JUNGLE,   name:'Jungle',    block:WOOD},
+  {id:B_MOUNTAIN, name:'Mountains', block:COBBLESTONE},
 ];
 
 function findNearestBiome(targetBiome){
