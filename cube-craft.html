@@ -1202,9 +1202,12 @@ class Chunk{
       const biome = biomeAt(wx, wz);
       bmap[x*CHUNK+z] = biome;
 
-      // Per-biome hill scale — narrow foothill blend only right at mountain border
+      // Per-biome hill scale
       const elevLocal = noise2(wx*0.0014 + 700.3, wz*0.0014 + 800.6);
+      // Foothill blend: gentle rise in the narrow band just before mountain border
       const foothillBlend = biome!==B_MOUNTAIN ? Math.max(0,(elevLocal-0.18)/0.04) : 0;
+      // Mountain depth: 0 at biome edge → 1 deep inside mountain → smooth approach
+      const mountDepth = biome===B_MOUNTAIN ? Math.min(1, Math.max(0, elevLocal-0.22)/0.30) : 0;
       const hillScaleBase =
         biome===B_DESERT   ? 4 :
         biome===B_TUNDRA   ? 3 :
@@ -1212,10 +1215,10 @@ class Chunk{
         biome===B_FOREST   ? 6 :
         biome===B_TAIGA    ? 7 :
         biome===B_JUNGLE   ? 6 : 5;
-      const hillScale = biome===B_MOUNTAIN ? 350 : hillScaleBase + foothillBlend*14;
+      // Edge of mountain biome gets hillScale≈60 (gentle hill), center gets 350 (tall peak)
+      const hillScale = biome===B_MOUNTAIN ? 60 + mountDepth*290 : hillScaleBase + foothillBlend*14;
 
-      // Mountain: mild curve (exp 1.2) — smooth broad base that rises gradually to steep peaks
-      // Negative hill → flat valley floor; positive hill → steady climb to sharp top
+      // Mild curve (exp 1.2): smooth climb from base, pointy at top
       const hillEff = biome===B_MOUNTAIN
         ? Math.pow(Math.max(0, hill+0.3), 1.2)*1.1 - 0.2
         : hill;
