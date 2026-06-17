@@ -4763,6 +4763,33 @@ function getAim(){
 canvas.addEventListener('mousedown',e=>{
   if(!locked||paused) return;
   if(gamemode==='spectator') return;
+  if(e.button===1){
+    // Pick block — copy aimed block to hotbar
+    e.preventDefault();
+    const t=getAim(); if(!t) return;
+    const id=world.getBlock(t.bx,t.by,t.bz);
+    if(id===AIR) return;
+    if(gamemode==='creative'){
+      player.hotbar[player.slot]=id;
+      player.hotbarCounts[player.slot]=0;
+      player.hotbarDur[player.slot]=0;
+      buildHotbar(); return;
+    }
+    // Survival: search hotbar first, then inventory
+    for(let i=0;i<9;i++){
+      if(player.hotbar[i]===id){ player.slot=i; buildHotbar(); return; }
+    }
+    for(let i=0;i<27;i++){
+      if(player.inventory[i]===id){
+        player.hotbar[player.slot]=id;
+        player.hotbarCounts[player.slot]=player.inventoryCounts[i];
+        player.hotbarDur[player.slot]=player.inventoryDur[i];
+        player.inventory[i]=AIR; player.inventoryCounts[i]=0; player.inventoryDur[i]=0;
+        buildHotbar(); return;
+      }
+    }
+    return;
+  }
   if(e.button===0){
     // Start mining
     mining=true; mineProg=0; mineTarget=null;
