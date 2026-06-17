@@ -3575,7 +3575,7 @@ function computeCraftOutput(){
 }
 
 // ── INVENTORY DRAG SYSTEM ─────────────────────────────────
-const invDrag={active:false,btn:-1,srcType:'',srcIdx:-1,item:AIR,count:0,targets:[],moved:false,done:false};
+const invDrag={active:false,btn:-1,srcType:'',srcIdx:-1,item:AIR,count:0,dur:0,targets:[],moved:false,done:false};
 function slotGet(t,i){
   if(t==='invhot'||t==='cthot') return {id:player.hotbar[i],cnt:player.hotbarCounts[i],dur:player.hotbarDur[i]};
   if(t==='inv'||t==='ctinv') return {id:player.inventory[i],cnt:player.inventoryCounts[i],dur:player.inventoryDur[i]};
@@ -3602,7 +3602,7 @@ function attachSlotDrag(el,stype,sidx){
     if(d.id===AIR||d.cnt===0) return;
     invDrag.active=true;invDrag.btn=e.button;
     invDrag.srcType=stype;invDrag.srcIdx=sidx;
-    invDrag.item=d.id;invDrag.count=d.cnt;
+    invDrag.item=d.id;invDrag.count=d.cnt;invDrag.dur=d.dur;
     invDrag.targets=[];invDrag.moved=false;invDrag.done=false;
   });
   el.addEventListener('mouseenter',()=>{
@@ -3639,7 +3639,7 @@ function buildCraftGrid(){
       craftSlots[i]=hId;craftCounts[i]=hCnt;
       buildHotbar();buildInvHotbar();buildCraftGrid();
     });
-    s.addEventListener('contextmenu',e=>{e.preventDefault();if(invDrag.done){invDrag.done=false;return;}craftSlots[i]=AIR;craftCounts[i]=0;buildCraftGrid();});
+    s.addEventListener('contextmenu',e=>e.preventDefault());
     gridEl.appendChild(s);
   }
   // Output
@@ -3747,12 +3747,7 @@ function buildInvHotbar(){
     }
     attachSlotDrag(s,'invhot',i);
     s.addEventListener('click',()=>{ if(invDrag.done){invDrag.done=false;return;} player.slot=i; buildHotbar(); buildInvHotbar(); });
-    s.addEventListener('contextmenu',e=>{
-      e.preventDefault();
-      if(invDrag.done){invDrag.done=false;return;}
-      player.hotbar[i]=AIR; player.hotbarCounts[i]=0;
-      buildHotbar(); buildInvHotbar();
-    });
+    s.addEventListener('contextmenu',e=>e.preventDefault());
     invHotbarRow.append(s);
   });
 }
@@ -3786,12 +3781,7 @@ function buildInvMainGrid(){
       player.inventory[i]=hbId; player.inventoryCounts[i]=hbCnt; player.inventoryDur[i]=hbDur;
       buildHotbar(); buildInvMainGrid(); buildInvHotbar();
     });
-    s.addEventListener('contextmenu',e=>{
-      e.preventDefault();
-      if(invDrag.done){invDrag.done=false;return;}
-      player.inventory[i]=AIR; player.inventoryCounts[i]=0;
-      buildInvMainGrid();
-    });
+    s.addEventListener('contextmenu',e=>e.preventDefault());
     invMainGridEl.append(s);
   });
 }
@@ -4019,7 +4009,7 @@ function buildCtGrid(){
       ctSlots[i]=hId;ctCounts[i]=hCnt;
       buildHotbar();buildCtHotbar();buildCtGrid();
     });
-    s.addEventListener('contextmenu',e=>{e.preventDefault();if(invDrag.done){invDrag.done=false;return;}ctSlots[i]=AIR;ctCounts[i]=0;buildCtGrid();});
+    s.addEventListener('contextmenu',e=>e.preventDefault());
     gridEl.appendChild(s);
   }
   // Output slot
@@ -4069,7 +4059,7 @@ function buildCtInvGrid(){
       player.inventory[i]=hId;player.inventoryCounts[i]=hCnt;player.inventoryDur[i]=hDur;
       buildHotbar();buildCtHotbar();buildCtInvGrid();
     });
-    s.addEventListener('contextmenu',e=>{e.preventDefault();if(invDrag.done){invDrag.done=false;return;}player.inventory[i]=AIR;player.inventoryCounts[i]=0;buildCtInvGrid();});
+    s.addEventListener('contextmenu',e=>e.preventDefault());
     gridEl.appendChild(s);
   });
 }
@@ -4530,18 +4520,21 @@ document.addEventListener('mouseup',()=>{
   invDrag.done=true;
   const K=invDrag.targets.length;
   if(invDrag.btn===0){
-    // Left drag: divide evenly across all target slots; source keeps remainder
-    const share=Math.floor(invDrag.count/K);
-    if(share<1){invDrag.done=false;return;}
-    let taken=0;
-    for(const t of invDrag.targets){
-      const d=slotGet(t.stype,t.sidx);
-      slotSet(t.stype,t.sidx,invDrag.item,Math.min(64,(d.id===AIR?0:d.cnt)+share));
-      taken+=share;
+    // Left drag: move entire stack to the last hovered slot (swap if different item)
+    const dest=invDrag.targets[invDrag.targets.length-1];
+    const dDst=slotGet(dest.stype,dest.sidx);
+    if(dDst.id===AIR||dDst.id===invDrag.item){
+      const total=(dDst.id===AIR?0:dDst.cnt)+invDrag.count;
+      const newDst=Math.min(64,total);
+      const rem=total-newDst;
+      slotSet(dest.stype,dest.sidx,invDrag.item,newDst,invDrag.dur);
+      if(rem>0) slotSet(invDrag.srcType,invDrag.srcIdx,invDrag.item,rem,invDrag.dur);
+      else slotSet(invDrag.srcType,invDrag.srcIdx,AIR,0);
+    } else {
+      // Swap
+      slotSet(dest.stype,dest.sidx,invDrag.item,invDrag.count,invDrag.dur);
+      slotSet(invDrag.srcType,invDrag.srcIdx,dDst.id,dDst.cnt,dDst.dur);
     }
-    const rem=invDrag.count-taken;
-    if(rem>0) slotSet(invDrag.srcType,invDrag.srcIdx,invDrag.item,rem);
-    else slotSet(invDrag.srcType,invDrag.srcIdx,AIR,0);
   } else {
     // Right drag: place 1 item into each hovered slot
     let taken=0;
