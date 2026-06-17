@@ -1779,7 +1779,14 @@ class Player{
       this.vel.y+=GRAVITY*0.18*dt;          // buoyancy: much weaker gravity
       this.vel.y*=Math.pow(0.92, dt*20);    // water drag on Y
       this.vel.y=Math.max(this.vel.y,-2.5);
-      if(keys['Space']) this.vel.y=Math.min(this.vel.y+10*dt, 3.5); // swim up
+      if(keys['Space']){
+        const aboveFoot=this.world.getBlock(bx, Math.floor(this.pos.y+1.1), bz);
+        if(aboveFoot!==WATER){
+          this.vel.y=JUMP_V; // at surface — launch out of water
+        } else {
+          this.vel.y=Math.min(this.vel.y+10*dt,3.5); // deep — swim up
+        }
+      }
     } else {
       if(len>0){mx=mx/len*spd; mz=mz/len*spd;}
       this.vel.x=mx; this.vel.z=mz;
