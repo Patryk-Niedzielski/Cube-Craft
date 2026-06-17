@@ -1157,8 +1157,8 @@ const B_PLAINS=0, B_FOREST=1, B_DESERT=2, B_TUNDRA=3, B_TAIGA=4, B_JUNGLE=5, B_M
 
 function biomeAt(wx, wz){
   // Mountain ridge noise — checked first so it overrides temperature/humidity
-  const elev  = noise2(wx*0.0014 + 700.3, wz*0.0014 + 800.6);
-  if(elev > 0.22) return B_MOUNTAIN;
+  const elev  = noise2(wx*0.0005 + 700.3, wz*0.0005 + 800.6);
+  if(elev > 0.18) return B_MOUNTAIN;
   // Temperature and humidity axes
   const temp  = noise2(wx*0.0006 + 200.5, wz*0.0006 + 300.1); // -1..1, cold→hot
   const humid = noise2(wx*0.0006 + 400.2, wz*0.0006 + 500.7); // -1..1, dry→wet
@@ -1203,11 +1203,11 @@ class Chunk{
       bmap[x*CHUNK+z] = biome;
 
       // Per-biome hill scale
-      const elevLocal = noise2(wx*0.0014 + 700.3, wz*0.0014 + 800.6);
+      const elevLocal = noise2(wx*0.0005 + 700.3, wz*0.0005 + 800.6);
       // Foothill blend: gentle rise in the narrow band just before mountain border
-      const foothillBlend = biome!==B_MOUNTAIN ? Math.max(0,(elevLocal-0.18)/0.04) : 0;
+      const foothillBlend = biome!==B_MOUNTAIN ? Math.max(0,(elevLocal-0.14)/0.04) : 0;
       // Mountain depth: 0 at biome edge → 1 deep inside mountain → smooth approach
-      const mountDepth = biome===B_MOUNTAIN ? Math.min(1, Math.max(0, elevLocal-0.22)/0.30) : 0;
+      const mountDepth = biome===B_MOUNTAIN ? Math.min(1, Math.max(0, elevLocal-0.18)/0.30) : 0;
       const hillScaleBase =
         biome===B_DESERT   ? 4 :
         biome===B_TUNDRA   ? 3 :
