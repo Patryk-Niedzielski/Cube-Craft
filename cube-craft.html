@@ -1202,19 +1202,22 @@ class Chunk{
       const biome = biomeAt(wx, wz);
       bmap[x*CHUNK+z] = biome;
 
-      // Per-biome hill scale — mountains only, other biomes stay flat
-      const hillScale =
+      // Per-biome hill scale — narrow foothill blend only right at mountain border
+      const elevLocal = noise2(wx*0.0014 + 700.3, wz*0.0014 + 800.6);
+      const foothillBlend = biome!==B_MOUNTAIN ? Math.max(0,(elevLocal-0.18)/0.04) : 0;
+      const hillScaleBase =
         biome===B_DESERT   ? 4 :
         biome===B_TUNDRA   ? 3 :
         biome===B_PLAINS   ? 5 :
         biome===B_FOREST   ? 6 :
         biome===B_TAIGA    ? 7 :
-        biome===B_JUNGLE   ? 6 :
-        biome===B_MOUNTAIN ? 500 : 5;
+        biome===B_JUNGLE   ? 6 : 5;
+      const hillScale = biome===B_MOUNTAIN ? 350 : hillScaleBase + foothillBlend*14;
 
-      // Mountain: power curve → gentle broad base, dramatically sharp peaks
+      // Mountain: mild curve (exp 1.2) — smooth broad base that rises gradually to steep peaks
+      // Negative hill → flat valley floor; positive hill → steady climb to sharp top
       const hillEff = biome===B_MOUNTAIN
-        ? Math.pow(Math.max(0,(hill+0.5)/1.5), 2.5)*1.5 - 0.1
+        ? Math.pow(Math.max(0, hill+0.3), 1.2)*1.1 - 0.2
         : hill;
 
       let h;
@@ -1237,7 +1240,7 @@ class Chunk{
     }
 
     // ── SMOOTH HEIGHT MAP ─────────────────────────────────────
-    for(let pass=0;pass<6;pass++){
+    for(let pass=0;pass<12;pass++){
       const tmp=new Int32Array(hmap);
       for(let x=1;x<CHUNK-1;x++) for(let z=1;z<CHUNK-1;z++){
         const h=hmap[x*CHUNK+z];
