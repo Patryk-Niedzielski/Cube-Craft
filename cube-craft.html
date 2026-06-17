@@ -3596,26 +3596,23 @@ function invDragRebuild(){
   if(ctOpen){buildCtGrid();buildCtInvGrid();buildCtHotbar();}
 }
 function attachSlotDrag(el,stype,sidx){
+  // Store slot identity so document-level mousemove can find this slot
+  el.dataset.stype=stype;
+  el.dataset.sidx=sidx;
+  el.draggable=false;
   el.addEventListener('mousedown',e=>{
     if(e.button!==0&&e.button!==2) return;
     const d=slotGet(stype,sidx);
     if(d.id===AIR||d.cnt===0) return;
+    e.preventDefault(); // stop browser native drag / text-selection
     invDrag.active=true;invDrag.btn=e.button;
     invDrag.srcType=stype;invDrag.srcIdx=sidx;
     invDrag.item=d.id;invDrag.count=d.cnt;invDrag.dur=d.dur;
     invDrag.targets=[];invDrag.moved=false;invDrag.done=false;
   });
-  el.addEventListener('mouseenter',()=>{
-    if(!invDrag.active) return;
-    if(stype===invDrag.srcType&&sidx===invDrag.srcIdx) return;
-    // Right drag: only target empty or same-item slots
-    if(invDrag.btn===2){
-      const d=slotGet(stype,sidx);
-      if(d.id!==AIR&&d.id!==invDrag.item) return;
-    }
-    if(!invDrag.targets.find(t=>t.stype===stype&&t.sidx===sidx))
-      invDrag.targets.push({stype,sidx}),invDrag.moved=true;
-  });
+  // mouseenter NOT used — implicit pointer-capture while holding a button
+  // prevents it firing on sibling elements. Tracking is done in the
+  // document mousemove handler below via elementFromPoint.
 }
 
 function buildCraftGrid(){
@@ -4529,6 +4526,25 @@ function requestLock(){
 }
 canvas.addEventListener('click', ()=>{ if(gameReady&&!locked&&!paused&&!chatOpen&&!inventoryOpen&&!giveMenuOpen&&!tpbiomeMenuOpen&&!ctOpen) requestLock(); });
 clickHint.addEventListener('click', ()=>{ if(!chatOpen&&!inventoryOpen&&!giveMenuOpen&&!tpbiomeMenuOpen&&!ctOpen) requestLock(); });
+
+// Track which slot the cursor is over while a drag is in progress.
+// Uses elementFromPoint because implicit pointer-capture during mousedown
+// suppresses mouseenter events on sibling elements in all major browsers.
+document.addEventListener('mousemove',e=>{
+  if(!invDrag.active) return;
+  const el=document.elementFromPoint(e.clientX,e.clientY);
+  if(!el||!el.dataset.stype) return;
+  const stype=el.dataset.stype;
+  const sidx=parseInt(el.dataset.sidx);
+  if(stype===invDrag.srcType&&sidx===invDrag.srcIdx) return;
+  // Right drag: skip slots that hold a different item
+  if(invDrag.btn===2){
+    const d=slotGet(stype,sidx);
+    if(d.id!==AIR&&d.id!==invDrag.item) return;
+  }
+  if(!invDrag.targets.find(t=>t.stype===stype&&t.sidx===sidx))
+    invDrag.targets.push({stype,sidx}),invDrag.moved=true;
+});
 
 document.addEventListener('mouseup',()=>{
   if(!invDrag.active) return;
