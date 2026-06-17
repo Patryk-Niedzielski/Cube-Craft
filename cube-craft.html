@@ -3642,6 +3642,9 @@ function _dropCursorItem(stype,sidx){
   invDragRebuild();
 }
 
+let _dragStart=null; // {stype,sidx,x,y} — set on mousedown, cleared on mouseup
+let _isDragging=false; // true once mouse moved >5 px while button held
+
 function attachSlotDrag(el,stype,sidx){
   el.dataset.stype=stype;
   el.dataset.sidx=sidx;
@@ -3649,19 +3652,17 @@ function attachSlotDrag(el,stype,sidx){
   el.addEventListener('mousedown',e=>{
     if(e.button!==0) return;
     e.preventDefault();
+    invDrag.done=true;
     if(cursorItem){
-      // Already holding — clicking this slot drops the held item here
-      invDrag.done=true;
+      // Already floating an item → drop it on this slot
       _dropCursorItem(stype,sidx);
       return;
     }
     const d=slotGet(stype,sidx);
     if(d.id===AIR||d.cnt===0) return;
-    invDrag.done=true; // suppress click that fires after mouseup
-    cursorItem={id:d.id,count:d.cnt,dur:d.dur,srcType:stype,srcIdx:sidx};
-    slotSet(stype,sidx,AIR,0); // visually empty the slot
-    _updateCursorItem(e.clientX,e.clientY);
-    invDragRebuild();
+    // Record where the drag started; decide hold-drag vs single-click in mouseup
+    _dragStart={stype,sidx,x:e.clientX,y:e.clientY};
+    _isDragging=false;
   });
 }
 
@@ -4580,26 +4581,59 @@ function requestLock(){
 canvas.addEventListener('click', ()=>{ if(gameReady&&!locked&&!paused&&!chatOpen&&!inventoryOpen&&!giveMenuOpen&&!tpbiomeMenuOpen&&!ctOpen) requestLock(); });
 clickHint.addEventListener('click', ()=>{ if(!chatOpen&&!inventoryOpen&&!giveMenuOpen&&!tpbiomeMenuOpen&&!ctOpen) requestLock(); });
 
-// Move the cursor item icon with the mouse
+// Move cursor icon AND detect hold-drag threshold
 document.addEventListener('mousemove',e=>{
-  if(!cursorItem) return;
-  _ciEl.style.left=(e.clientX-16)+'px';
-  _ciEl.style.top =(e.clientY-16)+'px';
-});
-
-// Drop cursor item when mouse button is released
-document.addEventListener('mouseup',e=>{
-  if(!cursorItem) return;
-  const el=document.elementFromPoint(e.clientX,e.clientY);
-  if(el&&el.dataset.stype){
-    _dropCursorItem(el.dataset.stype, parseInt(el.dataset.sidx));
-  } else {
-    // Released outside any slot — return item to source
-    slotSet(cursorItem.srcType,cursorItem.srcIdx,cursorItem.id,cursorItem.count,cursorItem.dur);
-    cursorItem=null;
-    _ciEl.style.display='none';
+  // If already in floating mode (no button held), just follow the cursor
+  if(cursorItem&&!_dragStart){
+    _ciEl.style.left=(e.clientX-16)+'px';
+    _ciEl.style.top =(e.clientY-16)+'px';
+    return;
+  }
+  if(!_dragStart) return;
+  const dx=e.clientX-_dragStart.x, dy=e.clientY-_dragStart.y;
+  if(!_isDragging && dx*dx+dy*dy > 25){ // >5 px moved → switch to hold-drag
+    _isDragging=true;
+    const d=slotGet(_dragStart.stype,_dragStart.sidx);
+    if(d.id===AIR||d.cnt===0){ _dragStart=null; return; }
+    cursorItem={id:d.id,count:d.cnt,dur:d.dur,srcType:_dragStart.stype,srcIdx:_dragStart.sidx};
+    slotSet(_dragStart.stype,_dragStart.sidx,AIR,0);
+    _updateCursorItem(e.clientX,e.clientY);
     invDragRebuild();
   }
+  if(cursorItem){
+    _ciEl.style.left=(e.clientX-16)+'px';
+    _ciEl.style.top =(e.clientY-16)+'px';
+  }
+});
+
+document.addEventListener('mouseup',e=>{
+  if(_isDragging&&cursorItem){
+    // Hold-drag ended: drop on whatever slot is under cursor
+    const el=document.elementFromPoint(e.clientX,e.clientY);
+    if(el&&el.dataset.stype){
+      _dropCursorItem(el.dataset.stype,parseInt(el.dataset.sidx));
+    } else {
+      slotSet(cursorItem.srcType,cursorItem.srcIdx,cursorItem.id,cursorItem.count,cursorItem.dur);
+      cursorItem=null; _ciEl.style.display='none'; invDragRebuild();
+    }
+    _dragStart=null; _isDragging=false;
+    return;
+  }
+  if(_dragStart&&!_isDragging){
+    // Quick click: pick up 1 item and keep it floating
+    const d=slotGet(_dragStart.stype,_dragStart.sidx);
+    if(d.id!==AIR&&d.cnt>0){
+      cursorItem={id:d.id,count:1,dur:d.dur,srcType:_dragStart.stype,srcIdx:_dragStart.sidx};
+      const rem=d.cnt-1;
+      if(rem>0) slotSet(_dragStart.stype,_dragStart.sidx,d.id,rem,d.dur);
+      else       slotSet(_dragStart.stype,_dragStart.sidx,AIR,0);
+      _updateCursorItem(e.clientX,e.clientY);
+      invDragRebuild();
+    }
+    _dragStart=null; _isDragging=false;
+  }
+  // If cursorItem is floating (no _dragStart) a click on a slot will
+  // drop it via the mousedown handler — no action needed here.
 });
 document.getElementById('resume-btn').addEventListener('click', requestLock);
 pauseScreen.addEventListener('click', e=>{ if(e.target===pauseScreen) requestLock(); });
