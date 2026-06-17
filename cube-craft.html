@@ -1202,17 +1202,17 @@ class Chunk{
       const biome = biomeAt(wx, wz);
       bmap[x*CHUNK+z] = biome;
 
-      // Per-biome hill scale — also compute elevation locally for foothill blend
+      // Per-biome hill scale — foothill blend only in the narrow band approaching mountains
       const elevLocal = noise2(wx*0.0007 + 700.3, wz*0.0007 + 800.6); // same noise as biomeAt
-      const foothillBlend = biome!==B_MOUNTAIN ? Math.max(0, (elevLocal-0.10)/0.20) : 0; // 0..1
+      const foothillBlend = biome!==B_MOUNTAIN ? Math.max(0,(elevLocal-0.22)/0.08) : 0; // 0..1 only very close to mountain edge
       const hillScaleBase =
         biome===B_DESERT   ? 4 :
-        biome===B_TUNDRA   ? 5 :
-        biome===B_PLAINS   ? 9 :
-        biome===B_FOREST   ? 10 :
-        biome===B_TAIGA    ? 8 :
-        biome===B_JUNGLE   ? 7 : 9;
-      const hillScale = biome===B_MOUNTAIN ? 100 : hillScaleBase + foothillBlend*30;
+        biome===B_TUNDRA   ? 3 :
+        biome===B_PLAINS   ? 5 :
+        biome===B_FOREST   ? 6 :
+        biome===B_TAIGA    ? 7 :
+        biome===B_JUNGLE   ? 6 : 5;
+      const hillScale = biome===B_MOUNTAIN ? 100 : hillScaleBase + foothillBlend*18;
 
       // Mountain: power curve → gentle broad base, dramatically sharp peaks
       const hillEff = biome===B_MOUNTAIN
@@ -1863,7 +1863,15 @@ class Player{
       if(this.onGround){
         if(!this._prevOnGround){
           const fell=this._peakY - this.pos.y;
-          if(fell>3) this.hp=Math.max(0, this.hp - Math.floor((fell-3)*2));
+          if(fell >= 32){
+            this.hp=0;                          // 32+ blocks → instant death
+            _screenShakeT=0.2; _screenShakeMag=1.0;
+          } else if(fell > 3){
+            // Linear scale: 31 blocks ≈ 19 damage (near-lethal), 16 blocks ≈ 9 damage
+            const dmg=Math.round((fell-3)*this.maxHp/29);
+            this.hp=Math.max(1, this.hp-dmg);  // survive but with 1 HP minimum
+            _screenShakeT=0.2; _screenShakeMag=fell/32;
+          }
         }
         this._peakY=this.pos.y;
       } else {
@@ -3401,6 +3409,7 @@ let showDbg=false;
 let mining=false, mineTarget=null, mineProg=0;
 let handBobPhase=0, handSwingT=-1, handPlaceT=-1;
 let qDropTimer=0;
+let _screenShakeT=0, _screenShakeMag=0;
 const HAND_SWING_SPD=5.5, HAND_PLACE_SPD=7.0;
 
 // ── MENU BACKGROUND — pre-generate terrain so the main menu looks at ground ──
@@ -5308,6 +5317,18 @@ function loop(t){
       `${t('dbg_hand')} [${player.slot+1}] ${BLOCK_NAME[player.selectedBlock]}`;
   }
 
+  // Screen shake — CSS transform on canvas so it doesn't affect raycasts
+  if(_screenShakeT > 0){
+    _screenShakeT=Math.max(0,_screenShakeT-dt);
+    const f=_screenShakeT/0.2;
+    const s=_screenShakeMag*f;
+    const tx=((Math.random()-0.5)*s*26)|0;
+    const ty=((Math.random()-0.5)*s*14)|0;
+    canvas.style.transform=`translate(${tx}px,${ty}px)`;
+  } else if(canvas.style.transform){
+    canvas.style.transform='';
+  }
+
   renderer.render(scene,camera);
 
   // FPS counter
@@ -5849,6 +5870,7 @@ window.closeInventory   = closeInventory;
 window.closeGiveMenu    = closeGiveMenu;
 window.closeTpbiomeMenu = closeTpbiomeMenu;
 window.respawnPlayer    = respawnPlayer;
+window.doSaveAndQuit    = doSaveAndQuit;
 
 // Wire "Opcje..." buttons
 document.querySelectorAll('.open-options').forEach(b=>b.onclick=openOptions);
