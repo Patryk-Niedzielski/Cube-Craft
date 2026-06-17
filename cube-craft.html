@@ -1340,16 +1340,18 @@ class Chunk{
 
       // Density thresholds (lower = more trees)
       const thresh =
-        biome===B_JUNGLE ? 0.10 :
-        biome===B_FOREST ? 0.22 :
-        biome===B_TAIGA  ? 0.55 :
-        biome===B_TUNDRA ? 0.82 :
-        0.84;  // Plains — wide open fields, only occasional lone tree
+        biome===B_JUNGLE   ? 0.10 :
+        biome===B_FOREST   ? 0.22 :
+        biome===B_TAIGA    ? 0.55 :
+        biome===B_TUNDRA   ? 0.82 :
+        biome===B_MOUNTAIN ? 0.72 :
+        0.78;  // Plains — occasional lone tree
 
       if(surfBlk!==GRASS && surfBlk!==SNOW) continue;
       if(n < thresh) continue;
 
-      if(biome===B_TAIGA){
+      const isPine = biome===B_TAIGA || (biome===B_MOUNTAIN && noise2((ox+x)*0.37+55.1,(oz+z)*0.37+22.4) > 0);
+      if(isPine){
         // ── PINE TREE: tall trunk, layered triangular canopy ──
         const treeH = 8+Math.floor(noise2((ox+x)*1.2,(oz+z)*1.6)*4);
         for(let ty=h+1;ty<=h+treeH&&ty<HEIGHT;ty++)
