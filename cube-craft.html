@@ -995,7 +995,7 @@ import * as THREE from 'three';
 
 // ── CONSTANTS ─────────────────────────────────────────────
 const CHUNK  = 16;
-const HEIGHT = 64;
+const HEIGHT = 128;
 const SEA    = 32;
 const RDIST_VALS  = [2,3,4,5,6,8,10,12,16,20,24,32,48,64,96,128,192,256,384,512,768,1028];
 const RDIST_NAMES = ['Tiny','Short','Normal','Far','Farther','Extreme','Insane','Ludicrous','Max','Brutal','Absurd','Ridiculous','Nuclear','Cosmic','Godlike','Universe','Beyond','Mythical','Legendary','Eternal','Infinite','OMEGA'];
@@ -1157,8 +1157,8 @@ const B_PLAINS=0, B_FOREST=1, B_DESERT=2, B_TUNDRA=3, B_TAIGA=4, B_JUNGLE=5, B_M
 
 function biomeAt(wx, wz){
   // Mountain ridge noise — checked first so it overrides temperature/humidity
-  const elev  = noise2(wx*0.0004 + 700.3, wz*0.0004 + 800.6);
-  if(elev > 0.38) return B_MOUNTAIN;
+  const elev  = noise2(wx*0.0007 + 700.3, wz*0.0007 + 800.6);
+  if(elev > 0.30) return B_MOUNTAIN;
   // Temperature and humidity axes
   const temp  = noise2(wx*0.0006 + 200.5, wz*0.0006 + 300.1); // -1..1, cold→hot
   const humid = noise2(wx*0.0006 + 400.2, wz*0.0006 + 500.7); // -1..1, dry→wet
@@ -1202,15 +1202,22 @@ class Chunk{
       const biome = biomeAt(wx, wz);
       bmap[x*CHUNK+z] = biome;
 
-      // Per-biome hill scale
-      const hillScale =
+      // Per-biome hill scale — also compute elevation locally for foothill blend
+      const elevLocal = noise2(wx*0.0007 + 700.3, wz*0.0007 + 800.6); // same noise as biomeAt
+      const foothillBlend = biome!==B_MOUNTAIN ? Math.max(0, (elevLocal-0.10)/0.20) : 0; // 0..1
+      const hillScaleBase =
         biome===B_DESERT   ? 4 :
-        biome===B_TUNDRA   ? 3 :
-        biome===B_PLAINS   ? 5 :
-        biome===B_FOREST   ? 6 :
-        biome===B_TAIGA    ? 7 :
-        biome===B_JUNGLE   ? 6 :
-        biome===B_MOUNTAIN ? 65 : 7;
+        biome===B_TUNDRA   ? 5 :
+        biome===B_PLAINS   ? 9 :
+        biome===B_FOREST   ? 10 :
+        biome===B_TAIGA    ? 8 :
+        biome===B_JUNGLE   ? 7 : 9;
+      const hillScale = biome===B_MOUNTAIN ? 100 : hillScaleBase + foothillBlend*30;
+
+      // Mountain: power curve → gentle broad base, dramatically sharp peaks
+      const hillEff = biome===B_MOUNTAIN
+        ? Math.pow(Math.max(0,(hill+0.5)/1.5), 2.5)*1.5 - 0.1
+        : hill;
 
       let h;
       if(cont < -0.30){
@@ -1219,7 +1226,7 @@ class Chunk{
         const t = (cont + 0.30) / 0.12;
         h = Math.floor(SEA - 1 + t * 5 + hill * t);
       } else {
-        h = Math.max(SEA+4, SEA + 4 + Math.floor(hill*hillScale + mt*12 + (cont+0.18)*6 + det*4));
+        h = Math.max(SEA+4, SEA + 4 + Math.floor(hillEff*hillScale + mt*12 + (cont+0.18)*6 + det*4));
       }
 
       const SEA_THRESH = 0.68;
@@ -1277,8 +1284,8 @@ class Chunk{
           b=STONE;
         } else if(y < h){
           if(isMountain){
-            if(h <= SEA+7){
-              b = DIRT; // tiny grassy foothills have dirt underneath
+            if(h <= SEA+12){
+              b = DIRT; // grassy foothills have dirt underneath
             } else {
               const mn=noise2(wx2*0.35+133.5,wz2*0.35+244.7);
               b = mn < -0.18 ? GRAVEL : mn < 0.30 ? COBBLESTONE : STONE;
@@ -1290,15 +1297,15 @@ class Chunk{
           if(beach)            b=SAND;
           else if(isMountain){
             const mn=noise2(wx2*0.18+88.2,wz2*0.18+155.4);
-            if(h > SEA+48)       b=CRACKED_STONE;  // very high peaks
-            else if(h > SEA+10){ // almost all mountain = rocky
+            if(h > SEA+80)       b=CRACKED_STONE;  // extreme peaks
+            else if(h > SEA+25){ // rocky zone — most of the mountain
               if(mn < -0.2)      b=GRAVEL;
               else if(mn <  0.3) b=COBBLESTONE;
-              else if(mn <  0.6) b=MOSSY_COBBLE;
-              else               b=GRASS; // rare grass patches on mid-upper slopes
-            } else if(h > SEA+7){ // thin transition band
+              else if(mn <  0.7) b=MOSSY_COBBLE;
+              else               b=GRASS; // rare grass patch on mid slopes (~15%)
+            } else if(h > SEA+12){ // transition band
               b = mn > 0.5 ? GRASS : COBBLESTONE;
-            } else {             // only the lowest foothills get grass
+            } else {             // grassy foothills
               b=GRASS;
             }
           } else if(cliff||peak) b=STONE;
@@ -1448,13 +1455,13 @@ class Chunk{
       const biome = bmap[x*CHUNK+z];
       if(biome!==B_MOUNTAIN) continue;
       const h = hmap[x*CHUNK+z];
-      if(h <= SEA+6) continue;
+      if(h <= SEA+14) continue;
       const surf = this.data[this.idx(x,h,z)];
-      if(surf===AIR||surf===WATER||surf===GRAVEL) continue;
+      if(surf===AIR||surf===WATER||surf===GRAVEL||surf===GRASS) continue;
       const sn = noise2((ox+x)*0.55+444.1,(oz+z)*0.55+555.2);
-      if(sn < 0.58) continue;  // ~21% of mountain surface
-      const spikeH = 2 + Math.floor(noise2((ox+x)*1.8+77.3,(oz+z)*1.8+88.4)*3.5);
-      const spikeBlock = h > SEA+26 ? CRACKED_STONE : COBBLESTONE;
+      if(sn < 0.58) continue;  // ~21% of rocky mountain surface
+      const spikeH = 2 + Math.floor(noise2((ox+x)*1.8+77.3,(oz+z)*1.8+88.4)*5);
+      const spikeBlock = h > SEA+60 ? CRACKED_STONE : COBBLESTONE;
       for(let sy=1; sy<=spikeH; sy++){
         if(h+sy >= HEIGHT) break;
         if(this.data[this.idx(x,h+sy,z)]!==AIR) break;
