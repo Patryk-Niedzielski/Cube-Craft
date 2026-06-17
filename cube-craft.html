@@ -1215,12 +1215,13 @@ class Chunk{
         biome===B_FOREST   ? 6 :
         biome===B_TAIGA    ? 7 :
         biome===B_JUNGLE   ? 6 : 5;
-      // Edge of mountain biome gets hillScale≈60 (gentle hill), center gets 350 (tall peak)
-      const hillScale = biome===B_MOUNTAIN ? 60 + mountDepth*290 : hillScaleBase + foothillBlend*14;
+      const hillScale = biome===B_MOUNTAIN ? 320 : hillScaleBase + foothillBlend*14;
 
-      // Mild curve (exp 1.2): smooth climb from base, pointy at top
+      // Mountains: mountDepth (0 at biome edge → 1 at center) drives the shape via a
+      // concave power curve — slope starts gentle at the base and steepens near the peak.
+      // fbm is kept tiny and only grows near the summit so the approach stays smooth.
       const hillEff = biome===B_MOUNTAIN
-        ? Math.pow(Math.max(0, hill+0.3), 1.2)*1.1 - 0.2
+        ? Math.pow(mountDepth, 1.8) + hill * 0.08 * (0.2 + mountDepth * 0.8)
         : hill;
 
       let h;
@@ -1230,7 +1231,8 @@ class Chunk{
         const t = (cont + 0.30) / 0.12;
         h = Math.floor(SEA - 1 + t * 5 + hill * t);
       } else {
-        h = Math.max(SEA+4, SEA + 4 + Math.floor(hillEff*hillScale + mt*12 + (cont+0.18)*6 + det*4));
+        const mtEff = biome===B_MOUNTAIN ? 0 : mt;
+        h = Math.max(SEA+4, SEA + 4 + Math.floor(hillEff*hillScale + mtEff*12 + (cont+0.18)*6 + det*4));
       }
 
       const SEA_THRESH = 0.68;
