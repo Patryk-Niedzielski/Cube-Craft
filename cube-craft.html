@@ -77,6 +77,10 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
   position:absolute;bottom:2px;left:2px;right:2px;height:2px;
   border-radius:1px;pointer-events:none;
 }
+#cursor-item{
+  position:fixed;display:none;pointer-events:none;z-index:500;
+  width:32px;height:32px;
+}
 
 /* Block name hint */
 #block-hint{
@@ -792,6 +796,12 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
       <button class="mc-btn" style="width:100px;font-size:7px" onclick="closeCraftTable()">Close [E]</button>
     </div>
   </div>
+</div>
+
+<!-- ── CURSOR ITEM (floating drag icon) ── -->
+<div id="cursor-item">
+  <img id="cursor-item-img" style="width:32px;height:32px;image-rendering:pixelated;display:block">
+  <span id="cursor-item-count" class="slot-count"></span>
 </div>
 
 <!-- ── RECIPE BOOK POPUP ── -->
@@ -3575,7 +3585,9 @@ function computeCraftOutput(){
 }
 
 // ── INVENTORY DRAG SYSTEM ─────────────────────────────────
-const invDrag={active:false,btn:-1,srcType:'',srcIdx:-1,item:AIR,count:0,dur:0,targets:[],moved:false,done:false};
+// invDrag.done is still checked in click handlers to suppress clicks after a drag
+const invDrag={done:false};
+let cursorItem=null; // {id,count,dur,srcType,srcIdx} while dragging
 function slotGet(t,i){
   if(t==='invhot'||t==='cthot') return {id:player.hotbar[i],cnt:player.hotbarCounts[i],dur:player.hotbarDur[i]};
   if(t==='inv'||t==='ctinv') return {id:player.inventory[i],cnt:player.inventoryCounts[i],dur:player.inventoryDur[i]};
@@ -3595,24 +3607,62 @@ function invDragRebuild(){
   buildCraftGrid();
   if(ctOpen){buildCtGrid();buildCtInvGrid();buildCtHotbar();}
 }
+const _ciEl  = document.getElementById('cursor-item');
+const _ciImg = document.getElementById('cursor-item-img');
+const _ciCnt = document.getElementById('cursor-item-count');
+
+function _updateCursorItem(x,y){
+  if(!cursorItem){ _ciEl.style.display='none'; return; }
+  _ciImg.src = makeBlockIcon(cursorItem.id);
+  _ciCnt.textContent = cursorItem.count>1 ? cursorItem.count : '';
+  _ciEl.style.display = 'block';
+  _ciEl.style.left = (x-16)+'px';  // centre icon on cursor
+  _ciEl.style.top  = (y-16)+'px';
+}
+function _dropCursorItem(stype,sidx){
+  // Returns true if the drop mutated any slot
+  const d=slotGet(stype,sidx);
+  if(stype===cursorItem.srcType&&sidx===cursorItem.srcIdx){
+    // Dropped back on source → return
+    slotSet(stype,sidx,cursorItem.id,cursorItem.count,cursorItem.dur);
+  } else if(d.id===AIR||d.id===cursorItem.id){
+    // Empty or same type → merge
+    const total=(d.id===AIR?0:d.cnt)+cursorItem.count;
+    const dst=Math.min(64,total), rem=total-dst;
+    slotSet(stype,sidx,cursorItem.id,dst,cursorItem.dur);
+    if(rem>0) slotSet(cursorItem.srcType,cursorItem.srcIdx,cursorItem.id,rem,cursorItem.dur);
+    else       slotSet(cursorItem.srcType,cursorItem.srcIdx,AIR,0);
+  } else {
+    // Different item → swap
+    slotSet(stype,sidx,cursorItem.id,cursorItem.count,cursorItem.dur);
+    slotSet(cursorItem.srcType,cursorItem.srcIdx,d.id,d.cnt,d.dur);
+  }
+  cursorItem=null;
+  _ciEl.style.display='none';
+  invDragRebuild();
+}
+
 function attachSlotDrag(el,stype,sidx){
-  // Store slot identity so document-level mousemove can find this slot
   el.dataset.stype=stype;
   el.dataset.sidx=sidx;
   el.draggable=false;
   el.addEventListener('mousedown',e=>{
-    if(e.button!==0&&e.button!==2) return;
+    if(e.button!==0) return;
+    e.preventDefault();
+    if(cursorItem){
+      // Already holding — clicking this slot drops the held item here
+      invDrag.done=true;
+      _dropCursorItem(stype,sidx);
+      return;
+    }
     const d=slotGet(stype,sidx);
     if(d.id===AIR||d.cnt===0) return;
-    e.preventDefault(); // stop browser native drag / text-selection
-    invDrag.active=true;invDrag.btn=e.button;
-    invDrag.srcType=stype;invDrag.srcIdx=sidx;
-    invDrag.item=d.id;invDrag.count=d.cnt;invDrag.dur=d.dur;
-    invDrag.targets=[];invDrag.moved=false;invDrag.done=false;
+    invDrag.done=true; // suppress click that fires after mouseup
+    cursorItem={id:d.id,count:d.cnt,dur:d.dur,srcType:stype,srcIdx:sidx};
+    slotSet(stype,sidx,AIR,0); // visually empty the slot
+    _updateCursorItem(e.clientX,e.clientY);
+    invDragRebuild();
   });
-  // mouseenter NOT used — implicit pointer-capture while holding a button
-  // prevents it firing on sibling elements. Tracking is done in the
-  // document mousemove handler below via elementFromPoint.
 }
 
 function buildCraftGrid(){
@@ -3836,6 +3886,8 @@ function openInventory(){
 }
 
 function closeInventory(){
+  // Drop any held cursor item back to source before closing
+  if(cursorItem){ slotSet(cursorItem.srcType,cursorItem.srcIdx,cursorItem.id,cursorItem.count,cursorItem.dur); cursorItem=null; _ciEl.style.display='none'; }
   // Return any items left in the 2×2 crafting grid to the player
   for(let i=0;i<4;i++){
     if(craftSlots[i]!==AIR){
@@ -4096,6 +4148,7 @@ function openCraftTable(){
 }
 
 function closeCraftTable(){
+  if(cursorItem){ slotSet(cursorItem.srcType,cursorItem.srcIdx,cursorItem.id,cursorItem.count,cursorItem.dur); cursorItem=null; _ciEl.style.display='none'; }
   // Return any items left in the 3×3 crafting grid to the player
   for(let i=0;i<9;i++){
     if(ctSlots[i]!==AIR){
@@ -4527,61 +4580,26 @@ function requestLock(){
 canvas.addEventListener('click', ()=>{ if(gameReady&&!locked&&!paused&&!chatOpen&&!inventoryOpen&&!giveMenuOpen&&!tpbiomeMenuOpen&&!ctOpen) requestLock(); });
 clickHint.addEventListener('click', ()=>{ if(!chatOpen&&!inventoryOpen&&!giveMenuOpen&&!tpbiomeMenuOpen&&!ctOpen) requestLock(); });
 
-// Track which slot the cursor is over while a drag is in progress.
-// Uses elementFromPoint because implicit pointer-capture during mousedown
-// suppresses mouseenter events on sibling elements in all major browsers.
+// Move the cursor item icon with the mouse
 document.addEventListener('mousemove',e=>{
-  if(!invDrag.active) return;
-  const el=document.elementFromPoint(e.clientX,e.clientY);
-  if(!el||!el.dataset.stype) return;
-  const stype=el.dataset.stype;
-  const sidx=parseInt(el.dataset.sidx);
-  if(stype===invDrag.srcType&&sidx===invDrag.srcIdx) return;
-  // Right drag: skip slots that hold a different item
-  if(invDrag.btn===2){
-    const d=slotGet(stype,sidx);
-    if(d.id!==AIR&&d.id!==invDrag.item) return;
-  }
-  if(!invDrag.targets.find(t=>t.stype===stype&&t.sidx===sidx))
-    invDrag.targets.push({stype,sidx}),invDrag.moved=true;
+  if(!cursorItem) return;
+  _ciEl.style.left=(e.clientX-16)+'px';
+  _ciEl.style.top =(e.clientY-16)+'px';
 });
 
-document.addEventListener('mouseup',()=>{
-  if(!invDrag.active) return;
-  invDrag.active=false;
-  if(!invDrag.moved||invDrag.targets.length===0){invDrag.done=false;return;}
-  invDrag.done=true;
-  const K=invDrag.targets.length;
-  if(invDrag.btn===0){
-    // Left drag: move entire stack to the last hovered slot (swap if different item)
-    const dest=invDrag.targets[invDrag.targets.length-1];
-    const dDst=slotGet(dest.stype,dest.sidx);
-    if(dDst.id===AIR||dDst.id===invDrag.item){
-      const total=(dDst.id===AIR?0:dDst.cnt)+invDrag.count;
-      const newDst=Math.min(64,total);
-      const rem=total-newDst;
-      slotSet(dest.stype,dest.sidx,invDrag.item,newDst,invDrag.dur);
-      if(rem>0) slotSet(invDrag.srcType,invDrag.srcIdx,invDrag.item,rem,invDrag.dur);
-      else slotSet(invDrag.srcType,invDrag.srcIdx,AIR,0);
-    } else {
-      // Swap
-      slotSet(dest.stype,dest.sidx,invDrag.item,invDrag.count,invDrag.dur);
-      slotSet(invDrag.srcType,invDrag.srcIdx,dDst.id,dDst.cnt,dDst.dur);
-    }
+// Drop cursor item when mouse button is released
+document.addEventListener('mouseup',e=>{
+  if(!cursorItem) return;
+  const el=document.elementFromPoint(e.clientX,e.clientY);
+  if(el&&el.dataset.stype){
+    _dropCursorItem(el.dataset.stype, parseInt(el.dataset.sidx));
   } else {
-    // Right drag: place 1 item into each hovered slot
-    let taken=0;
-    for(const t of invDrag.targets){
-      if(taken>=invDrag.count) break;
-      const d=slotGet(t.stype,t.sidx);
-      slotSet(t.stype,t.sidx,invDrag.item,Math.min(64,(d.id===AIR?0:d.cnt)+1));
-      taken++;
-    }
-    const rem=invDrag.count-taken;
-    if(rem>0) slotSet(invDrag.srcType,invDrag.srcIdx,invDrag.item,rem);
-    else slotSet(invDrag.srcType,invDrag.srcIdx,AIR,0);
+    // Released outside any slot — return item to source
+    slotSet(cursorItem.srcType,cursorItem.srcIdx,cursorItem.id,cursorItem.count,cursorItem.dur);
+    cursorItem=null;
+    _ciEl.style.display='none';
+    invDragRebuild();
   }
-  invDragRebuild();
 });
 document.getElementById('resume-btn').addEventListener('click', requestLock);
 pauseScreen.addEventListener('click', e=>{ if(e.target===pauseScreen) requestLock(); });
