@@ -3664,6 +3664,31 @@ function _dropCursorItem(stype,sidx){
 
 let _dragStart=null; // {x,y} — start position, used to detect hold-drag vs quick-click
 let _isDragging=false; // true once mouse moved >5 px while button held
+let _lastClickInfo={time:0,stype:null,sidx:-1}; // for double-click detection
+
+function _collectToStack(targetId,x,y){
+  const existingCount=(cursorItem&&cursorItem.id===targetId)?cursorItem.count:0;
+  const existingDur=cursorItem?cursorItem.dur:0;
+  let total=existingCount;
+  const scanTypes=[['invhot',9],['inv',27],...(ctOpen?[['cthot',9],['ctinv',27]]:[] )];
+  for(const [t,count] of scanTypes){
+    for(let i=0;i<count;i++){
+      if(total>=64) break;
+      const d=slotGet(t,i);
+      if(d.id!==targetId||d.cnt<=0) continue;
+      const take=Math.min(d.cnt,64-total);
+      total+=take;
+      const rem=d.cnt-take;
+      slotSet(t,i,rem>0?targetId:AIR,rem>0?rem:0,d.dur);
+    }
+    if(total>=64) break;
+  }
+  if(total>0){
+    cursorItem={id:targetId,count:total,dur:existingDur,srcType:null,srcIdx:-1};
+    _updateCursorItem(x,y);
+    invDragRebuild();
+  }
+}
 
 function attachSlotDrag(el,stype,sidx){
   el.dataset.stype=stype;
@@ -3673,6 +3698,20 @@ function attachSlotDrag(el,stype,sidx){
     if(e.button!==0) return;
     e.preventDefault();
     invDrag.done=true;
+
+    // Double-click: collect all matching items into cursor
+    const now=performance.now();
+    const isDouble=(now-_lastClickInfo.time<350)&&_lastClickInfo.stype===stype&&_lastClickInfo.sidx===sidx;
+    _lastClickInfo={time:now,stype,sidx};
+    if(isDouble){
+      const targetId=cursorItem?cursorItem.id:slotGet(stype,sidx).id;
+      if(targetId!==AIR&&!UNSTACKABLE.has(targetId)){
+        _collectToStack(targetId,e.clientX,e.clientY);
+        _dragStart=null; _isDragging=false;
+        return;
+      }
+    }
+
     if(cursorItem){
       // Already floating an item → drop it on this slot
       _dropCursorItem(stype,sidx);
@@ -4645,6 +4684,10 @@ pauseScreen.addEventListener('click', e=>{ if(e.target===pauseScreen) requestLoc
 
 function doSaveAndQuit(){
   saveWorld();
+  if(inventoryOpen) closeInventory();
+  if(ctOpen) closeCraftTable();
+  showHUD(false);
+  clickHint.style.display='none';
   gameStarted=false; gameReady=false; paused=false; playerDead=false;
   locked=false;
   if(document.exitPointerLock) document.exitPointerLock();
@@ -4752,8 +4795,12 @@ canvas.addEventListener('mousedown',e=>{
       return;
     }
 
-    // Normal block placement
-    const px=t.bx+t.nx, py=t.by+t.ny, pz=t.bz+t.nz;
+    // Normal block placement — replace foliage/flowers instead of placing adjacent
+    const aimed=world.getBlock(t.bx,t.by,t.bz);
+    const replaceable=aimed===FOLIAGE||aimed===FLOWER_RED||aimed===FLOWER_YELLOW;
+    const px=replaceable?t.bx:t.bx+t.nx;
+    const py=replaceable?t.by:t.by+t.ny;
+    const pz=replaceable?t.bz:t.bz+t.nz;
     if(py<0||py>=HEIGHT) return;
     // Don't place inside player AABB
     const p=player.pos, hw=PLR_W+0.1;
