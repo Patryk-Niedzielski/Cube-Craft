@@ -73,6 +73,10 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
   text-shadow:1px 1px 0 #000,-1px 0 0 #000,0 -1px 0 #000;
   pointer-events:none;
 }
+.dur-bar{
+  position:absolute;bottom:2px;left:2px;right:2px;height:2px;
+  border-radius:1px;pointer-events:none;
+}
 
 /* Block name hint */
 #block-hint{
@@ -771,7 +775,10 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
 <!-- ── CRAFTING TABLE SCREEN ── -->
 <div id="ct-screen">
   <div id="ct-panel">
-    <div id="ct-title">Crafting</div>
+    <div id="ct-title" style="display:flex;align-items:center;justify-content:space-between">
+      <span>Crafting</span>
+      <button class="mc-btn" id="recipe-book-btn" style="font-size:8px;padding:3px 7px;min-width:0" title="Recipe Book" onclick="openRecipeBook()">📗</button>
+    </div>
     <div id="ct-upper">
       <div id="ct-grid"></div>
       <div id="ct-arrow">▶</div>
@@ -784,6 +791,18 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
     <div style="margin-top:10px;display:flex;justify-content:flex-end">
       <button class="mc-btn" style="width:100px;font-size:7px" onclick="closeCraftTable()">Close [E]</button>
     </div>
+  </div>
+</div>
+
+<!-- ── RECIPE BOOK POPUP ── -->
+<div id="recipe-book" style="display:none;position:fixed;inset:0;z-index:55;background:rgba(0,0,0,0.5);align-items:center;justify-content:center">
+  <div id="recipe-book-panel" style="background:#c6c6c6;border:4px solid #555;padding:12px;min-width:220px;max-width:320px;max-height:80vh;display:flex;flex-direction:column;gap:8px;font-family:'Press Start 2P',monospace">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:7px;color:#333">Recipe Book</span>
+      <button class="mc-btn" style="font-size:7px;padding:2px 8px;min-width:0" onclick="closeRecipeBook()">✕</button>
+    </div>
+    <div style="font-size:6px;color:#555;margin-bottom:2px">Recipes you can craft now:</div>
+    <div id="recipe-book-list" style="overflow-y:auto;display:flex;flex-direction:column;gap:6px"></div>
   </div>
 </div>
 
@@ -985,11 +1004,21 @@ const PLR_W    = 0.4;
 const AIR=0,GRASS=1,DIRT=2,STONE=3,WOOD=4,LEAVES=5,SAND=6,BEDROCK=7,WATER=8,FOLIAGE=9,GLASS=10;
 const PIG_EGG=11,COW_EGG=12,WOLF_EGG=13,CAT_EGG=14,CHICKEN_EGG=15,FISH_EGG=16;
 const SNOW=17, PINE_LEAVES=18, FLOWER_RED=19, FLOWER_YELLOW=20, PLANK=21, CRAFT_TABLE=22;
+const STICK=23, WOOD_PICK=24, STONE_PICK=25;
+
+// ── TOOL SYSTEM CONSTANTS ─────────────────────────────────
+const NEEDS_PICK  = new Set([STONE]);               // blocks that require a pickaxe
+const IS_PICK     = new Set([WOOD_PICK, STONE_PICK]);
+const TOOL_SPEED  = {[WOOD_PICK]:1.0, [STONE_PICK]:1.5}; // speed mult vs base stone hardness
+const TOOL_MAX_DUR= {[WOOD_PICK]:60,  [STONE_PICK]:130};
+const UNSTACKABLE = new Set([WOOD_PICK, STONE_PICK]);    // these never stack
+const FLAT_ITEMS  = new Set([STICK, WOOD_PICK, STONE_PICK]); // rendered as 2D sprites
 const SPAWN_EGG_MOB={[PIG_EGG]:'pig',[COW_EGG]:'cow',[WOLF_EGG]:'wolf',[CAT_EGG]:'cat',[CHICKEN_EGG]:'chicken',[FISH_EGG]:'fish'};
 
 const BLOCK_NAME=['Air','Grass','Dirt','Stone','Wood','Leaves','Sand','Bedrock','Water','Tall Grass','Glass',
-  'Pig Egg','Cow Egg','Wolf Egg','Cat Egg','Chicken Egg','Fish Egg','Snow','Pine Leaves','Poppy','Dandelion','Oak Plank','Crafting Table'];
-const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3, 0,0,0,0,0,0, 0.2, 0.25, 0.0, 0.0, 0.7, 1.0];
+  'Pig Egg','Cow Egg','Wolf Egg','Cat Egg','Chicken Egg','Fish Egg','Snow','Pine Leaves','Poppy','Dandelion','Oak Plank','Crafting Table',
+  'Stick','Wooden Pickaxe','Stone Pickaxe'];
+const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3, 0,0,0,0,0,0, 0.2, 0.25, 0.0, 0.0, 0.7, 1.0, 0,0,0];
 const TEX_IDX={
   [GRASS]:   [0,2,1],
   [DIRT]:    [2,2,2],
@@ -1013,6 +1042,9 @@ const TEX_IDX={
   [FLOWER_YELLOW]:[21,21,21],
   [PLANK]:        [22,22,22],
   [CRAFT_TABLE]:  [23,22,24],
+  [STICK]:        [25,25,25],
+  [WOOD_PICK]:    [26,26,26],
+  [STONE_PICK]:   [27,27,27],
 };
 // SOLID: player collides with these
 const SOLID=new Uint8Array(256);
@@ -1661,8 +1693,10 @@ class Player{
     this._peakY=SEA+6; this._prevOnGround=true;
     this.hotbar=new Array(9).fill(AIR);
     this.hotbarCounts=new Array(9).fill(0);
+    this.hotbarDur=new Array(9).fill(0);
     this.inventory=new Array(27).fill(AIR);
     this.inventoryCounts=new Array(27).fill(0);
+    this.inventoryDur=new Array(27).fill(0);
     this.slot=0;
     this.flying=false;
     this.bobPhase=0;
@@ -2197,6 +2231,37 @@ for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
   // Vertical centre mark
   if((x===7||x===8)&&y>1&&y<14){r=Math.max(0,r-28);g=Math.max(0,g-22);b=Math.max(0,b-14);}
   tsp(24,x,y,r,g,b);
+}
+
+// Tile 25 — Stick (diagonal brown rod, top-right → bottom-left)
+{
+  const sc=[130,85,40], dk=[90,58,24];
+  for(let i=0;i<12;i++){
+    const x=13-i, y=2+i;
+    tsp(25,x,y,...sc);
+    if(x-1>=0) tsp(25,x-1,y,...dk);
+  }
+}
+// Tile 26 — Wooden Pickaxe
+{
+  const hd=[178,140,82], hs=[140,104,55], st=[130,85,40], sd=[90,58,24];
+  // Head: 2 rows across top-right quadrant
+  for(let x=3;x<=10;x++){tsp(26,x,1,...hd);tsp(26,x,2,...hs);}
+  // Lower pick tip extends right two rows
+  tsp(26,8,3,...hs);tsp(26,9,3,...hs);tsp(26,10,3,...hs);
+  tsp(26,9,4,...hs);tsp(26,10,4,...hs);
+  // Diagonal handle
+  tsp(26,7,4,...st);tsp(26,6,5,...st);tsp(26,5,6,...st);tsp(26,4,7,...st);
+  tsp(26,3,8,...sd);tsp(26,2,9,...sd);tsp(26,1,10,...sd);tsp(26,0,11,...sd);
+}
+// Tile 27 — Stone Pickaxe (same shape, grey head)
+{
+  const hd=[160,160,160], hs=[110,110,110], st=[130,85,40], sd=[90,58,24];
+  for(let x=3;x<=10;x++){tsp(27,x,1,...hd);tsp(27,x,2,...hs);}
+  tsp(27,8,3,...hs);tsp(27,9,3,...hs);tsp(27,10,3,...hs);
+  tsp(27,9,4,...hs);tsp(27,10,4,...hs);
+  tsp(27,7,4,...st);tsp(27,6,5,...st);tsp(27,5,6,...st);tsp(27,4,7,...st);
+  tsp(27,3,8,...sd);tsp(27,2,9,...sd);tsp(27,1,10,...sd);tsp(27,0,11,...sd);
 }
 
 const atlasTexture = new THREE.CanvasTexture(atlasCvs);
@@ -3205,7 +3270,8 @@ let worldMods=new Map(), trackingMods=false;
 let _lastSpaceTime=0, _suppressSpaceFly=false;
 const CREATIVE_PAGE_SIZE=27;
 const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,LEAVES,PINE_LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS,SNOW,
-  FLOWER_RED,FLOWER_YELLOW,PLANK,CRAFT_TABLE,PIG_EGG,COW_EGG,WOLF_EGG,CAT_EGG,CHICKEN_EGG,FISH_EGG];
+  FLOWER_RED,FLOWER_YELLOW,PLANK,CRAFT_TABLE,STICK,WOOD_PICK,STONE_PICK,
+  PIG_EGG,COW_EGG,WOLF_EGG,CAT_EGG,CHICKEN_EGG,FISH_EGG];
 const DEFAULT_HOTBAR=new Array(9).fill(AIR);
 let showDbg=false;
 // Mining
@@ -3297,6 +3363,10 @@ function makeBlockIcon(id){
   const ti=TEX_IDX[id]; if(!ti) return '';
   const c=document.createElement('canvas'); c.width=c.height=32;
   const ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=false;
+  if(FLAT_ITEMS.has(id)){
+    ctx.drawImage(atlasCvs, ti[0]*TS, 0, TS, TS, 0, 0, 32, 32);
+    return c.toDataURL();
+  }
   const N=16;
   // TOP face (brightest) — isometric parallelogram
   ctx.save();
@@ -3339,6 +3409,13 @@ function buildHotbar(){
         badge.className='slot-count';
         badge.textContent=cnt;
         slot.append(badge);
+      }
+      if(TOOL_MAX_DUR[id]){
+        const pct=player.hotbarDur[i]/TOOL_MAX_DUR[id];
+        const bar=document.createElement('div');
+        bar.className='dur-bar';
+        bar.style.cssText=`width:${(pct*100).toFixed(0)}%;background:${pct>0.66?'#5f5':pct>0.33?'#ff5':'#f55'}`;
+        slot.append(bar);
       }
     }
     slot.onclick=()=>{ player.slot=i; buildHotbar(); };
@@ -3403,8 +3480,10 @@ function setGamemode(mode){
   } else {
     player.hotbar=new Array(9).fill(AIR);
     player.hotbarCounts=new Array(9).fill(0);
+    player.hotbarDur=new Array(9).fill(0);
     player.inventory=new Array(27).fill(AIR);
     player.inventoryCounts=new Array(27).fill(0);
+    player.inventoryDur=new Array(27).fill(0);
     player.slot=0;
     addChatMsg('Gamemode set to Survival','ok');
   }
@@ -3498,15 +3577,15 @@ function computeCraftOutput(){
 // ── INVENTORY DRAG SYSTEM ─────────────────────────────────
 const invDrag={active:false,btn:-1,srcType:'',srcIdx:-1,item:AIR,count:0,targets:[],moved:false,done:false};
 function slotGet(t,i){
-  if(t==='invhot'||t==='cthot') return {id:player.hotbar[i],cnt:player.hotbarCounts[i]};
-  if(t==='inv'||t==='ctinv') return {id:player.inventory[i],cnt:player.inventoryCounts[i]};
-  if(t==='craft') return {id:craftSlots[i],cnt:craftCounts[i]};
-  if(t==='ctgrid') return {id:ctSlots[i],cnt:ctCounts[i]};
-  return {id:AIR,cnt:0};
+  if(t==='invhot'||t==='cthot') return {id:player.hotbar[i],cnt:player.hotbarCounts[i],dur:player.hotbarDur[i]};
+  if(t==='inv'||t==='ctinv') return {id:player.inventory[i],cnt:player.inventoryCounts[i],dur:player.inventoryDur[i]};
+  if(t==='craft') return {id:craftSlots[i],cnt:craftCounts[i],dur:0};
+  if(t==='ctgrid') return {id:ctSlots[i],cnt:ctCounts[i],dur:0};
+  return {id:AIR,cnt:0,dur:0};
 }
-function slotSet(t,i,id,cnt){
-  if(t==='invhot'||t==='cthot'){player.hotbar[i]=id;player.hotbarCounts[i]=cnt;}
-  else if(t==='inv'||t==='ctinv'){player.inventory[i]=id;player.inventoryCounts[i]=cnt;}
+function slotSet(t,i,id,cnt,dur=0){
+  if(t==='invhot'||t==='cthot'){player.hotbar[i]=id;player.hotbarCounts[i]=cnt;player.hotbarDur[i]=dur;}
+  else if(t==='inv'||t==='ctinv'){player.inventory[i]=id;player.inventoryCounts[i]=cnt;player.inventoryDur[i]=dur;}
   else if(t==='craft'){craftSlots[i]=id;craftCounts[i]=cnt;}
   else if(t==='ctgrid'){ctSlots[i]=id;ctCounts[i]=cnt;}
 }
@@ -3658,6 +3737,13 @@ function buildInvHotbar(){
         badge.textContent=cnt;
         s.append(badge);
       }
+      if(TOOL_MAX_DUR[id]){
+        const pct=player.hotbarDur[i]/TOOL_MAX_DUR[id];
+        const bar=document.createElement('div');
+        bar.className='dur-bar';
+        bar.style.cssText=`width:${(pct*100).toFixed(0)}%;background:${pct>0.66?'#5f5':pct>0.33?'#ff5':'#f55'}`;
+        s.append(bar);
+      }
     }
     attachSlotDrag(s,'invhot',i);
     s.addEventListener('click',()=>{ if(invDrag.done){invDrag.done=false;return;} player.slot=i; buildHotbar(); buildInvHotbar(); });
@@ -3695,9 +3781,9 @@ function buildInvMainGrid(){
     s.addEventListener('click',()=>{
       if(invDrag.done){invDrag.done=false;return;}
       const si=player.slot;
-      const hbId=player.hotbar[si], hbCnt=player.hotbarCounts[si];
-      player.hotbar[si]=player.inventory[i]; player.hotbarCounts[si]=player.inventoryCounts[i];
-      player.inventory[i]=hbId; player.inventoryCounts[i]=hbCnt;
+      const hbId=player.hotbar[si], hbCnt=player.hotbarCounts[si], hbDur=player.hotbarDur[si];
+      player.hotbar[si]=player.inventory[i]; player.hotbarCounts[si]=player.inventoryCounts[i]; player.hotbarDur[si]=player.inventoryDur[i];
+      player.inventory[i]=hbId; player.inventoryCounts[i]=hbCnt; player.inventoryDur[i]=hbDur;
       buildHotbar(); buildInvMainGrid(); buildInvHotbar();
     });
     s.addEventListener('contextmenu',e=>{
@@ -3888,7 +3974,19 @@ function closeTpbiomeMenu(){
 const ctSlots=new Array(9).fill(AIR), ctCounts=new Array(9).fill(0);
 
 // 3×3 shaped recipe: pattern is a flat 9-element array (row-major), AIR=wildcard empty
-const CT_RECIPES=[];  // populated as new blocks are added
+const CT_RECIPES=[
+  // Sticks: 2 planks in any vertical column (6 positions in 3×3 grid)
+  {pattern:[PLANK,AIR,AIR, PLANK,AIR,AIR, AIR,AIR,AIR], out:STICK, outCount:4},
+  {pattern:[AIR,PLANK,AIR, AIR,PLANK,AIR, AIR,AIR,AIR], out:STICK, outCount:4},
+  {pattern:[AIR,AIR,PLANK, AIR,AIR,PLANK, AIR,AIR,AIR], out:STICK, outCount:4},
+  {pattern:[AIR,AIR,AIR, PLANK,AIR,AIR, PLANK,AIR,AIR], out:STICK, outCount:4},
+  {pattern:[AIR,AIR,AIR, AIR,PLANK,AIR, AIR,PLANK,AIR], out:STICK, outCount:4},
+  {pattern:[AIR,AIR,AIR, AIR,AIR,PLANK, AIR,AIR,PLANK], out:STICK, outCount:4},
+  // Wooden Pickaxe: 3 planks top row + sticks centre column
+  {pattern:[PLANK,PLANK,PLANK, AIR,STICK,AIR, AIR,STICK,AIR], out:WOOD_PICK, outCount:1},
+  // Stone Pickaxe: same shape with stone
+  {pattern:[STONE,STONE,STONE, AIR,STICK,AIR, AIR,STICK,AIR], out:STONE_PICK, outCount:1},
+];
 
 function computeCtOutput(){
   for(const rec of CT_RECIPES){
@@ -3966,9 +4064,9 @@ function buildCtInvGrid(){
     s.addEventListener('click',()=>{
       if(invDrag.done){invDrag.done=false;return;}
       const si=player.slot;
-      const hId=player.hotbar[si],hCnt=player.hotbarCounts[si];
-      player.hotbar[si]=player.inventory[i];player.hotbarCounts[si]=player.inventoryCounts[i];
-      player.inventory[i]=hId;player.inventoryCounts[i]=hCnt;
+      const hId=player.hotbar[si],hCnt=player.hotbarCounts[si],hDur=player.hotbarDur[si];
+      player.hotbar[si]=player.inventory[i];player.hotbarCounts[si]=player.inventoryCounts[i];player.hotbarDur[si]=player.inventoryDur[i];
+      player.inventory[i]=hId;player.inventoryCounts[i]=hCnt;player.inventoryDur[i]=hDur;
       buildHotbar();buildCtHotbar();buildCtInvGrid();
     });
     s.addEventListener('contextmenu',e=>{e.preventDefault();if(invDrag.done){invDrag.done=false;return;}player.inventory[i]=AIR;player.inventoryCounts[i]=0;buildCtInvGrid();});
@@ -4011,6 +4109,97 @@ function closeCraftTable(){
   }
 }
 
+// ── RECIPE BOOK ───────────────────────────────────────────
+const recipeBookEl = document.getElementById('recipe-book');
+const recipeBookListEl = document.getElementById('recipe-book-list');
+
+function playerHasIngredients(pattern){
+  // Count what the player has across hotbar + inventory
+  const have={};
+  [...player.hotbar,...player.inventory].forEach((id,i)=>{
+    const cnt = i<9 ? player.hotbarCounts[i] : player.inventoryCounts[i-9];
+    if(id!==AIR) have[id]=(have[id]||0)+cnt;
+  });
+  // Count what the recipe needs (non-AIR slots)
+  const need={};
+  pattern.forEach(id=>{ if(id!==AIR) need[id]=(need[id]||0)+1; });
+  return Object.entries(need).every(([id,cnt])=>(have[id]||0)>=cnt);
+}
+
+function buildRecipeBookList(){
+  recipeBookListEl.innerHTML='';
+  const seen=new Set();
+  CT_RECIPES.forEach(rec=>{
+    if(seen.has(rec.out)) return; // one entry per output item
+    if(!playerHasIngredients(rec.pattern)) return;
+    seen.add(rec.out);
+
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:8px;background:#a0a0a0;padding:4px;cursor:pointer;border:2px solid #777';
+    row.addEventListener('mouseenter',()=>row.style.background='#b8b8b8');
+    row.addEventListener('mouseleave',()=>row.style.background='#a0a0a0');
+
+    // Small pattern preview (3×3 grid, tiny)
+    const grid=document.createElement('div');
+    grid.style.cssText='display:grid;grid-template-columns:repeat(3,12px);gap:1px;flex-shrink:0';
+    rec.pattern.forEach(id=>{
+      const cell=document.createElement('div');
+      cell.style.cssText='width:12px;height:12px;background:#8b8b8b;display:flex;align-items:center;justify-content:center';
+      if(id!==AIR){
+        const img=document.createElement('img');
+        img.src=makeBlockIcon(id);
+        img.style.cssText='width:10px;height:10px;image-rendering:pixelated';
+        cell.appendChild(img);
+      }
+      grid.appendChild(cell);
+    });
+
+    // Arrow
+    const arrow=document.createElement('span');
+    arrow.textContent='▶';
+    arrow.style.cssText='font-size:8px;color:#555';
+
+    // Output icon + name
+    const outWrap=document.createElement('div');
+    outWrap.style.cssText='display:flex;align-items:center;gap:4px';
+    const outImg=document.createElement('img');
+    outImg.src=makeBlockIcon(rec.out);
+    outImg.style.cssText='width:20px;height:20px;image-rendering:pixelated';
+    const outLbl=document.createElement('span');
+    outLbl.style.cssText='font-size:6px;color:#222';
+    outLbl.textContent=BLOCK_NAME[rec.out]+(rec.outCount>1?' ×'+rec.outCount:'');
+    outWrap.append(outImg,outLbl);
+
+    row.append(grid,arrow,outWrap);
+    row.addEventListener('click',()=>{
+      // Fill the crafting grid with this recipe's pattern
+      for(let i=0;i<9;i++){
+        ctSlots[i]=rec.pattern[i];
+        ctCounts[i]=rec.pattern[i]!==AIR?1:0;
+      }
+      closeRecipeBook();
+      buildCtGrid();
+    });
+    recipeBookListEl.appendChild(row);
+  });
+  if(recipeBookListEl.children.length===0){
+    const msg=document.createElement('div');
+    msg.style.cssText='font-size:6px;color:#555;text-align:center;padding:8px';
+    msg.textContent='No recipes available with your current materials.';
+    recipeBookListEl.appendChild(msg);
+  }
+}
+
+function openRecipeBook(){
+  buildRecipeBookList();
+  recipeBookEl.style.display='flex';
+}
+function closeRecipeBook(){
+  recipeBookEl.style.display='none';
+}
+window.openRecipeBook=openRecipeBook;
+window.closeRecipeBook=closeRecipeBook;
+
 // ── WORLD SAVE / LOAD ─────────────────────────────────────
 // ── MULTI-WORLD SAVE SYSTEM ──────────────────────────────
 const WORLDS_KEY = 'cubecraft_worlds';
@@ -4042,8 +4231,8 @@ function saveWorld(){
     player:{
       x:player.pos.x, y:player.pos.y, z:player.pos.z,
       yaw:player.yaw, pitch:player.pitch, slot:player.slot,
-      hotbar:[...player.hotbar], hotbarCounts:[...player.hotbarCounts],
-      inventory:[...player.inventory], inventoryCounts:[...player.inventoryCounts],
+      hotbar:[...player.hotbar], hotbarCounts:[...player.hotbarCounts], hotbarDur:[...player.hotbarDur],
+      inventory:[...player.inventory], inventoryCounts:[...player.inventoryCounts], inventoryDur:[...player.inventoryDur],
       hp:player.hp
     },
     mods:Object.fromEntries(worldMods)
@@ -4081,8 +4270,10 @@ async function startFromSave(save, worldId){
     player.slot=p.slot||0;
     if(p.hotbar) player.hotbar=[...p.hotbar];
     if(p.hotbarCounts) player.hotbarCounts=[...p.hotbarCounts];
+    if(p.hotbarDur) player.hotbarDur=[...p.hotbarDur];
     if(p.inventory) player.inventory=[...p.inventory];
     if(p.inventoryCounts) player.inventoryCounts=[...p.inventoryCounts];
+    if(p.inventoryDur) player.inventoryDur=[...p.inventoryDur];
     if(p.hp!=null) player.hp=p.hp;
   }
   player.flying=false;
@@ -4206,26 +4397,38 @@ document.getElementById('ws-cancel-btn').addEventListener('click',()=>{
 
 // ── ITEM PICKUP ───────────────────────────────────────────
 function giveBlock(id){
-  // Try to stack on existing hotbar slot
+  const dur=TOOL_MAX_DUR[id]??0;
+  if(UNSTACKABLE.has(id)){
+    // Tools: never stack, always place in new slot
+    if(player.hotbar[player.slot]===AIR){
+      player.hotbar[player.slot]=id;player.hotbarCounts[player.slot]=1;player.hotbarDur[player.slot]=dur;buildHotbar();return;
+    }
+    for(let i=0;i<9;i++){
+      if(player.hotbar[i]===AIR){player.hotbar[i]=id;player.hotbarCounts[i]=1;player.hotbarDur[i]=dur;buildHotbar();return;}
+    }
+    for(let i=0;i<27;i++){
+      if(player.inventory[i]===AIR){player.inventory[i]=id;player.inventoryCounts[i]=1;player.inventoryDur[i]=dur;return;}
+    }
+    return;
+  }
+  // Stackable: try to merge on existing hotbar slot
   for(let i=0;i<9;i++){
     if(player.hotbar[i]===id && player.hotbarCounts[i]<64){ player.hotbarCounts[i]++; buildHotbar(); return; }
   }
-  // Try empty hotbar slot (prefer active slot first)
+  // Empty hotbar slot (prefer active slot first)
   if(player.hotbar[player.slot]===AIR){
     player.hotbar[player.slot]=id; player.hotbarCounts[player.slot]=1; buildHotbar(); return;
   }
   for(let i=0;i<9;i++){
     if(player.hotbar[i]===AIR){ player.hotbar[i]=id; player.hotbarCounts[i]=1; buildHotbar(); return; }
   }
-  // Try to stack on existing inventory slot
+  // Try inventory
   for(let i=0;i<27;i++){
     if(player.inventory[i]===id && player.inventoryCounts[i]<64){ player.inventoryCounts[i]++; return; }
   }
-  // Try empty inventory slot
   for(let i=0;i<27;i++){
     if(player.inventory[i]===AIR){ player.inventory[i]=id; player.inventoryCounts[i]=1; return; }
   }
-  // Inventory full — block dropped (discarded)
 }
 
 function dropSelectedItem(){
@@ -4777,12 +4980,13 @@ function loop(t){
     // Mining progress
     if(mining){
       const id=world.getBlock(aim.bx,aim.by,aim.bz);
-      const hard=gamemode==='creative'?0.05:(BLOCK_HARD[id]??1);
+      const held=player.hotbar[player.slot];
+      // Pickaxe-required blocks: slower without one, no drop without one
+      const pickMult=NEEDS_PICK.has(id)?(TOOL_SPEED[held]??0.25):1.0;
+      const hard=gamemode==='creative'?0.05:((BLOCK_HARD[id]??1)/pickMult);
       if(BLOCK_HARD[id]===Infinity && gamemode!=='creative'){
-        // Unbreakable in survival
         breakBarWrap.style.display='none';
       } else {
-        // Reset progress if target changed
         if(mineTarget&&(mineTarget.bx!==aim.bx||mineTarget.by!==aim.by||mineTarget.bz!==aim.bz)){
           mineProg=0;
         }
@@ -4794,8 +4998,20 @@ function loop(t){
         if(pct>=1){
           playBreakSound(id);
           world.setBlock(aim.bx,aim.by,aim.bz,AIR);
-          if(gamemode==='survival' && id!==AIR) spawnDroppedItem(id,aim.bx+0.5,aim.by+0.5,aim.bz+0.5);
-          // Break unsupported foliage/flowers above
+          if(gamemode==='survival' && id!==AIR){
+            // Needs-pick blocks only drop with the correct tool
+            if(!NEEDS_PICK.has(id) || IS_PICK.has(held))
+              spawnDroppedItem(id,aim.bx+0.5,aim.by+0.5,aim.bz+0.5);
+            // Consume pickaxe durability
+            if(NEEDS_PICK.has(id) && IS_PICK.has(held)){
+              const si=player.slot;
+              player.hotbarDur[si]--;
+              if(player.hotbarDur[si]<=0){
+                player.hotbar[si]=AIR;player.hotbarCounts[si]=0;player.hotbarDur[si]=0;
+              }
+              buildHotbar();
+            }
+          }
           const aboveId=world.getBlock(aim.bx,aim.by+1,aim.bz);
           if(aboveId===FOLIAGE||aboveId===FLOWER_RED||aboveId===FLOWER_YELLOW){
             world.setBlock(aim.bx,aim.by+1,aim.bz,AIR);
