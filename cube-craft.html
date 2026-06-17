@@ -189,6 +189,28 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
 #inv-craft-arrow{font-size:18px;color:#444;font-weight:bold;line-height:1}
 #inv-craft-output{position:relative}
 #inv-craft-output.has-output{outline:2px solid #a0a040;background:#9a9a60}
+/* ── CRAFTING TABLE SCREEN ── */
+#ct-screen{
+  position:fixed;inset:0;display:none;
+  flex-direction:column;align-items:center;justify-content:center;
+  z-index:20;background:rgba(0,0,0,0.55);
+}
+#ct-panel{
+  background:#c6c6c6;padding:16px 18px 14px;
+  border:3px solid;
+  border-top-color:#fff;border-left-color:#fff;
+  border-bottom-color:#555;border-right-color:#555;
+  font-family:'Press Start 2P',monospace;
+  max-height:90vh;overflow-y:auto;
+}
+#ct-title{font-size:9px;color:#333;margin-bottom:10px;text-shadow:1px 1px 0 rgba(255,255,255,0.6)}
+#ct-upper{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+#ct-grid{display:grid;grid-template-columns:repeat(3,40px);gap:4px}
+#ct-arrow{font-size:18px;color:#444;font-weight:bold;line-height:1;padding:0 4px}
+#ct-output{position:relative}
+#ct-output.has-output{outline:2px solid #a0a040;background:#9a9a60}
+#ct-inv-grid{display:grid;grid-template-columns:repeat(9,40px);gap:4px}
+#ct-hotbar-row{display:grid;grid-template-columns:repeat(9,40px);gap:4px}
 /* ── WORLD CREATE SCREEN ── */
 /* ── SHARED: full-screen dirt-background menu ── */
 .mc-dirt-screen{
@@ -742,6 +764,25 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
     <div id="inv-hotbar-row"></div>
     <div style="margin-top:10px;display:flex;justify-content:flex-end">
       <button class="mc-btn" style="width:100px;font-size:7px" onclick="closeInventory()">Close [E]</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── CRAFTING TABLE SCREEN ── -->
+<div id="ct-screen">
+  <div id="ct-panel">
+    <div id="ct-title">Crafting</div>
+    <div id="ct-upper">
+      <div id="ct-grid"></div>
+      <div id="ct-arrow">▶</div>
+      <div id="ct-output" class="inv-slot"><div class="inv-slot-tip">Output</div></div>
+    </div>
+    <div class="inv-label">Inventory</div>
+    <div id="ct-inv-grid"></div>
+    <div class="inv-label" style="margin-top:6px">Hotbar</div>
+    <div id="ct-hotbar-row"></div>
+    <div style="margin-top:10px;display:flex;justify-content:flex-end">
+      <button class="mc-btn" style="width:100px;font-size:7px" onclick="closeCraftTable()">Close [E]</button>
     </div>
   </div>
 </div>
@@ -3156,7 +3197,7 @@ function updateMobs(dt) {
 
 const keys={};
 let locked=false, gameReady=false, gameStarted=false, paused=false;
-let gamemode='survival', inventoryOpen=false, chatOpen=false, creativePageIdx=0, giveMenuOpen=false, tpbiomeMenuOpen=false;
+let gamemode='survival', inventoryOpen=false, chatOpen=false, creativePageIdx=0, giveMenuOpen=false, tpbiomeMenuOpen=false, ctOpen=false;
 let playerDead=false;
 let playerSpawnPos={x:8.5, y:SEA+6, z:8.5};
 let cheatsEnabled=false;
@@ -3218,6 +3259,7 @@ const gmBadge           = document.getElementById('gm-badge');
 const giveMenuEl        = document.getElementById('give-menu');
 const giveGridEl        = document.getElementById('give-grid');
 const tpbiomeMenuEl     = document.getElementById('tpbiome-menu');
+const ctScreenEl        = document.getElementById('ct-screen');
 const tpbiomeGridEl     = document.getElementById('tpbiome-grid');
 invPrevBtn.addEventListener('click',()=>{ creativePageIdx--; buildCreativeGrid(); });
 invNextBtn.addEventListener('click',()=>{ creativePageIdx++; buildCreativeGrid(); });
@@ -3794,6 +3836,128 @@ function closeTpbiomeMenu(){
   }
 }
 
+// ── CRAFTING TABLE (3×3) ──────────────────────────────────
+const ctSlots=new Array(9).fill(AIR), ctCounts=new Array(9).fill(0);
+
+// 3×3 shaped recipe: pattern is a flat 9-element array (row-major), AIR=wildcard empty
+const CT_RECIPES=[];  // populated as new blocks are added
+
+function computeCtOutput(){
+  for(const rec of CT_RECIPES){
+    if(rec.pattern.every((id,i)=>id===AIR?ctSlots[i]===AIR:ctSlots[i]===id))
+      return {id:rec.out, count:rec.outCount, srcSlots:rec.pattern.map((_,i)=>i).filter(i=>rec.pattern[i]!==AIR)};
+  }
+  return null;
+}
+
+function buildCtGrid(){
+  const gridEl=document.getElementById('ct-grid');
+  const outEl=document.getElementById('ct-output');
+  if(!gridEl||!outEl) return;
+  gridEl.innerHTML='';
+  for(let i=0;i<9;i++){
+    const s=document.createElement('div'); s.className='inv-slot';
+    const id=ctSlots[i];
+    if(id!==AIR){
+      const img=document.createElement('img'); img.src=makeBlockIcon(id);
+      const tip=document.createElement('div'); tip.className='inv-slot-tip'; tip.textContent=BLOCK_NAME[id];
+      s.append(img,tip);
+      if(ctCounts[i]>1){const b=document.createElement('span');b.className='slot-count';b.textContent=ctCounts[i];s.append(b);}
+    }
+    s.addEventListener('click',()=>{
+      const si=player.slot;
+      const hId=player.hotbar[si],hCnt=player.hotbarCounts[si];
+      player.hotbar[si]=ctSlots[i];player.hotbarCounts[si]=ctCounts[i];
+      ctSlots[i]=hId;ctCounts[i]=hCnt;
+      buildHotbar();buildCtHotbar();buildCtGrid();
+    });
+    s.addEventListener('contextmenu',e=>{e.preventDefault();ctSlots[i]=AIR;ctCounts[i]=0;buildCtGrid();});
+    gridEl.appendChild(s);
+  }
+  // Output slot
+  const oldTip=outEl.querySelector('.inv-slot-tip');
+  outEl.innerHTML=''; if(oldTip) outEl.appendChild(oldTip);
+  const recipe=computeCtOutput();
+  if(recipe){
+    const img=document.createElement('img'); img.src=makeBlockIcon(recipe.id); img.style.cssText='width:32px;height:32px;image-rendering:pixelated';
+    const tip=document.createElement('div'); tip.className='inv-slot-tip'; tip.textContent=BLOCK_NAME[recipe.id]+' \xd7'+recipe.count;
+    const badge=document.createElement('span'); badge.className='slot-count'; badge.textContent=recipe.count;
+    outEl.append(img,tip,badge);
+    outEl.classList.add('has-output'); outEl.style.cursor='pointer';
+    outEl.onclick=(e)=>{
+      const consume=()=>{
+        const rr=computeCtOutput(); if(!rr) return false;
+        rr.srcSlots.forEach(si=>{ctCounts[si]--;if(ctCounts[si]<=0){ctSlots[si]=AIR;ctCounts[si]=0;}});
+        for(let n=0;n<rr.count;n++) giveBlock(rr.id);
+        return true;
+      };
+      if(e.shiftKey){while(consume()){}}else{consume();}
+      buildHotbar();buildCtHotbar();buildCtInvGrid();buildCtGrid();
+    };
+  } else {
+    const tip=document.createElement('div'); tip.className='inv-slot-tip'; tip.textContent='Output';
+    outEl.appendChild(tip);
+    outEl.classList.remove('has-output'); outEl.style.cursor='default'; outEl.onclick=null;
+  }
+}
+
+function buildCtInvGrid(){
+  const gridEl=document.getElementById('ct-inv-grid'); if(!gridEl) return;
+  gridEl.innerHTML='';
+  player.inventory.forEach((id,i)=>{
+    const s=document.createElement('div'); s.className='inv-slot';
+    if(id!==AIR){
+      const img=document.createElement('img'); img.src=makeBlockIcon(id);
+      const tip=document.createElement('div'); tip.className='inv-slot-tip'; tip.textContent=BLOCK_NAME[id];
+      s.append(img,tip);
+      if(player.inventoryCounts[i]>1){const b=document.createElement('span');b.className='slot-count';b.textContent=player.inventoryCounts[i];s.append(b);}
+    }
+    s.addEventListener('click',()=>{
+      const si=player.slot;
+      const hId=player.hotbar[si],hCnt=player.hotbarCounts[si];
+      player.hotbar[si]=player.inventory[i];player.hotbarCounts[si]=player.inventoryCounts[i];
+      player.inventory[i]=hId;player.inventoryCounts[i]=hCnt;
+      buildHotbar();buildCtHotbar();buildCtInvGrid();
+    });
+    s.addEventListener('contextmenu',e=>{e.preventDefault();player.inventory[i]=AIR;player.inventoryCounts[i]=0;buildCtInvGrid();});
+    gridEl.appendChild(s);
+  });
+}
+
+function buildCtHotbar(){
+  const row=document.getElementById('ct-hotbar-row'); if(!row) return;
+  row.innerHTML='';
+  player.hotbar.forEach((id,i)=>{
+    const s=document.createElement('div'); s.className='inv-slot'+(i===player.slot?' inv-active':'');
+    if(id!==AIR){
+      const img=document.createElement('img'); img.src=makeBlockIcon(id);
+      const tip=document.createElement('div'); tip.className='inv-slot-tip'; tip.textContent=BLOCK_NAME[id];
+      s.append(img,tip);
+      if(player.hotbarCounts[i]>1){const b=document.createElement('span');b.className='slot-count';b.textContent=player.hotbarCounts[i];s.append(b);}
+    }
+    s.addEventListener('click',()=>{player.slot=i;buildHotbar();buildCtHotbar();});
+    row.appendChild(s);
+  });
+}
+
+function openCraftTable(){
+  ctOpen=true;
+  document.exitPointerLock();
+  buildCtGrid();buildCtInvGrid();buildCtHotbar();
+  ctScreenEl.style.display='flex';
+}
+
+function closeCraftTable(){
+  ctOpen=false;
+  ctScreenEl.style.display='none';
+  for(const k in keys) keys[k]=false;
+  if(gameStarted){
+    showHUD(true);
+    const req=canvas.requestPointerLock();
+    if(req&&typeof req.then==='function') req.catch(()=>{showHUD(false);clickHint.style.display='flex';});
+  }
+}
+
 // ── WORLD SAVE / LOAD ─────────────────────────────────────
 // ── MULTI-WORLD SAVE SYSTEM ──────────────────────────────
 const WORLDS_KEY = 'cubecraft_worlds';
@@ -4100,8 +4264,8 @@ function requestLock(){
   const req = canvas.requestPointerLock();
   if(req && typeof req.then === 'function') req.catch(()=>{});
 }
-canvas.addEventListener('click', ()=>{ if(gameReady&&!locked&&!paused&&!chatOpen&&!inventoryOpen&&!giveMenuOpen&&!tpbiomeMenuOpen) requestLock(); });
-clickHint.addEventListener('click', ()=>{ if(!chatOpen&&!inventoryOpen&&!giveMenuOpen&&!tpbiomeMenuOpen) requestLock(); });
+canvas.addEventListener('click', ()=>{ if(gameReady&&!locked&&!paused&&!chatOpen&&!inventoryOpen&&!giveMenuOpen&&!tpbiomeMenuOpen&&!ctOpen) requestLock(); });
+clickHint.addEventListener('click', ()=>{ if(!chatOpen&&!inventoryOpen&&!giveMenuOpen&&!tpbiomeMenuOpen&&!ctOpen) requestLock(); });
 document.getElementById('resume-btn').addEventListener('click', requestLock);
 pauseScreen.addEventListener('click', e=>{ if(e.target===pauseScreen) requestLock(); });
 
@@ -4138,6 +4302,7 @@ document.addEventListener('pointerlockchange',()=>{
     paused=false;
     pauseScreen.style.display='none';
     invScreen.style.display='none';
+    ctScreenEl.style.display='none'; ctOpen=false;
     inventoryOpen=false;
     chatInputWrap.style.display='none';
     chatOpen=false;
@@ -4156,6 +4321,8 @@ document.addEventListener('pointerlockchange',()=>{
     } else if(giveMenuOpen){
       showHUD(false);
     } else if(tpbiomeMenuOpen){
+      showHUD(false);
+    } else if(ctOpen){
       showHUD(false);
     } else if(gameStarted){
       showHUD(false);
@@ -4184,9 +4351,17 @@ canvas.addEventListener('mousedown',e=>{
     mining=true; mineProg=0; mineTarget=null;
     handSwingT=0; // start swing animation
   } else if(e.button===2){
+    const t=getAim();
+
+    // Interact with crafting table
+    if(t && world.getBlock(t.bx,t.by,t.bz)===CRAFT_TABLE){
+      openCraftTable();
+      return;
+    }
+
     const blk=player.selectedBlock;
     if(blk===AIR) return;
-    const t=getAim(); if(!t) return;
+    if(!t) return;
 
     // Spawn egg: spawn mob on the aimed surface
     if(SPAWN_EGG_MOB[blk]){
@@ -4237,6 +4412,7 @@ document.addEventListener('keydown',e=>{
   }
   keys[e.code]=true;
   if(e.code==='Escape'){
+    if(ctOpen){ closeCraftTable(); return; }
     if(giveMenuOpen){ closeGiveMenu(); return; }
     if(tpbiomeMenuOpen){ closeTpbiomeMenu(); return; }
     if(inventoryOpen){ closeInventory(); return; }
@@ -4244,6 +4420,7 @@ document.addEventListener('keydown',e=>{
     else if(paused&&gameStarted) requestLock();
     return;
   }
+  if(e.code==='KeyE' && ctOpen){ e.preventDefault(); closeCraftTable(); return; }
   if(e.code==='KeyE' && inventoryOpen){ e.preventDefault(); closeInventory(); return; }
   if(e.code==='KeyE' && locked && gameStarted && gamemode!=='spectator'){ e.preventDefault(); openInventory(); return; }
   if(e.code==='KeyT' && locked && gameStarted){ e.preventDefault(); openChat(); document.exitPointerLock(); return; }
