@@ -1210,7 +1210,7 @@ class Chunk{
         biome===B_FOREST   ? 6 :
         biome===B_TAIGA    ? 7 :
         biome===B_JUNGLE   ? 6 :
-        biome===B_MOUNTAIN ? 42 : 7;
+        biome===B_MOUNTAIN ? 65 : 7;
 
       let h;
       if(cont < -0.30){
@@ -1277,8 +1277,8 @@ class Chunk{
           b=STONE;
         } else if(y < h){
           if(isMountain){
-            if(h <= SEA+14){
-              b = DIRT; // grassy lower slopes have dirt underneath
+            if(h <= SEA+7){
+              b = DIRT; // tiny grassy foothills have dirt underneath
             } else {
               const mn=noise2(wx2*0.35+133.5,wz2*0.35+244.7);
               b = mn < -0.18 ? GRAVEL : mn < 0.30 ? COBBLESTONE : STONE;
@@ -1290,16 +1290,15 @@ class Chunk{
           if(beach)            b=SAND;
           else if(isMountain){
             const mn=noise2(wx2*0.18+88.2,wz2*0.18+155.4);
-            if(h > SEA+40)       b=CRACKED_STONE;  // very high peaks
-            else if(h > SEA+24){ // upper rocky zone
+            if(h > SEA+48)       b=CRACKED_STONE;  // very high peaks
+            else if(h > SEA+10){ // almost all mountain = rocky
               if(mn < -0.2)      b=GRAVEL;
-              else if(mn <  0.2) b=COBBLESTONE;
-              else               b=MOSSY_COBBLE;
-            } else if(h > SEA+14){ // mid transition: rocky patches + grass
-              if(mn < -0.2)      b=GRAVEL;
-              else if(mn <  0.0) b=COBBLESTONE;
-              else               b=GRASS;
-            } else {             // lower slopes: mostly grass
+              else if(mn <  0.3) b=COBBLESTONE;
+              else if(mn <  0.6) b=MOSSY_COBBLE;
+              else               b=GRASS; // rare grass patches on mid-upper slopes
+            } else if(h > SEA+7){ // thin transition band
+              b = mn > 0.5 ? GRASS : COBBLESTONE;
+            } else {             // only the lowest foothills get grass
               b=GRASS;
             }
           } else if(cliff||peak) b=STONE;
