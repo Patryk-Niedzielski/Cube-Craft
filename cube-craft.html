@@ -3608,8 +3608,11 @@ function attachSlotDrag(el,stype,sidx){
   el.addEventListener('mouseenter',()=>{
     if(!invDrag.active) return;
     if(stype===invDrag.srcType&&sidx===invDrag.srcIdx) return;
-    const d=slotGet(stype,sidx);
-    if(d.id!==AIR&&d.id!==invDrag.item) return;
+    // Right drag: only target empty or same-item slots
+    if(invDrag.btn===2){
+      const d=slotGet(stype,sidx);
+      if(d.id!==AIR&&d.id!==invDrag.item) return;
+    }
     if(!invDrag.targets.find(t=>t.stype===stype&&t.sidx===sidx))
       invDrag.targets.push({stype,sidx}),invDrag.moved=true;
   });
@@ -3836,6 +3839,13 @@ function openInventory(){
 }
 
 function closeInventory(){
+  // Return any items left in the 2×2 crafting grid to the player
+  for(let i=0;i<4;i++){
+    if(craftSlots[i]!==AIR){
+      for(let n=0;n<craftCounts[i];n++) giveBlock(craftSlots[i]);
+      craftSlots[i]=AIR; craftCounts[i]=0;
+    }
+  }
   inventoryOpen=false;
   invScreen.style.display='none';
   for(const k in keys) keys[k]=false;
@@ -4089,6 +4099,13 @@ function openCraftTable(){
 }
 
 function closeCraftTable(){
+  // Return any items left in the 3×3 crafting grid to the player
+  for(let i=0;i<9;i++){
+    if(ctSlots[i]!==AIR){
+      for(let n=0;n<ctCounts[i];n++) giveBlock(ctSlots[i]);
+      ctSlots[i]=AIR; ctCounts[i]=0;
+    }
+  }
   ctOpen=false;
   ctScreenEl.style.display='none';
   for(const k in keys) keys[k]=false;
