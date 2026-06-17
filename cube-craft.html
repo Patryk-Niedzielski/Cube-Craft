@@ -943,12 +943,12 @@ const PLR_W    = 0.4;
 // ── BLOCK IDs ─────────────────────────────────────────────
 const AIR=0,GRASS=1,DIRT=2,STONE=3,WOOD=4,LEAVES=5,SAND=6,BEDROCK=7,WATER=8,FOLIAGE=9,GLASS=10;
 const PIG_EGG=11,COW_EGG=12,WOLF_EGG=13,CAT_EGG=14,CHICKEN_EGG=15,FISH_EGG=16;
-const SNOW=17, PINE_LEAVES=18, FLOWER_RED=19, FLOWER_YELLOW=20, PLANK=21;
+const SNOW=17, PINE_LEAVES=18, FLOWER_RED=19, FLOWER_YELLOW=20, PLANK=21, CRAFT_TABLE=22;
 const SPAWN_EGG_MOB={[PIG_EGG]:'pig',[COW_EGG]:'cow',[WOLF_EGG]:'wolf',[CAT_EGG]:'cat',[CHICKEN_EGG]:'chicken',[FISH_EGG]:'fish'};
 
 const BLOCK_NAME=['Air','Grass','Dirt','Stone','Wood','Leaves','Sand','Bedrock','Water','Tall Grass','Glass',
-  'Pig Egg','Cow Egg','Wolf Egg','Cat Egg','Chicken Egg','Fish Egg','Snow','Pine Leaves','Poppy','Dandelion','Oak Plank'];
-const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3, 0,0,0,0,0,0, 0.2, 0.25, 0.0, 0.0, 0.7];
+  'Pig Egg','Cow Egg','Wolf Egg','Cat Egg','Chicken Egg','Fish Egg','Snow','Pine Leaves','Poppy','Dandelion','Oak Plank','Crafting Table'];
+const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3, 0,0,0,0,0,0, 0.2, 0.25, 0.0, 0.0, 0.7, 1.0];
 const TEX_IDX={
   [GRASS]:   [0,2,1],
   [DIRT]:    [2,2,2],
@@ -971,13 +971,14 @@ const TEX_IDX={
   [FLOWER_RED]:  [20,20,20],
   [FLOWER_YELLOW]:[21,21,21],
   [PLANK]:        [22,22,22],
+  [CRAFT_TABLE]:  [23,22,24],
 };
 // SOLID: player collides with these
 const SOLID=new Uint8Array(256);
-[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,GLASS,SNOW,PINE_LEAVES,PLANK].forEach(id=>SOLID[id]=1);
+[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,GLASS,SNOW,PINE_LEAVES,PLANK,CRAFT_TABLE].forEach(id=>SOLID[id]=1);
 // OPAQUE: completely hides adjacent faces (no leaves, no water)
 const OPAQUE=new Uint8Array(256);
-[GRASS,DIRT,STONE,WOOD,SAND,BEDROCK,SNOW,PLANK].forEach(id=>OPAQUE[id]=1);
+[GRASS,DIRT,STONE,WOOD,SAND,BEDROCK,SNOW,PLANK,CRAFT_TABLE].forEach(id=>OPAQUE[id]=1);
 
 // ── FACE GEOMETRY ─────────────────────────────────────────
 // 't': 0=top,1=bottom,2=side  'sh': directional shade multiplier
@@ -1883,7 +1884,7 @@ hlMesh.visible=false;
 scene.add(hlMesh);
 
 // ── TEXTURE ATLAS (16×16 pixel art, 16 tiles → 256×16 px, power-of-2) ───────
-const N_TILES = 28;
+const N_TILES = 30;
 const TS      = 16;
 const atlasCvs = document.createElement('canvas');
 atlasCvs.width  = TS * N_TILES;  // 256
@@ -2124,6 +2125,39 @@ for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
   tsp(22,x,y,r,g,b);
 }
 
+// Tile 23 — CRAFTING TABLE TOP (tan base, darker 2×2 grid lines, tool marks)
+(()=>{
+  for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+    const grain=(th(23*TS+x,y)*10)|0;
+    let r=170+grain, g=128+(grain>>1), b=78+(grain>>2);
+    // Grid lines dividing the 2×2 crafting surface
+    if(x===7||x===8||y===7||y===8){r=90;g=62;b=36;}
+    tsp(23,x,y,r,g,b);
+  }
+  // Top-left quadrant: axe silhouette
+  [[2,2],[3,2],[4,2],[5,2],[3,3],[4,3],[2,4],[3,4],[2,5]].forEach(([x,y])=>tsp(23,x,y,60,38,20));
+  // Top-right quadrant: saw line
+  [[10,2],[11,2],[12,2],[13,2],[10,3],[12,3],[10,4],[11,4],[13,4]].forEach(([x,y])=>tsp(23,x,y,60,38,20));
+  // Bottom-left: plank strip
+  [[2,10],[3,10],[4,10],[5,10],[6,10],[2,11],[3,11],[4,11],[5,11],[6,11]].forEach(([x,y])=>tsp(23,x,y,140,100,58));
+  // Bottom-right: hammer head
+  [[10,10],[11,10],[12,10],[10,11],[11,11],[12,11],[11,12],[11,13]].forEach(([x,y])=>tsp(23,x,y,60,38,20));
+})();
+
+// Tile 24 — CRAFTING TABLE SIDE (plank with darker top stripe + centre line)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const sep=y%4===3, edge=y%4===0;
+  const grain=(th(24*TS+x,y)*12)|0;
+  let r=178+grain, g=138+(grain>>1), b=90+(grain>>2);
+  if(sep){r=110;g=80;b=48;}
+  else if(edge){r=Math.min(255,r+10);g=Math.min(255,g+8);b=Math.min(255,b+6);}
+  // Darker top strip (table edge)
+  if(y<=1){r=100;g=70;b=40;}
+  // Vertical centre mark
+  if((x===7||x===8)&&y>1&&y<14){r=Math.max(0,r-28);g=Math.max(0,g-22);b=Math.max(0,b-14);}
+  tsp(24,x,y,r,g,b);
+}
+
 const atlasTexture = new THREE.CanvasTexture(atlasCvs);
 atlasTexture.magFilter     = THREE.NearestFilter;  // crisp pixels, no blurring
 atlasTexture.minFilter     = THREE.NearestFilter;
@@ -2234,6 +2268,7 @@ const BREAK_SND = {
   [FLOWER_RED]:  [{f:'bandpass',hz:500, q:0.9, v:0.20, d:0.08}],
   [FLOWER_YELLOW]:[{f:'bandpass',hz:500, q:0.9, v:0.20, d:0.08}],
   [PLANK]:        [{f:'bandpass',hz:380, q:0.8, v:0.28, d:0.14}],
+  [CRAFT_TABLE]:  [{f:'bandpass',hz:360, q:0.8, v:0.30, d:0.16}],
 };
 
 function playBreakSound(blockId){
@@ -2280,6 +2315,7 @@ const PLACE_SND = {
   [FLOWER_RED]:  {f:'bandpass', hz:380, q:0.8, v:0.16, d:0.06},
   [FLOWER_YELLOW]:{f:'bandpass',hz:380, q:0.8, v:0.16, d:0.06},
   [PLANK]:        {f:'bandpass', hz:300, q:0.7, v:0.22, d:0.10},
+  [CRAFT_TABLE]:  {f:'bandpass', hz:280, q:0.7, v:0.24, d:0.12},
 };
 function playPlaceSound(blockId){
   const sp = PLACE_SND[blockId] || PLACE_SND[STONE];
@@ -3128,7 +3164,7 @@ let worldMods=new Map(), trackingMods=false;
 let _lastSpaceTime=0, _suppressSpaceFly=false;
 const CREATIVE_PAGE_SIZE=27;
 const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,LEAVES,PINE_LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS,SNOW,
-  FLOWER_RED,FLOWER_YELLOW,PLANK,PIG_EGG,COW_EGG,WOLF_EGG,CAT_EGG,CHICKEN_EGG,FISH_EGG];
+  FLOWER_RED,FLOWER_YELLOW,PLANK,CRAFT_TABLE,PIG_EGG,COW_EGG,WOLF_EGG,CAT_EGG,CHICKEN_EGG,FISH_EGG];
 const DEFAULT_HOTBAR=new Array(9).fill(AIR);
 let showDbg=false;
 // Mining
@@ -3396,14 +3432,22 @@ function closeChat(){
 // Crafting grid state (2×2)
 const craftSlots=[AIR,AIR,AIR,AIR], craftCounts=[0,0,0,0];
 
+// type:'any'    — one ingredient in any single slot
+// type:'full2x2' — all 4 slots must hold the same ingredient
 const CRAFT_RECIPES=[
-  {in:WOOD, out:PLANK, outCount:4},
+  {type:'full2x2', in:PLANK, out:CRAFT_TABLE, outCount:1},
+  {type:'any',     in:WOOD,  out:PLANK,       outCount:4},
 ];
 
 function computeCraftOutput(){
   for(const rec of CRAFT_RECIPES){
-    for(let i=0;i<4;i++){
-      if(craftSlots[i]===rec.in) return {id:rec.out, count:rec.outCount, srcSlot:i};
+    if(rec.type==='full2x2'){
+      if(craftSlots.every(id=>id===rec.in&&id!==AIR))
+        return {id:rec.out, count:rec.outCount, srcSlots:[0,1,2,3]};
+    } else {
+      for(let i=0;i<4;i++){
+        if(craftSlots[i]===rec.in) return {id:rec.out, count:rec.outCount, srcSlots:[i]};
+      }
     }
   }
   return null;
@@ -3448,20 +3492,16 @@ function buildCraftGrid(){
     outEl.classList.add('has-output');
     outEl.style.cursor='pointer';
     outEl.onclick=(e)=>{
-      const r=computeCraftOutput();if(!r)return;
-      if(e.shiftKey){
-        // Craft all possible at once
-        while(true){
-          const rr=computeCraftOutput();if(!rr)break;
-          craftCounts[rr.srcSlot]--;
-          if(craftCounts[rr.srcSlot]<=0){craftSlots[rr.srcSlot]=AIR;craftCounts[rr.srcSlot]=0;}
-          for(let n=0;n<rr.count;n++) giveBlock(rr.id);
-        }
-      } else {
-        craftCounts[r.srcSlot]--;
-        if(craftCounts[r.srcSlot]<=0){craftSlots[r.srcSlot]=AIR;craftCounts[r.srcSlot]=0;}
-        for(let n=0;n<r.count;n++) giveBlock(r.id);
-      }
+      const consume=()=>{
+        const rr=computeCraftOutput();if(!rr)return false;
+        rr.srcSlots.forEach(si=>{
+          craftCounts[si]--;
+          if(craftCounts[si]<=0){craftSlots[si]=AIR;craftCounts[si]=0;}
+        });
+        for(let n=0;n<rr.count;n++) giveBlock(rr.id);
+        return true;
+      };
+      if(e.shiftKey){ while(consume()){} } else { consume(); }
       buildHotbar();buildInvHotbar();buildCraftGrid();
     };
   } else {
