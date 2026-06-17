@@ -3620,26 +3620,39 @@ function _updateCursorItem(x,y){
   _ciEl.style.top  = (y-16)+'px';
 }
 function _dropCursorItem(stype,sidx){
-  // Returns true if the drop mutated any slot
   const d=slotGet(stype,sidx);
+  const srcD=slotGet(cursorItem.srcType,cursorItem.srcIdx);
   if(stype===cursorItem.srcType&&sidx===cursorItem.srcIdx){
-    // Dropped back on source → return
-    slotSet(stype,sidx,cursorItem.id,cursorItem.count,cursorItem.dur);
+    // Dropped back on source: merge cursor count with whatever remains there
+    slotSet(stype,sidx,cursorItem.id,srcD.cnt+cursorItem.count,cursorItem.dur);
+    cursorItem=null; _ciEl.style.display='none'; invDragRebuild();
   } else if(d.id===AIR||d.id===cursorItem.id){
     // Empty or same type → merge
     const total=(d.id===AIR?0:d.cnt)+cursorItem.count;
     const dst=Math.min(64,total), rem=total-dst;
     slotSet(stype,sidx,cursorItem.id,dst,cursorItem.dur);
-    if(rem>0) slotSet(cursorItem.srcType,cursorItem.srcIdx,cursorItem.id,rem,cursorItem.dur);
-    else       slotSet(cursorItem.srcType,cursorItem.srcIdx,AIR,0);
+    if(rem>0){
+      // Merge overflow with whatever is already at source (handles single-click leftover)
+      const srcNew=(srcD.id===cursorItem.id?srcD.cnt:0)+rem;
+      slotSet(cursorItem.srcType,cursorItem.srcIdx,cursorItem.id,srcNew,cursorItem.dur);
+    }
+    // rem===0: never touch source — it may still have items from a single-click pick-up
+    cursorItem=null; _ciEl.style.display='none'; invDragRebuild();
   } else {
-    // Different item → swap
+    // Different item → swap cursor into target
     slotSet(stype,sidx,cursorItem.id,cursorItem.count,cursorItem.dur);
-    slotSet(cursorItem.srcType,cursorItem.srcIdx,d.id,d.cnt,d.dur);
+    if(srcD.id===AIR||srcD.cnt===0){
+      // Source is empty (hold-drag): classic swap — displaced item goes back to source
+      slotSet(cursorItem.srcType,cursorItem.srcIdx,d.id,d.cnt,d.dur);
+      cursorItem=null; _ciEl.style.display='none'; invDragRebuild();
+    } else {
+      // Source still has items (single-click): pick up the displaced item as new cursor
+      cursorItem={id:d.id,count:d.cnt,dur:d.dur,srcType:stype,srcIdx:sidx};
+      document.getElementById('cursor-item-img').src=makeBlockIcon(cursorItem.id);
+      document.getElementById('cursor-item-count').textContent=cursorItem.count>1?cursorItem.count:'';
+      invDragRebuild();
+    }
   }
-  cursorItem=null;
-  _ciEl.style.display='none';
-  invDragRebuild();
 }
 
 let _dragStart=null; // {stype,sidx,x,y} — set on mousedown, cleared on mouseup
