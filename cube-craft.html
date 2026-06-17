@@ -1207,7 +1207,7 @@ class Chunk{
       // Foothill blend: gentle rise in the narrow band just before mountain border
       const foothillBlend = biome!==B_MOUNTAIN ? Math.max(0,(elevLocal-0.14)/0.04) : 0;
       // Mountain depth: 0 at biome edge → 1 deep inside mountain → smooth approach
-      const mountDepth = biome===B_MOUNTAIN ? Math.min(1, Math.max(0, elevLocal-0.18)/0.30) : 0;
+      const mountDepth = biome===B_MOUNTAIN ? Math.min(1, Math.max(0, elevLocal-0.18)/0.42) : 0;
       const hillScaleBase =
         biome===B_DESERT   ? 4 :
         biome===B_TUNDRA   ? 3 :
@@ -1215,7 +1215,7 @@ class Chunk{
         biome===B_FOREST   ? 6 :
         biome===B_TAIGA    ? 7 :
         biome===B_JUNGLE   ? 6 : 5;
-      const hillScale = biome===B_MOUNTAIN ? 320 : hillScaleBase + foothillBlend*14;
+      const hillScale = biome===B_MOUNTAIN ? 160 : hillScaleBase + foothillBlend*14;
 
       // Mountains: mountDepth (0 at biome edge → 1 at center) drives the shape via a
       // concave power curve — slope starts gentle at the base and steepens near the peak.
