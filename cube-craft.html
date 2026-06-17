@@ -1871,6 +1871,7 @@ class Player{
             const dmg=Math.round((fell-3)*this.maxHp/29);
             this.hp=Math.max(1, this.hp-dmg);  // survive but with 1 HP minimum
             _screenShakeT=0.2; _screenShakeMag=fell/32;
+            buildHealth();
           }
         }
         this._peakY=this.pos.y;
