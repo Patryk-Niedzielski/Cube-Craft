@@ -1210,7 +1210,7 @@ class Chunk{
         biome===B_FOREST   ? 6 :
         biome===B_TAIGA    ? 7 :
         biome===B_JUNGLE   ? 6 :
-        biome===B_MOUNTAIN ? 22 : 7;
+        biome===B_MOUNTAIN ? 42 : 7;
 
       let h;
       if(cont < -0.30){
@@ -1277,8 +1277,12 @@ class Chunk{
           b=STONE;
         } else if(y < h){
           if(isMountain){
-            const mn=noise2(wx2*0.35+133.5,wz2*0.35+244.7);
-            b = mn < -0.18 ? GRAVEL : mn < 0.30 ? COBBLESTONE : STONE;
+            if(h <= SEA+14){
+              b = DIRT; // grassy lower slopes have dirt underneath
+            } else {
+              const mn=noise2(wx2*0.35+133.5,wz2*0.35+244.7);
+              b = mn < -0.18 ? GRAVEL : mn < 0.30 ? COBBLESTONE : STONE;
+            }
           } else {
             b=(cliff||peak) ? STONE : (isDesert ? SAND : DIRT);
           }
@@ -1286,10 +1290,18 @@ class Chunk{
           if(beach)            b=SAND;
           else if(isMountain){
             const mn=noise2(wx2*0.18+88.2,wz2*0.18+155.4);
-            if(h > SEA+30)     b=CRACKED_STONE;
-            else if(mn < -0.2) b=GRAVEL;
-            else if(mn <  0.2) b=COBBLESTONE;
-            else               b=MOSSY_COBBLE;
+            if(h > SEA+40)       b=CRACKED_STONE;  // very high peaks
+            else if(h > SEA+24){ // upper rocky zone
+              if(mn < -0.2)      b=GRAVEL;
+              else if(mn <  0.2) b=COBBLESTONE;
+              else               b=MOSSY_COBBLE;
+            } else if(h > SEA+14){ // mid transition: rocky patches + grass
+              if(mn < -0.2)      b=GRAVEL;
+              else if(mn <  0.0) b=COBBLESTONE;
+              else               b=GRASS;
+            } else {             // lower slopes: mostly grass
+              b=GRASS;
+            }
           } else if(cliff||peak) b=STONE;
           else if(isDesert)    b=SAND;
           else if(isSnowy)     b=SNOW;
@@ -1313,8 +1325,8 @@ class Chunk{
       const surfBlk = this.data[this.idx(x,h,z)];
       const n = noise2((ox+x)*0.22,(oz+z)*0.22);
 
-      // Desert / Mountain: no trees
-      if(biome===B_DESERT || biome===B_MOUNTAIN) continue;
+      // Desert: no trees
+      if(biome===B_DESERT) continue;
 
       // Density thresholds (lower = more trees)
       const thresh =
@@ -1396,7 +1408,7 @@ class Chunk{
       const h     = hmap[x*CHUNK+z];
       const biome = bmap[x*CHUNK+z];
       if(h<=SEA+1 || h>SEA+30) continue;
-      if(biome===B_DESERT || biome===B_TUNDRA || biome===B_MOUNTAIN) continue;
+      if(biome===B_DESERT || biome===B_TUNDRA) continue;
       if(this.data[this.idx(x,h,z)]!==GRASS) continue;
       if(this.data[this.idx(x,h+1,z)]!==AIR) continue;
       // Jungle/forest denser, plains sparse
@@ -1411,7 +1423,7 @@ class Chunk{
       const h     = hmap[x*CHUNK+z];
       const biome = bmap[x*CHUNK+z];
       if(h<=SEA+1 || h>SEA+30) continue;
-      if(biome===B_DESERT || biome===B_TUNDRA || biome===B_MOUNTAIN) continue;
+      if(biome===B_DESERT || biome===B_TUNDRA) continue;
       if(this.data[this.idx(x,h,z)]!==GRASS) continue;
       if(this.data[this.idx(x,h+1,z)]!==AIR) continue;
       // Use a separate noise frequency so flowers don't align with foliage
