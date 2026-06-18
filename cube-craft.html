@@ -1019,6 +1019,8 @@ const GRAVEL=26, COBBLESTONE=27, MOSSY_COBBLE=28, CRACKED_STONE=29;
 const WHITE_WOOL=30, ORANGE_WOOL=31, MAGENTA_WOOL=32, LIGHT_BLUE_WOOL=33, YELLOW_WOOL=34, LIME_WOOL=35;
 const PINK_WOOL=36, GRAY_WOOL=37, LIGHT_GRAY_WOOL=38, CYAN_WOOL=39, PURPLE_WOOL=40, BLUE_WOOL=41;
 const BROWN_WOOL=42, GREEN_WOOL=43, RED_WOOL=44, BLACK_WOOL=45;
+const PINE_LOG=46, PINE_PLANK=47;
+const OAK_DOOR=48, OAK_DOOR_TOP=49, PINE_DOOR=50, PINE_DOOR_TOP=51;
 
 // ── TOOL SYSTEM CONSTANTS ─────────────────────────────────
 const NEEDS_PICK  = new Set([STONE, COBBLESTONE, MOSSY_COBBLE, CRACKED_STONE]); // blocks that require a pickaxe
@@ -1029,10 +1031,16 @@ const UNSTACKABLE = new Set([WOOD_PICK, STONE_PICK]);    // these never stack
 const FLAT_ITEMS  = new Set([STICK, WOOD_PICK, STONE_PICK]); // rendered as 2D sprites
 const SPAWN_EGG_MOB={[PIG_EGG]:'pig',[COW_EGG]:'cow',[WOLF_EGG]:'wolf',[CAT_EGG]:'cat',[CHICKEN_EGG]:'chicken',[FISH_EGG]:'fish'};
 
-const BLOCK_NAME=['Air','Grass','Dirt','Stone','Wood','Leaves','Sand','Bedrock','Water','Tall Grass','Glass',
+const BLOCK_NAME=['Air','Grass','Dirt','Stone','Oak Log','Leaves','Sand','Bedrock','Water','Tall Grass','Glass',
   'Pig Egg','Cow Egg','Wolf Egg','Cat Egg','Chicken Egg','Fish Egg','Snow','Pine Leaves','Poppy','Dandelion','Oak Plank','Crafting Table',
-  'Stick','Wooden Pickaxe','Stone Pickaxe','Gravel','Cobblestone','Mossy Cobblestone','Cracked Stone'];
-const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3, 0,0,0,0,0,0, 0.2, 0.25, 0.0, 0.0, 0.7, 1.0, 0,0,0, 0.6, 1.0, 1.0, 1.1];
+  'Stick','Wooden Pickaxe','Stone Pickaxe','Gravel','Cobblestone','Mossy Cobblestone','Cracked Stone',
+  'White Wool','Orange Wool','Magenta Wool','Light Blue Wool','Yellow Wool','Lime Wool',
+  'Pink Wool','Gray Wool','Light Gray Wool','Cyan Wool','Purple Wool','Blue Wool',
+  'Brown Wool','Green Wool','Red Wool','Black Wool',
+  'Pine Log','Pine Plank','Oak Door','Oak Door','Pine Door','Pine Door'];
+const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3, 0,0,0,0,0,0, 0.2, 0.25, 0.0, 0.0, 0.7, 1.0, 0,0,0, 0.6, 1.0, 1.0, 1.1,
+  0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4, // wool 30-45
+  1.2, 0.7, 0.8, 0.8, 0.8, 0.8]; // pine log, pine plank, oak door, oak door top, pine door, pine door top
 const TEX_IDX={
   [GRASS]:   [0,2,1],
   [DIRT]:    [2,2,2],
@@ -1079,19 +1087,27 @@ const TEX_IDX={
   [GREEN_WOOL]:      [45,45,45],
   [RED_WOOL]:        [46,46,46],
   [BLACK_WOOL]:      [47,47,47],
+  [PINE_LOG]:        [49,49,48],
+  [PINE_PLANK]:      [50,50,50],
+  [OAK_DOOR]:        [51,51,51],
+  [OAK_DOOR_TOP]:    [51,51,51],
+  [PINE_DOOR]:       [52,52,52],
+  [PINE_DOOR_TOP]:   [52,52,52],
 };
 // SOLID: player collides with these
 const SOLID=new Uint8Array(256);
 [GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,GLASS,SNOW,PINE_LEAVES,PLANK,CRAFT_TABLE,GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE,
   WHITE_WOOL,ORANGE_WOOL,MAGENTA_WOOL,LIGHT_BLUE_WOOL,YELLOW_WOOL,LIME_WOOL,
   PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
-  BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL].forEach(id=>SOLID[id]=1);
+  BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL,
+  PINE_LOG,PINE_PLANK,OAK_DOOR,OAK_DOOR_TOP,PINE_DOOR,PINE_DOOR_TOP].forEach(id=>SOLID[id]=1);
 // OPAQUE: completely hides adjacent faces (no leaves, no water)
 const OPAQUE=new Uint8Array(256);
 [GRASS,DIRT,STONE,WOOD,SAND,BEDROCK,SNOW,PLANK,CRAFT_TABLE,GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE,
   WHITE_WOOL,ORANGE_WOOL,MAGENTA_WOOL,LIGHT_BLUE_WOOL,YELLOW_WOOL,LIME_WOOL,
   PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
-  BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL].forEach(id=>OPAQUE[id]=1);
+  BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL,
+  PINE_LOG,PINE_PLANK,OAK_DOOR,OAK_DOOR_TOP,PINE_DOOR,PINE_DOOR_TOP].forEach(id=>OPAQUE[id]=1);
 
 // ── FACE GEOMETRY ─────────────────────────────────────────
 // 't': 0=top,1=bottom,2=side  'sh': directional shade multiplier
@@ -1378,7 +1394,7 @@ class Chunk{
         // ── PINE TREE: tall trunk, layered triangular canopy ──
         const treeH = 8+Math.floor(noise2((ox+x)*1.2,(oz+z)*1.6)*4);
         for(let ty=h+1;ty<=h+treeH&&ty<HEIGHT;ty++)
-          this.data[this.idx(x,ty,z)]=WOOD;
+          this.data[this.idx(x,ty,z)]=PINE_LOG;
         // Layered pine canopy — 3 tiers from bottom, shrinking
         const tiers=[[3,h+treeH-5],[2,h+treeH-3],[1,h+treeH-1]];
         for(const [rad,base] of tiers){
@@ -2073,7 +2089,7 @@ hlMesh.visible=false;
 scene.add(hlMesh);
 
 // ── TEXTURE ATLAS (16×16 pixel art, 16 tiles → 256×16 px, power-of-2) ───────
-const N_TILES = 48;
+const N_TILES = 53;
 const TS      = 16;
 const atlasCvs = document.createElement('canvas');
 atlasCvs.width  = TS * N_TILES;  // 256
@@ -2436,6 +2452,48 @@ WOOL_BASE_COLORS.forEach(([r,g,b],i)=>{
   }
 });
 
+// Tile 48 — PINE_LOG bark (sides): dark reddish-brown vertical grain
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const n=th(48*TS+x,y);
+  const grain=(x*3+y)%7===0||(x*5+y*2)%11===0;
+  if(grain) tsp(48,x,y, 62,38,18);
+  else if(n<0.25) tsp(48,x,y, 76,46,22);
+  else tpal(48,x,y,[[98,60,30],[106,66,34],[90,54,26]]);
+}
+// Tile 49 — PINE_LOG end grain (top/bottom): concentric rings
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const cx=x-7.5, cy=y-7.5, r=Math.sqrt(cx*cx+cy*cy);
+  const ring=Math.floor(r*0.85)%2;
+  if(r>7.2) tsp(49,x,y, 62,38,18);
+  else if(ring===0) tpal(49,x,y,[[108,68,36],[100,62,32],[116,74,40]]);
+  else tpal(49,x,y,[[86,52,24],[80,48,20],[92,56,28]]);
+}
+// Tile 50 — PINE_PLANK: warm golden horizontal planks
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const n=th(50*TS+x,y);
+  const grout=y%4===0;
+  if(grout) tsp(50,x,y, 128,94,42);
+  else tpal(50,x,y,[[186,140,70],[176,132,62],[194,148,76],[168,126,56]]);
+}
+// Tile 51 — OAK_DOOR: dark oak door panel
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const frame=x===0||x===15||y===0||y===15||y===7||y===8;
+  const panel=(x>=2&&x<=13)&&((y>=2&&y<=6)||(y>=9&&y<=13));
+  const n=th(51*TS+x,y);
+  if(frame) tsp(51,x,y, 68,42,14);
+  else if(panel) tpal(51,x,y,[[80,50,18],[74,46,16],[86,54,20]]);
+  else tpal(51,x,y,[[102,66,28],[96,60,24],[110,72,32]]);
+}
+// Tile 52 — PINE_DOOR: lighter pine door panel
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const frame=x===0||x===15||y===0||y===15||y===7||y===8;
+  const panel=(x>=2&&x<=13)&&((y>=2&&y<=6)||(y>=9&&y<=13));
+  const n=th(52*TS+x,y);
+  if(frame) tsp(52,x,y, 118,86,36);
+  else if(panel) tpal(52,x,y,[[130,96,46],[124,90,42],[136,102,50]]);
+  else tpal(52,x,y,[[158,118,56],[150,111,50],[166,125,62]]);
+}
+
 const atlasTexture = new THREE.CanvasTexture(atlasCvs);
 atlasTexture.magFilter     = THREE.NearestFilter;  // crisp pixels, no blurring
 atlasTexture.minFilter     = THREE.NearestFilter;
@@ -2553,6 +2611,13 @@ const BREAK_SND = {
   [MOSSY_COBBLE]: [{f:'bandpass',hz:1200,q:2.8, v:0.45, d:0.10}],
   [CRACKED_STONE]:[{f:'bandpass',hz:1600,q:3.5, v:0.52, d:0.08},
                    {f:'lowpass', hz:160, q:0.5, v:0.22, d:0.06}],
+  [PINE_LOG]:      [{f:'bandpass',hz:760, q:2.2, v:0.48, d:0.13},
+                    {f:'lowpass', hz:140, q:0.5, v:0.22, d:0.09}],
+  [PINE_PLANK]:    [{f:'bandpass',hz:380, q:0.8, v:0.28, d:0.14}],
+  [OAK_DOOR]:      [{f:'bandpass',hz:420, q:1.0, v:0.35, d:0.16}],
+  [OAK_DOOR_TOP]:  [{f:'bandpass',hz:420, q:1.0, v:0.35, d:0.16}],
+  [PINE_DOOR]:     [{f:'bandpass',hz:460, q:1.0, v:0.33, d:0.15}],
+  [PINE_DOOR_TOP]: [{f:'bandpass',hz:460, q:1.0, v:0.33, d:0.15}],
 };
 
 function playBreakSound(blockId){
@@ -2600,6 +2665,10 @@ const PLACE_SND = {
   [FLOWER_YELLOW]:{f:'bandpass',hz:380, q:0.8, v:0.16, d:0.06},
   [PLANK]:        {f:'bandpass', hz:300, q:0.7, v:0.22, d:0.10},
   [CRAFT_TABLE]:  {f:'bandpass', hz:280, q:0.7, v:0.24, d:0.12},
+  [PINE_LOG]:     {f:'bandpass', hz:580, q:1.8, v:0.38, d:0.08},
+  [PINE_PLANK]:   {f:'bandpass', hz:300, q:0.7, v:0.22, d:0.10},
+  [OAK_DOOR]:     {f:'bandpass', hz:340, q:0.8, v:0.28, d:0.12},
+  [PINE_DOOR]:    {f:'bandpass', hz:370, q:0.8, v:0.26, d:0.11},
 };
 function playPlaceSound(blockId){
   const sp = PLACE_SND[blockId] || PLACE_SND[STONE];
@@ -3453,9 +3522,10 @@ let cheatsEnabled=false;
 let worldMods=new Map(), trackingMods=false;
 let _lastSpaceTime=0, _suppressSpaceFly=false;
 const CREATIVE_PAGE_SIZE=27;
-const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,LEAVES,PINE_LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS,SNOW,
-  FLOWER_RED,FLOWER_YELLOW,PLANK,CRAFT_TABLE,STICK,WOOD_PICK,STONE_PICK,
+const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,PINE_LOG,LEAVES,PINE_LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS,SNOW,
+  FLOWER_RED,FLOWER_YELLOW,PLANK,PINE_PLANK,CRAFT_TABLE,STICK,WOOD_PICK,STONE_PICK,
   GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE,
+  OAK_DOOR,PINE_DOOR,
   WHITE_WOOL,ORANGE_WOOL,MAGENTA_WOOL,LIGHT_BLUE_WOOL,YELLOW_WOOL,LIME_WOOL,
   PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
   BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL,
@@ -3745,8 +3815,9 @@ const craftSlots=[AIR,AIR,AIR,AIR], craftCounts=[0,0,0,0];
 // type:'any'    — one ingredient in any single slot
 // type:'full2x2' — all 4 slots must hold the same ingredient
 const CRAFT_RECIPES=[
-  {type:'full2x2', in:PLANK, out:CRAFT_TABLE, outCount:1},
-  {type:'any',     in:WOOD,  out:PLANK,       outCount:4},
+  {type:'full2x2', in:PLANK,    out:CRAFT_TABLE, outCount:1},
+  {type:'any',     in:WOOD,     out:PLANK,       outCount:4},
+  {type:'any',     in:PINE_LOG, out:PINE_PLANK,  outCount:4},
 ];
 
 function computeCraftOutput(){
@@ -4272,6 +4343,12 @@ const CT_RECIPES=[
   {pattern:[PLANK,PLANK,PLANK, AIR,STICK,AIR, AIR,STICK,AIR], out:WOOD_PICK, outCount:1},
   // Stone Pickaxe: same shape with stone
   {pattern:[STONE,STONE,STONE, AIR,STICK,AIR, AIR,STICK,AIR], out:STONE_PICK, outCount:1},
+  // Oak Door: 6 oak planks in 2×3 (cols 0+1 or cols 1+2)
+  {pattern:[PLANK,PLANK,AIR, PLANK,PLANK,AIR, PLANK,PLANK,AIR], out:OAK_DOOR, outCount:3},
+  {pattern:[AIR,PLANK,PLANK, AIR,PLANK,PLANK, AIR,PLANK,PLANK], out:OAK_DOOR, outCount:3},
+  // Pine Door: 6 pine planks in 2×3
+  {pattern:[PINE_PLANK,PINE_PLANK,AIR, PINE_PLANK,PINE_PLANK,AIR, PINE_PLANK,PINE_PLANK,AIR], out:PINE_DOOR, outCount:3},
+  {pattern:[AIR,PINE_PLANK,PINE_PLANK, AIR,PINE_PLANK,PINE_PLANK, AIR,PINE_PLANK,PINE_PLANK], out:PINE_DOOR, outCount:3},
 ];
 
 function computeCtOutput(){
@@ -5002,12 +5079,16 @@ canvas.addEventListener('mousedown',e=>{
     const py=replaceable?t.by:t.by+t.ny;
     const pz=replaceable?t.bz:t.bz+t.nz;
     if(py<0||py>=HEIGHT) return;
+    // Doors need an empty block above
+    if((blk===OAK_DOOR||blk===PINE_DOOR) && world.getBlock(px,py+1,pz)!==AIR) return;
     // Don't place inside player AABB
     const p=player.pos, hw=PLR_W+0.1;
     if(px>=Math.floor(p.x-hw)&&px<Math.ceil(p.x+hw)&&
        py>=Math.floor(p.y)&&py<Math.ceil(p.y+PLR_H)&&
        pz>=Math.floor(p.z-hw)&&pz<Math.ceil(p.z+hw)) return;
     world.setBlock(px,py,pz,blk);
+    if(blk===OAK_DOOR&&py+1<HEIGHT) world.setBlock(px,py+1,pz,OAK_DOOR_TOP);
+    if(blk===PINE_DOOR&&py+1<HEIGHT) world.setBlock(px,py+1,pz,PINE_DOOR_TOP);
     playPlaceSound(blk);
     handPlaceT=0;
     if(gamemode==='survival'){
@@ -5328,10 +5409,15 @@ function loop(t){
         if(pct>=1){
           playBreakSound(id);
           world.setBlock(aim.bx,aim.by,aim.bz,AIR);
+          // Door tops drop their bottom-half item; door bottoms silently remove top
+          let dropId = id;
+          if(id===OAK_DOOR_TOP)  { dropId=OAK_DOOR;  world.setBlock(aim.bx,aim.by-1,aim.bz,AIR); }
+          if(id===PINE_DOOR_TOP) { dropId=PINE_DOOR; world.setBlock(aim.bx,aim.by-1,aim.bz,AIR); }
+          if(id===OAK_DOOR||id===PINE_DOOR) world.setBlock(aim.bx,aim.by+1,aim.bz,AIR);
           if(gamemode==='survival' && id!==AIR){
             // Needs-pick blocks only drop with the correct tool
             if(!NEEDS_PICK.has(id) || IS_PICK.has(held))
-              spawnDroppedItem(id,aim.bx+0.5,aim.by+0.5,aim.bz+0.5);
+              spawnDroppedItem(dropId,aim.bx+0.5,aim.by+0.5,aim.bz+0.5);
             // Consume pickaxe durability
             if(NEEDS_PICK.has(id) && IS_PICK.has(held)){
               const si=player.slot;
