@@ -1610,12 +1610,41 @@ class World{
       if(id===AIR) continue;
 
       if(id===BOWL||id===WATER_BOWL||id===FOOD_BOWL){
-        // Flat ground tile — horizontal quad lying on the block surface
+        // 3D shallow slab: 0.8×0.28×0.8, centered in block
         const ci=TEX_IDX[id][0];
+        const u0=ci/N_TILES, u1=(ci+1)/N_TILES;
+        const bx0=ox+x+0.1, bx1=ox+x+0.9;
+        const by0=y, by1=y+0.28;
+        const bz0=oz+z+0.1, bz1=oz+z+0.9;
+        // top face (bright)
         fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
-        fpos.push(ox+x+0.1,y+0.06,oz+z+0.1, ox+x+0.9,y+0.06,oz+z+0.1, ox+x+0.9,y+0.06,oz+z+0.9, ox+x+0.1,y+0.06,oz+z+0.9);
-        fuv.push(ci/N_TILES,0, (ci+1)/N_TILES,0, (ci+1)/N_TILES,1, ci/N_TILES,1);
-        fcol.push(0.92,0.92,0.92, 0.92,0.92,0.92, 0.92,0.92,0.92, 0.92,0.92,0.92);
+        fpos.push(bx0,by1,bz0, bx1,by1,bz0, bx1,by1,bz1, bx0,by1,bz1);
+        fuv.push(u0,0, u1,0, u1,1, u0,1);
+        fcol.push(1.0,1.0,1.0, 1.0,1.0,1.0, 1.0,1.0,1.0, 1.0,1.0,1.0);
+        fvi+=4;
+        // front face (z0)
+        fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
+        fpos.push(bx0,by0,bz0, bx1,by0,bz0, bx1,by1,bz0, bx0,by1,bz0);
+        fuv.push(u0,0, u1,0, u1,1, u0,1);
+        fcol.push(0.82,0.82,0.82, 0.82,0.82,0.82, 0.82,0.82,0.82, 0.82,0.82,0.82);
+        fvi+=4;
+        // back face (z1)
+        fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
+        fpos.push(bx1,by0,bz1, bx0,by0,bz1, bx0,by1,bz1, bx1,by1,bz1);
+        fuv.push(u0,0, u1,0, u1,1, u0,1);
+        fcol.push(0.82,0.82,0.82, 0.82,0.82,0.82, 0.82,0.82,0.82, 0.82,0.82,0.82);
+        fvi+=4;
+        // left face (x0)
+        fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
+        fpos.push(bx0,by0,bz1, bx0,by0,bz0, bx0,by1,bz0, bx0,by1,bz1);
+        fuv.push(u0,0, u1,0, u1,1, u0,1);
+        fcol.push(0.72,0.72,0.72, 0.72,0.72,0.72, 0.72,0.72,0.72, 0.72,0.72,0.72);
+        fvi+=4;
+        // right face (x1)
+        fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
+        fpos.push(bx1,by0,bz0, bx1,by0,bz1, bx1,by1,bz1, bx1,by1,bz0);
+        fuv.push(u0,0, u1,0, u1,1, u0,1);
+        fcol.push(0.72,0.72,0.72, 0.72,0.72,0.72, 0.72,0.72,0.72, 0.72,0.72,0.72);
         fvi+=4;
         continue;
       }
