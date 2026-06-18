@@ -1107,7 +1107,8 @@ const OPAQUE=new Uint8Array(256);
   WHITE_WOOL,ORANGE_WOOL,MAGENTA_WOOL,LIGHT_BLUE_WOOL,YELLOW_WOOL,LIME_WOOL,
   PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
   BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL,
-  PINE_LOG,PINE_PLANK,OAK_DOOR,OAK_DOOR_TOP,PINE_DOOR,PINE_DOOR_TOP].forEach(id=>OPAQUE[id]=1);
+  PINE_LOG,PINE_PLANK].forEach(id=>OPAQUE[id]=1);
+// Doors are solid but NOT opaque — they render as thin panels, not full cubes
 
 // ── FACE GEOMETRY ─────────────────────────────────────────
 // 't': 0=top,1=bottom,2=side  'sh': directional shade multiplier
@@ -1602,6 +1603,18 @@ class World{
         fpos.push(ox+x+1,y,oz+z, ox+x,y,oz+z+1, ox+x,y+bh,oz+z+1, ox+x+1,y+bh,oz+z);
         fuv.push(ci/N_TILES,0, (ci+1)/N_TILES,0, (ci+1)/N_TILES,1, ci/N_TILES,1);
         fcol.push(sh,sh,sh, sh,sh,sh, sh,sh,sh, sh,sh,sh);
+        fvi+=4;
+        continue;
+      }
+
+      if(id===OAK_DOOR||id===OAK_DOOR_TOP||id===PINE_DOOR||id===PINE_DOOR_TOP){
+        // Thin door panel: single double-sided quad 3/16 block in from the Z face
+        const ci=TEX_IDX[id][0];
+        const T=0.1875;
+        fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
+        fpos.push(ox+x,y,oz+z+T, ox+x+1,y,oz+z+T, ox+x+1,y+1,oz+z+T, ox+x,y+1,oz+z+T);
+        fuv.push(ci/N_TILES,0, (ci+1)/N_TILES,0, (ci+1)/N_TILES,1, ci/N_TILES,1);
+        fcol.push(0.88,0.88,0.88, 0.88,0.88,0.88, 0.88,0.88,0.88, 0.88,0.88,0.88);
         fvi+=4;
         continue;
       }
@@ -2532,10 +2545,19 @@ const handGroup = new THREE.Group();
 camera.add(handGroup);
 
 const handGeo = new THREE.BoxGeometry(0.35, 0.35, 0.35);
-const handMat = new THREE.MeshBasicMaterial({map: atlasTexture, depthTest: false, transparent: true, alphaTest: 0.01});
+const handMat = new THREE.MeshBasicMaterial({map: atlasTexture, depthTest: false, transparent: true, alphaTest: 0.01, side: THREE.FrontSide});
 const handMesh = new THREE.Mesh(handGeo, handMat);
 handMesh.renderOrder = 999;
 handGroup.add(handMesh);
+
+// Flat item hand: thin quad shown for tools, sticks, doors, flowers
+const handFlatGeo = new THREE.BoxGeometry(0.48, 0.48, 0.015);
+const handFlatMat = new THREE.MeshBasicMaterial({map: atlasTexture, depthTest: false, transparent: true, alphaTest: 0.01, side: THREE.DoubleSide});
+const handFlatMesh = new THREE.Mesh(handFlatGeo, handFlatMat);
+handFlatMesh.renderOrder = 999;
+handFlatMesh.rotation.set(0.30, 0.0, -0.30);
+handFlatMesh.position.set(-0.02, 0.02, 0);
+handGroup.add(handFlatMesh);
 
 // Empty-hand fist: skin-colored arm shown when holding nothing
 const fistGeo = new THREE.BoxGeometry(0.20, 0.44, 0.20);
@@ -2552,22 +2574,43 @@ handGroup.position.set(HAND_REST.px, HAND_REST.py, HAND_REST.pz);
 handGroup.rotation.set(HAND_REST.rx, HAND_REST.ry, HAND_REST.rz);
 handGroup.visible = false;
 
+const HAND_FLAT = new Set([STICK, WOOD_PICK, STONE_PICK,
+  FOLIAGE, FLOWER_RED, FLOWER_YELLOW,
+  OAK_DOOR, PINE_DOOR, OAK_DOOR_TOP, PINE_DOOR_TOP]);
+
 function updateHandUVs(){
   const id = player ? player.selectedBlock : GRASS;
   const ti = TEX_IDX[id];
   if(!ti) return;
-  // BoxGeometry face order: +X,-X,+Y,-Y,+Z,-Z → use side/side/top/bottom/side/side tiles
-  const tiles = [ti[2], ti[2], ti[0], ti[1], ti[2], ti[2]];
-  const uv = handGeo.attributes.uv;
-  for(let face = 0; face < 6; face++){
-    const ci = tiles[face];
-    const b = face * 4;
-    uv.setXY(b,   ci/N_TILES, 1);
-    uv.setXY(b+1, (ci+1)/N_TILES, 1);
-    uv.setXY(b+2, ci/N_TILES, 0);
-    uv.setXY(b+3, (ci+1)/N_TILES, 0);
+  const isFlat = HAND_FLAT.has(id);
+  handMesh.visible = !isFlat;
+  handFlatMesh.visible = isFlat;
+  if(isFlat){
+    // Show the item's top tile on all faces of the flat mesh
+    const ci = ti[0];
+    const uv2 = handFlatGeo.attributes.uv;
+    for(let face=0;face<6;face++){
+      const b=face*4;
+      uv2.setXY(b,   ci/N_TILES, 1);
+      uv2.setXY(b+1, (ci+1)/N_TILES, 1);
+      uv2.setXY(b+2, ci/N_TILES, 0);
+      uv2.setXY(b+3, (ci+1)/N_TILES, 0);
+    }
+    uv2.needsUpdate = true;
+  } else {
+    // BoxGeometry face order: +X,-X,+Y,-Y,+Z,-Z
+    const tiles = [ti[2], ti[2], ti[0], ti[1], ti[2], ti[2]];
+    const uv = handGeo.attributes.uv;
+    for(let face = 0; face < 6; face++){
+      const ci = tiles[face];
+      const b = face * 4;
+      uv.setXY(b,   ci/N_TILES, 1);
+      uv.setXY(b+1, (ci+1)/N_TILES, 1);
+      uv.setXY(b+2, ci/N_TILES, 0);
+      uv.setXY(b+3, (ci+1)/N_TILES, 0);
+    }
+    uv.needsUpdate = true;
   }
-  uv.needsUpdate = true;
 }
 
 // ── BLOCK BREAK SOUNDS (Web Audio synthesis) ──────────────
@@ -5324,8 +5367,11 @@ function loop(t){
   // Hand animation
   {
     handGroup.visible = gamemode !== 'spectator';
-    handMesh.visible = player.selectedBlock !== AIR;
-    fistMesh.visible = player.selectedBlock === AIR;
+    const _heldId = player.selectedBlock;
+    const _heldFlat = HAND_FLAT.has(_heldId);
+    handMesh.visible = _heldId !== AIR && !_heldFlat;
+    handFlatMesh.visible = _heldId !== AIR && _heldFlat;
+    fistMesh.visible = _heldId === AIR;
     const spd = Math.sqrt(player.vel.x*player.vel.x + player.vel.z*player.vel.z);
     if(spd > 0.5 && player.onGround && !player.flying) handBobPhase += dt * 9;
     const bob = Math.sin(handBobPhase);
