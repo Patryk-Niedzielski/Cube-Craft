@@ -1021,6 +1021,9 @@ const PINK_WOOL=36, GRAY_WOOL=37, LIGHT_GRAY_WOOL=38, CYAN_WOOL=39, PURPLE_WOOL=
 const BROWN_WOOL=42, GREEN_WOOL=43, RED_WOOL=44, BLACK_WOOL=45;
 const PINE_LOG=46, PINE_PLANK=47;
 const OAK_DOOR=48, OAK_DOOR_TOP=49, PINE_DOOR=50, PINE_DOOR_TOP=51;
+const IRON_INGOT=52, IRON_BUCKET=53, WATER_BUCKET=54;
+const RAW_PORKCHOP=55, RAW_BEEF=56;
+const BOWL=57, WATER_BOWL=58, FOOD_BOWL=59;
 
 // ── TOOL SYSTEM CONSTANTS ─────────────────────────────────
 const NEEDS_PICK  = new Set([STONE, COBBLESTONE, MOSSY_COBBLE, CRACKED_STONE]); // blocks that require a pickaxe
@@ -1030,6 +1033,7 @@ const TOOL_MAX_DUR= {[WOOD_PICK]:60,  [STONE_PICK]:130};
 const UNSTACKABLE = new Set([WOOD_PICK, STONE_PICK]);    // these never stack
 const FLAT_ITEMS  = new Set([STICK, WOOD_PICK, STONE_PICK]); // rendered as 2D sprites
 const SPAWN_EGG_MOB={[PIG_EGG]:'pig',[COW_EGG]:'cow',[WOLF_EGG]:'wolf',[CAT_EGG]:'cat',[CHICKEN_EGG]:'chicken',[FISH_EGG]:'fish'};
+const NON_PLACEABLE = new Set([IRON_INGOT,IRON_BUCKET,WATER_BUCKET,RAW_PORKCHOP,RAW_BEEF]);
 // key = "wx,botY,wz" (bottom block position); value = {open:bool, hingeRight:bool}
 const doorStates = new Map();
 
@@ -1039,10 +1043,14 @@ const BLOCK_NAME=['Air','Grass','Dirt','Stone','Oak Log','Leaves','Sand','Bedroc
   'White Wool','Orange Wool','Magenta Wool','Light Blue Wool','Yellow Wool','Lime Wool',
   'Pink Wool','Gray Wool','Light Gray Wool','Cyan Wool','Purple Wool','Blue Wool',
   'Brown Wool','Green Wool','Red Wool','Black Wool',
-  'Pine Log','Pine Plank','Oak Door','Oak Door','Pine Door','Pine Door'];
+  'Pine Log','Pine Plank','Oak Door','Oak Door','Pine Door','Pine Door',
+  'Iron Ingot','Iron Bucket','Water Bucket','Raw Porkchop','Raw Beef',
+  'Bowl','Water Bowl','Food Bowl'];
 const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3, 0,0,0,0,0,0, 0.2, 0.25, 0.0, 0.0, 0.7, 1.0, 0,0,0, 0.6, 1.0, 1.0, 1.1,
   0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4, // wool 30-45
-  1.2, 0.7, 0.8, 0.8, 0.8, 0.8]; // pine log, pine plank, oak door, oak door top, pine door, pine door top
+  1.2, 0.7, 0.8, 0.8, 0.8, 0.8, // pine log, pine plank, oak door×2, pine door×2
+  0,0,0,0,0, // iron ingot, iron bucket, water bucket, raw porkchop, raw beef
+  0.2,0.2,0.2]; // bowl, water bowl, food bowl
 const TEX_IDX={
   [GRASS]:   [0,2,1],
   [DIRT]:    [2,2,2],
@@ -1095,6 +1103,14 @@ const TEX_IDX={
   [OAK_DOOR_TOP]:    [51,51,51],
   [PINE_DOOR]:       [52,52,52],
   [PINE_DOOR_TOP]:   [52,52,52],
+  [IRON_INGOT]:      [53,53,53],
+  [IRON_BUCKET]:     [54,54,54],
+  [WATER_BUCKET]:    [55,55,55],
+  [RAW_PORKCHOP]:    [56,56,56],
+  [RAW_BEEF]:        [57,57,57],
+  [BOWL]:            [58,58,58],
+  [WATER_BOWL]:      [59,59,59],
+  [FOOD_BOWL]:       [60,60,60],
 };
 // SOLID: player collides with these
 const SOLID=new Uint8Array(256);
@@ -1592,6 +1608,17 @@ class World{
     for(let x=0;x<CHUNK;x++) for(let y=0;y<HEIGHT;y++) for(let z=0;z<CHUNK;z++){
       const id=chunk.get(x,y,z);
       if(id===AIR) continue;
+
+      if(id===BOWL||id===WATER_BOWL||id===FOOD_BOWL){
+        // Flat ground tile — horizontal quad lying on the block surface
+        const ci=TEX_IDX[id][0];
+        fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
+        fpos.push(ox+x+0.1,y+0.06,oz+z+0.1, ox+x+0.9,y+0.06,oz+z+0.1, ox+x+0.9,y+0.06,oz+z+0.9, ox+x+0.1,y+0.06,oz+z+0.9);
+        fuv.push(ci/N_TILES,0, (ci+1)/N_TILES,0, (ci+1)/N_TILES,1, ci/N_TILES,1);
+        fcol.push(0.92,0.92,0.92, 0.92,0.92,0.92, 0.92,0.92,0.92, 0.92,0.92,0.92);
+        fvi+=4;
+        continue;
+      }
 
       if(id===FOLIAGE||id===FLOWER_RED||id===FLOWER_YELLOW){
         // X-cross billboard: two diagonal quads
@@ -2131,7 +2158,7 @@ hlMesh.visible=false;
 scene.add(hlMesh);
 
 // ── TEXTURE ATLAS (16×16 pixel art, 16 tiles → 256×16 px, power-of-2) ───────
-const N_TILES = 53;
+const N_TILES = 61;
 const TS      = 16;
 const atlasCvs = document.createElement('canvas');
 atlasCvs.width  = TS * N_TILES;  // 256
@@ -2535,6 +2562,102 @@ for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
   else if(panel) tpal(52,x,y,[[130,96,46],[124,90,42],[136,102,50]]);
   else tpal(52,x,y,[[158,118,56],[150,111,50],[166,125,62]]);
 }
+// Tile 53 — IRON_INGOT: silvery metallic bar
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  if(x>=2&&x<=13&&y>=5&&y<=10){
+    const n=th(53*TS+x,y);
+    const hi=(y<=6)?20:0, sh=(y>=9)?-30:0;
+    const lx=(x<=3)?15:0, rx=(x>=12)?-20:0;
+    tsp(53,x,y, 160+hi+sh+lx+rx+Math.round((n-0.5)*10),
+                160+hi+sh+lx+rx+Math.round((n-0.5)*10),
+                170+hi+sh+lx+rx+Math.round((n-0.5)*10));
+  }
+}
+// Tile 54 — IRON_BUCKET (empty)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const side=(x===3||x===4||x===11||x===12)&&y>=5&&y<=11;
+  const bot=(y===11||y===12)&&x>=3&&x<=12;
+  const handle=(y===2||y===3)&&(x>=5&&x<=6||x>=9&&x<=10);
+  if(side||bot||handle){
+    const n=th(54*TS+x,y);
+    tsp(54,x,y, 150+Math.round((n-0.5)*15), 150+Math.round((n-0.5)*15), 158+Math.round((n-0.5)*15));
+  }
+}
+// Tile 55 — WATER_BUCKET
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const side=(x===3||x===4||x===11||x===12)&&y>=5&&y<=11;
+  const bot=(y===11||y===12)&&x>=3&&x<=12;
+  const handle=(y===2||y===3)&&(x>=5&&x<=6||x>=9&&x<=10);
+  const water=x>=5&&x<=10&&y>=5&&y<=10;
+  if(water){
+    const n=th(55*TS+x,y);
+    tsp(55,x,y, 48+Math.round((n-0.5)*10), 110+Math.round((n-0.5)*12), 215+Math.round((n-0.5)*10));
+  } else if(side||bot||handle){
+    const n=th(55*TS+x,y);
+    tsp(55,x,y, 150+Math.round((n-0.5)*15), 150+Math.round((n-0.5)*15), 158+Math.round((n-0.5)*15));
+  }
+}
+// Tile 56 — RAW_PORKCHOP
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const bone=x>=9&&x<=14&&y>=1&&y<=5;
+  const chop=x>=2&&x<=13&&y>=2&&y<=13;
+  if(bone){ tsp(56,x,y, 228,218,188); }
+  else if(chop){
+    const n=th(56*TS+x,y);
+    if(n>0.70) tsp(56,x,y, 230,195,180);
+    else tsp(56,x,y, 215+Math.round((n-0.5)*15), 78+Math.round((n-0.5)*20), 75+Math.round((n-0.5)*15));
+  }
+}
+// Tile 57 — RAW_BEEF
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const meat=x>=2&&x<=13&&y>=2&&y<=13;
+  if(meat){
+    const n=th(57*TS+x,y);
+    if(n>0.65) tsp(57,x,y, 218,182,165);
+    else tsp(57,x,y, 188+Math.round((n-0.5)*20), 52+Math.round((n-0.5)*15), 50+Math.round((n-0.5)*15));
+  }
+}
+// Tile 58 — BOWL (empty, wooden)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const rim=y===4&&x>=3&&x<=12;
+  const side=(x===3||x===12)&&y>=4&&y<=11;
+  const bot=y===11&&x>=5&&x<=10;
+  const inner=x>=4&&x<=11&&y>=5&&y<=10;
+  if(rim||side||bot){
+    const n=th(58*TS+x,y);
+    tsp(58,x,y, 118+Math.round((n-0.5)*10), 76+Math.round((n-0.5)*10), 28+Math.round((n-0.5)*8));
+  } else if(inner){
+    tsp(58,x,y, 175,148,85);
+  }
+}
+// Tile 59 — WATER_BOWL
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const rim=y===4&&x>=3&&x<=12;
+  const side=(x===3||x===12)&&y>=4&&y<=11;
+  const bot=y===11&&x>=5&&x<=10;
+  const inner=x>=4&&x<=11&&y>=5&&y<=10;
+  if(rim||side||bot){
+    const n=th(59*TS+x,y);
+    tsp(59,x,y, 118+Math.round((n-0.5)*10), 76+Math.round((n-0.5)*10), 28+Math.round((n-0.5)*8));
+  } else if(inner){
+    const n=th(59*TS+x,y);
+    tsp(59,x,y, 42+Math.round((n-0.5)*12), 112+Math.round((n-0.5)*16), 212+Math.round((n-0.5)*12));
+  }
+}
+// Tile 60 — FOOD_BOWL (meat in bowl)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const rim=y===4&&x>=3&&x<=12;
+  const side=(x===3||x===12)&&y>=4&&y<=11;
+  const bot=y===11&&x>=5&&x<=10;
+  const inner=x>=4&&x<=11&&y>=5&&y<=10;
+  if(rim||side||bot){
+    const n=th(60*TS+x,y);
+    tsp(60,x,y, 118+Math.round((n-0.5)*10), 76+Math.round((n-0.5)*10), 28+Math.round((n-0.5)*8));
+  } else if(inner){
+    const n=th(60*TS+x,y);
+    tsp(60,x,y, 158+Math.round((n-0.5)*20), 78+Math.round((n-0.5)*15), 38+Math.round((n-0.5)*10));
+  }
+}
 
 const atlasTexture = new THREE.CanvasTexture(atlasCvs);
 atlasTexture.magFilter     = THREE.NearestFilter;  // crisp pixels, no blurring
@@ -2605,7 +2728,10 @@ handGroup.visible = false;
 
 const HAND_FLAT = new Set([STICK, WOOD_PICK, STONE_PICK,
   FOLIAGE, FLOWER_RED, FLOWER_YELLOW,
-  OAK_DOOR, PINE_DOOR, OAK_DOOR_TOP, PINE_DOOR_TOP]);
+  OAK_DOOR, PINE_DOOR, OAK_DOOR_TOP, PINE_DOOR_TOP,
+  IRON_INGOT, IRON_BUCKET, WATER_BUCKET,
+  RAW_PORKCHOP, RAW_BEEF,
+  BOWL, WATER_BOWL, FOOD_BOWL]);
 
 function updateHandUVs(){
   const id = player ? player.selectedBlock : GRASS;
@@ -2838,12 +2964,12 @@ const MOB_SPAWN_IV   = 5.0;   // seconds between spawn batches
 let   _mobSpawnT     = MOB_SPAWN_IV; // fire on first update
 
 const MOB_CFG = {
-  pig:     { h: 1.10, w: 0.50, spd: 1.4 },
-  cow:     { h: 1.32, w: 0.56, spd: 1.2 },
-  wolf:    { h: 1.10, w: 0.45, spd: 1.8 },
-  cat:     { h: 0.90, w: 0.38, spd: 1.5 },
-  chicken: { h: 1.00, w: 0.28, spd: 1.3 },
-  fish:    { h: 0.25, w: 0.22, spd: 1.0 },
+  pig:     { h: 1.10, w: 0.50, spd: 1.4, hp: 10 },
+  cow:     { h: 1.32, w: 0.56, spd: 1.2, hp: 10 },
+  wolf:    { h: 1.10, w: 0.45, spd: 1.8, hp: 8  },
+  cat:     { h: 0.90, w: 0.38, spd: 1.5, hp: 8  },
+  chicken: { h: 1.00, w: 0.28, spd: 1.3, hp: 4  },
+  fish:    { h: 0.25, w: 0.22, spd: 1.0, hp: 3  },
 };
 
 // Draw pixel-art onto a 64×64 canvas (8 columns × 8 rows, each cell = 8px)
@@ -3353,6 +3479,7 @@ class Mob {
     this.idle        = false;
     this.animPhase   = Math.random() * Math.PI * 2;
     this.cfg         = MOB_CFG[type];
+    this.hp          = this.cfg.hp;
     this.group       = buildMobGroup(type);
     scene.add(this.group);
     this._syncTransform();
@@ -3515,6 +3642,15 @@ class Mob {
     this._syncTransform();
   }
 
+  hurt(dmg) {
+    this.hp -= dmg;
+    if (this.hp <= 0) {
+      this._dead = true;
+      const drop = this.type==='pig' ? RAW_PORKCHOP : this.type==='cow' ? RAW_BEEF : null;
+      if (drop) spawnDroppedItem(drop, this.pos.x, this.pos.y + 0.5, this.pos.z);
+    }
+  }
+
   remove() {
     scene.remove(this.group);
     this.group.traverse(child => {
@@ -3598,6 +3734,8 @@ const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,PINE_LOG,LEAVES,PINE_LEAVES,SAND,BE
   FLOWER_RED,FLOWER_YELLOW,PLANK,PINE_PLANK,CRAFT_TABLE,STICK,WOOD_PICK,STONE_PICK,
   GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE,
   OAK_DOOR,PINE_DOOR,
+  IRON_INGOT,IRON_BUCKET,WATER_BUCKET,RAW_PORKCHOP,RAW_BEEF,
+  BOWL,WATER_BOWL,FOOD_BOWL,
   WHITE_WOOL,ORANGE_WOOL,MAGENTA_WOOL,LIGHT_BLUE_WOOL,YELLOW_WOOL,LIME_WOOL,
   PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
   BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL,
@@ -4421,6 +4559,10 @@ const CT_RECIPES=[
   // Pine Door: 6 pine planks in 2×3
   {pattern:[PINE_PLANK,PINE_PLANK,AIR, PINE_PLANK,PINE_PLANK,AIR, PINE_PLANK,PINE_PLANK,AIR], out:PINE_DOOR, outCount:3},
   {pattern:[AIR,PINE_PLANK,PINE_PLANK, AIR,PINE_PLANK,PINE_PLANK, AIR,PINE_PLANK,PINE_PLANK], out:PINE_DOOR, outCount:3},
+  // Bowl: 3 planks in V shape
+  {pattern:[PLANK,AIR,PLANK, AIR,PLANK,AIR, AIR,AIR,AIR], out:BOWL, outCount:4},
+  // Iron Bucket: 3 iron ingots in V shape
+  {pattern:[IRON_INGOT,AIR,IRON_INGOT, AIR,IRON_INGOT,AIR, AIR,AIR,AIR], out:IRON_BUCKET, outCount:1},
 ];
 
 function computeCtOutput(){
@@ -5083,6 +5225,23 @@ function getAim(){
   return world.raycast(camera.position, dir, 5.5);
 }
 
+function hitMob(){
+  const REACH=3.5, EYE=1.6;
+  const dir=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion).normalize();
+  let best=null, bestDist=REACH;
+  for(const m of mobs){
+    const dx=m.pos.x-player.pos.x;
+    const dy=(m.pos.y+m.cfg.h*0.5)-(player.pos.y+EYE);
+    const dz=m.pos.z-player.pos.z;
+    const dist=Math.sqrt(dx*dx+dy*dy+dz*dz);
+    if(dist>REACH) continue;
+    const dot=(dx*dir.x+dy*dir.y+dz*dir.z)/dist;
+    if(dot>0.65&&dist<bestDist){ best=m; bestDist=dist; }
+  }
+  if(best){ best.hurt(4); return true; }
+  return false;
+}
+
 canvas.addEventListener('mousedown',e=>{
   if(!locked||paused) return;
   if(gamemode==='spectator') return;
@@ -5114,9 +5273,9 @@ canvas.addEventListener('mousedown',e=>{
     return;
   }
   if(e.button===0){
-    // Start mining
     mining=true; mineProg=0; mineTarget=null;
-    handSwingT=0; // start swing animation
+    handSwingT=0;
+    hitMob();
   } else if(e.button===2){
     const t=getAim();
 
@@ -5180,15 +5339,44 @@ canvas.addEventListener('mousedown',e=>{
       return;
     }
 
+    // Bucket + bowl interactions (before generic placement)
+    const _aimed=world.getBlock(t.bx,t.by,t.bz);
+    if(blk===IRON_BUCKET && _aimed===WATER){
+      const si=player.slot;
+      player.hotbar[si]=WATER_BUCKET;
+      buildHotbar(); return;
+    }
+    if(blk===WATER_BUCKET && _aimed===BOWL){
+      world.setBlock(t.bx,t.by,t.bz,WATER_BOWL);
+      if(gamemode==='survival'){
+        const si=player.slot;
+        player.hotbar[si]=IRON_BUCKET;
+        buildHotbar();
+      }
+      return;
+    }
+    if((blk===RAW_PORKCHOP||blk===RAW_BEEF) && _aimed===BOWL){
+      world.setBlock(t.bx,t.by,t.bz,FOOD_BOWL);
+      if(gamemode==='survival'){
+        const si=player.slot;
+        player.hotbarCounts[si]--;
+        if(player.hotbarCounts[si]<=0){ player.hotbar[si]=AIR; player.hotbarCounts[si]=0; }
+        buildHotbar();
+      }
+      return;
+    }
+
     // Normal block placement — replace foliage/flowers instead of placing adjacent
     const aimed=world.getBlock(t.bx,t.by,t.bz);
-    const replaceable=aimed===FOLIAGE||aimed===FLOWER_RED||aimed===FLOWER_YELLOW;
+    const replaceable=aimed===FOLIAGE||aimed===FLOWER_RED||aimed===FLOWER_YELLOW||aimed===BOWL||aimed===WATER_BOWL||aimed===FOOD_BOWL;
     const px=replaceable?t.bx:t.bx+t.nx;
     const py=replaceable?t.by:t.by+t.ny;
     const pz=replaceable?t.bz:t.bz+t.nz;
     if(py<0||py>=HEIGHT) return;
     // Doors need an empty block above
     if((blk===OAK_DOOR||blk===PINE_DOOR) && world.getBlock(px,py+1,pz)!==AIR) return;
+    // Items can't be placed as world blocks
+    if(NON_PLACEABLE.has(blk)) return;
     // Don't place inside player AABB
     const p=player.pos, hw=PLR_W+0.1;
     if(px>=Math.floor(p.x-hw)&&px<Math.ceil(p.x+hw)&&
