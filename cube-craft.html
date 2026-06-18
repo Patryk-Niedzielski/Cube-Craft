@@ -3212,9 +3212,15 @@ class Mob {
       const fnx = Math.floor(this.pos.x - Math.sin(this.yaw) * reach);
       const fnz = Math.floor(this.pos.z - Math.cos(this.yaw) * reach);
       const fy  = Math.floor(this.pos.y + 0.3);
-      const fwdId = world.getBlock(fnx, fy, fnz);
-      if (this._solid(fnx, fy, fnz) || this._solid(fnx, fy + 1, fnz) || fwdId === WATER ||
-          world.getBlock(fnx, fy - 1, fnz) === WATER || world.getBlock(fnx, fy - 2, fnz) === WATER) {
+      const step = this._solid(fnx, fy, fnz);
+      const wall = this._solid(fnx, fy + 1, fnz);
+      const water = world.getBlock(fnx, fy, fnz) === WATER ||
+                    world.getBlock(fnx, fy - 1, fnz) === WATER ||
+                    world.getBlock(fnx, fy - 2, fnz) === WATER;
+      if (step && !wall && !water) {
+        // 1-block step: hop over it
+        this.vel.y = 7;
+      } else if (wall || water) {
         this.yaw += Math.PI * (0.75 + Math.random() * 0.5);
         vx = 0; vz = 0;
         this.wanderTimer = 1 + Math.random() * 1.5;
