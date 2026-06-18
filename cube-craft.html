@@ -1016,6 +1016,9 @@ const PIG_EGG=11,COW_EGG=12,WOLF_EGG=13,CAT_EGG=14,CHICKEN_EGG=15,FISH_EGG=16;
 const SNOW=17, PINE_LEAVES=18, FLOWER_RED=19, FLOWER_YELLOW=20, PLANK=21, CRAFT_TABLE=22;
 const STICK=23, WOOD_PICK=24, STONE_PICK=25;
 const GRAVEL=26, COBBLESTONE=27, MOSSY_COBBLE=28, CRACKED_STONE=29;
+const WHITE_WOOL=30, ORANGE_WOOL=31, MAGENTA_WOOL=32, LIGHT_BLUE_WOOL=33, YELLOW_WOOL=34, LIME_WOOL=35;
+const PINK_WOOL=36, GRAY_WOOL=37, LIGHT_GRAY_WOOL=38, CYAN_WOOL=39, PURPLE_WOOL=40, BLUE_WOOL=41;
+const BROWN_WOOL=42, GREEN_WOOL=43, RED_WOOL=44, BLACK_WOOL=45;
 
 // ── TOOL SYSTEM CONSTANTS ─────────────────────────────────
 const NEEDS_PICK  = new Set([STONE, COBBLESTONE, MOSSY_COBBLE, CRACKED_STONE]); // blocks that require a pickaxe
@@ -1056,17 +1059,39 @@ const TEX_IDX={
   [STICK]:        [25,25,25],
   [WOOD_PICK]:    [26,26,26],
   [STONE_PICK]:   [27,27,27],
-  [GRAVEL]:       [28,28,28],
-  [COBBLESTONE]:  [29,29,29],
-  [MOSSY_COBBLE]: [30,30,30],
-  [CRACKED_STONE]:[31,31,31],
+  [GRAVEL]:          [28,28,28],
+  [COBBLESTONE]:     [29,29,29],
+  [MOSSY_COBBLE]:    [30,30,30],
+  [CRACKED_STONE]:   [31,31,31],
+  [WHITE_WOOL]:      [32,32,32],
+  [ORANGE_WOOL]:     [33,33,33],
+  [MAGENTA_WOOL]:    [34,34,34],
+  [LIGHT_BLUE_WOOL]: [35,35,35],
+  [YELLOW_WOOL]:     [36,36,36],
+  [LIME_WOOL]:       [37,37,37],
+  [PINK_WOOL]:       [38,38,38],
+  [GRAY_WOOL]:       [39,39,39],
+  [LIGHT_GRAY_WOOL]: [40,40,40],
+  [CYAN_WOOL]:       [41,41,41],
+  [PURPLE_WOOL]:     [42,42,42],
+  [BLUE_WOOL]:       [43,43,43],
+  [BROWN_WOOL]:      [44,44,44],
+  [GREEN_WOOL]:      [45,45,45],
+  [RED_WOOL]:        [46,46,46],
+  [BLACK_WOOL]:      [47,47,47],
 };
 // SOLID: player collides with these
 const SOLID=new Uint8Array(256);
-[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,GLASS,SNOW,PINE_LEAVES,PLANK,CRAFT_TABLE,GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE].forEach(id=>SOLID[id]=1);
+[GRASS,DIRT,STONE,WOOD,LEAVES,SAND,BEDROCK,GLASS,SNOW,PINE_LEAVES,PLANK,CRAFT_TABLE,GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE,
+  WHITE_WOOL,ORANGE_WOOL,MAGENTA_WOOL,LIGHT_BLUE_WOOL,YELLOW_WOOL,LIME_WOOL,
+  PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
+  BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL].forEach(id=>SOLID[id]=1);
 // OPAQUE: completely hides adjacent faces (no leaves, no water)
 const OPAQUE=new Uint8Array(256);
-[GRASS,DIRT,STONE,WOOD,SAND,BEDROCK,SNOW,PLANK,CRAFT_TABLE,GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE].forEach(id=>OPAQUE[id]=1);
+[GRASS,DIRT,STONE,WOOD,SAND,BEDROCK,SNOW,PLANK,CRAFT_TABLE,GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE,
+  WHITE_WOOL,ORANGE_WOOL,MAGENTA_WOOL,LIGHT_BLUE_WOOL,YELLOW_WOOL,LIME_WOOL,
+  PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
+  BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL].forEach(id=>OPAQUE[id]=1);
 
 // ── FACE GEOMETRY ─────────────────────────────────────────
 // 't': 0=top,1=bottom,2=side  'sh': directional shade multiplier
@@ -2048,7 +2073,7 @@ hlMesh.visible=false;
 scene.add(hlMesh);
 
 // ── TEXTURE ATLAS (16×16 pixel art, 16 tiles → 256×16 px, power-of-2) ───────
-const N_TILES = 32;
+const N_TILES = 48;
 const TS      = 16;
 const atlasCvs = document.createElement('canvas');
 atlasCvs.width  = TS * N_TILES;  // 256
@@ -2392,6 +2417,24 @@ for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
   else if(diag1||diag2) tsp(31,x,y, 72,74,76);  // surface crack network
   else tpal(31,x,y,[[112,114,118],[104,106,110],[120,122,126],[96,98,102]]);
 }
+
+// Tiles 32–47 — WOOL (16 colors, woven fabric texture)
+// Colors: white, orange, magenta, light blue, yellow, lime, pink, gray,
+//         light gray, cyan, purple, blue, brown, green, red, black
+const WOOL_BASE_COLORS=[
+  [221,221,221],[216,127, 51],[178, 76,216],[102,153,216],
+  [229,229, 51],[127,204, 25],[242,127,165],[ 76, 76, 76],
+  [153,153,153],[ 76,127,153],[127, 63,178],[ 51, 76,178],
+  [102, 76, 51],[102,127, 51],[153, 51, 51],[ 25, 25, 25],
+];
+WOOL_BASE_COLORS.forEach(([r,g,b],i)=>{
+  const t=32+i;
+  for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+    const n=th(t*TS+x,y);
+    const w=((x^y)&1)?10:-10; // checkerboard weave highlight/shadow
+    tsp(t,x,y, r+w+(n-0.5)*16, g+w+(n-0.5)*16, b+w+(n-0.5)*16);
+  }
+});
 
 const atlasTexture = new THREE.CanvasTexture(atlasCvs);
 atlasTexture.magFilter     = THREE.NearestFilter;  // crisp pixels, no blurring
@@ -3413,6 +3456,9 @@ const CREATIVE_PAGE_SIZE=27;
 const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,LEAVES,PINE_LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS,SNOW,
   FLOWER_RED,FLOWER_YELLOW,PLANK,CRAFT_TABLE,STICK,WOOD_PICK,STONE_PICK,
   GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE,
+  WHITE_WOOL,ORANGE_WOOL,MAGENTA_WOOL,LIGHT_BLUE_WOOL,YELLOW_WOOL,LIME_WOOL,
+  PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
+  BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL,
   PIG_EGG,COW_EGG,WOLF_EGG,CAT_EGG,CHICKEN_EGG,FISH_EGG];
 const DEFAULT_HOTBAR=new Array(9).fill(AIR);
 let showDbg=false;
