@@ -3044,12 +3044,12 @@ const MOB_SPAWN_IV   = 5.0;   // seconds between spawn batches
 let   _mobSpawnT     = MOB_SPAWN_IV; // fire on first update
 
 const MOB_CFG = {
-  pig:     { h: 1.10, w: 0.50, spd: 1.4, hp: 10 },
-  cow:     { h: 1.32, w: 0.56, spd: 1.2, hp: 10 },
-  wolf:    { h: 1.10, w: 0.45, spd: 1.8, hp: 8  },
-  cat:     { h: 0.90, w: 0.38, spd: 1.5, hp: 8  },
-  chicken: { h: 1.00, w: 0.28, spd: 1.3, hp: 4  },
-  fish:    { h: 0.25, w: 0.22, spd: 1.0, hp: 3  },
+  pig:     { h: 1.10, w: 0.50, spd: 1.4, hp: 16 },
+  cow:     { h: 1.32, w: 0.56, spd: 1.2, hp: 20 },
+  wolf:    { h: 1.10, w: 0.45, spd: 1.8, hp: 24 },
+  cat:     { h: 0.90, w: 0.38, spd: 1.5, hp: 12 },
+  chicken: { h: 1.00, w: 0.28, spd: 1.3, hp: 8  },
+  fish:    { h: 0.25, w: 0.22, spd: 1.0, hp: 8  },
 };
 
 // Draw pixel-art onto a 64×64 canvas (8 columns × 8 rows, each cell = 8px)
@@ -3633,9 +3633,39 @@ class Mob {
     // Gravity
     this.vel.y = this.onGround ? 0 : Math.max(this.vel.y + MOB_GRAV * dt, -30);
 
-    // Apply movement
-    this.pos.x += vx * dt;
-    this.pos.z += vz * dt;
+    // Apply movement with horizontal block collision
+    const _hw  = this.cfg.w * 0.45;
+    const _fy0 = Math.floor(this.pos.y + 0.05);
+    const _fy1 = Math.floor(this.pos.y + this.cfg.h * 0.85);
+
+    if (vx !== 0) {
+      this.pos.x += vx * dt;
+      const _ex  = vx > 0 ? Math.floor(this.pos.x + _hw) : Math.floor(this.pos.x - _hw);
+      const _ez0 = Math.floor(this.pos.z - _hw);
+      const _ez1 = Math.floor(this.pos.z + _hw);
+      let _xHit = false;
+      xloop: for (let _by = _fy0; _by <= _fy1; _by++) {
+        for (let _bz = _ez0; _bz <= _ez1; _bz++) {
+          if (this._solid(_ex, _by, _bz)) { _xHit = true; break xloop; }
+        }
+      }
+      if (_xHit) this.pos.x = vx > 0 ? _ex - _hw - 0.001 : _ex + 1 + _hw + 0.001;
+    }
+
+    if (vz !== 0) {
+      this.pos.z += vz * dt;
+      const _ez  = vz > 0 ? Math.floor(this.pos.z + _hw) : Math.floor(this.pos.z - _hw);
+      const _ex0 = Math.floor(this.pos.x - _hw);
+      const _ex1 = Math.floor(this.pos.x + _hw);
+      let _zHit = false;
+      zloop: for (let _by = _fy0; _by <= _fy1; _by++) {
+        for (let _bx = _ex0; _bx <= _ex1; _bx++) {
+          if (this._solid(_bx, _by, _ez)) { _zHit = true; break zloop; }
+        }
+      }
+      if (_zHit) this.pos.z = vz > 0 ? _ez - _hw - 0.001 : _ez + 1 + _hw + 0.001;
+    }
+
     this.pos.y += this.vel.y * dt;
 
     // Ground collision
