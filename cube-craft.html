@@ -1030,6 +1030,8 @@ const TOOL_MAX_DUR= {[WOOD_PICK]:60,  [STONE_PICK]:130};
 const UNSTACKABLE = new Set([WOOD_PICK, STONE_PICK]);    // these never stack
 const FLAT_ITEMS  = new Set([STICK, WOOD_PICK, STONE_PICK]); // rendered as 2D sprites
 const SPAWN_EGG_MOB={[PIG_EGG]:'pig',[COW_EGG]:'cow',[WOLF_EGG]:'wolf',[CAT_EGG]:'cat',[CHICKEN_EGG]:'chicken',[FISH_EGG]:'fish'};
+// key = "wx,botY,wz" (bottom block position); value = {open:bool, hingeRight:bool}
+const doorStates = new Map();
 
 const BLOCK_NAME=['Air','Grass','Dirt','Stone','Oak Log','Leaves','Sand','Bedrock','Water','Tall Grass','Glass',
   'Pig Egg','Cow Egg','Wolf Egg','Cat Egg','Chicken Egg','Fish Egg','Snow','Pine Leaves','Poppy','Dandelion','Oak Plank','Crafting Table',
@@ -1608,11 +1610,20 @@ class World{
       }
 
       if(id===OAK_DOOR||id===OAK_DOOR_TOP||id===PINE_DOOR||id===PINE_DOOR_TOP){
-        // Thin door panel: single double-sided quad 3/16 block in from the Z face
         const ci=TEX_IDX[id][0];
         const T=0.1875;
+        const wx=ox+x, wz=oz+z;
+        const botY=(id===OAK_DOOR_TOP||id===PINE_DOOR_TOP)?y-1:y;
+        const ds=doorStates.get(`${wx},${botY},${wz}`);
         fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
-        fpos.push(ox+x,y,oz+z+T, ox+x+1,y,oz+z+T, ox+x+1,y+1,oz+z+T, ox+x,y+1,oz+z+T);
+        if(ds&&ds.open){
+          // Open: vertical panel in ZY plane at constant X
+          const px=ds.hingeRight ? wx+(1-T) : wx+T;
+          fpos.push(px,y,wz, px,y,wz+1, px,y+1,wz+1, px,y+1,wz);
+        } else {
+          // Closed: vertical panel in XY plane at constant Z
+          fpos.push(wx,y,wz+T, wx+1,y,wz+T, wx+1,y+1,wz+T, wx,y+1,wz+T);
+        }
         fuv.push(ci/N_TILES,0, (ci+1)/N_TILES,0, (ci+1)/N_TILES,1, ci/N_TILES,1);
         fcol.push(0.88,0.88,0.88, 0.88,0.88,0.88, 0.88,0.88,0.88, 0.88,0.88,0.88);
         fvi+=4;
@@ -1969,7 +1980,13 @@ class Player{
     const by0=Math.floor(this.pos.y+0.05), by1=Math.floor(this.pos.y+PLR_H-0.05);
     const bz0=Math.floor(this.pos.z-hw), bz1=Math.floor(this.pos.z+hw);
     for(let bx=bx0;bx<=bx1;bx++) for(let by=by0;by<=by1;by++) for(let bz=bz0;bz<=bz1;bz++){
-      if(!SOLID[this.world.getBlock(bx,by,bz)]) continue;
+      const _bid=this.world.getBlock(bx,by,bz);
+      if(!SOLID[_bid]) continue;
+      if(_bid===OAK_DOOR||_bid===OAK_DOOR_TOP||_bid===PINE_DOOR||_bid===PINE_DOOR_TOP){
+        const _bY=(_bid===OAK_DOOR_TOP||_bid===PINE_DOOR_TOP)?by-1:by;
+        const _ds=doorStates.get(`${bx},${_bY},${bz}`);
+        if(_ds&&_ds.open) continue;
+      }
       const ox=Math.min(this.pos.x+hw,bx+1)-Math.max(this.pos.x-hw,bx);
       const oy=Math.min(this.pos.y+PLR_H,by+1)-Math.max(this.pos.y,by);
       const oz=Math.min(this.pos.z+hw,bz+1)-Math.max(this.pos.z-hw,bz);
@@ -1986,7 +2003,13 @@ class Player{
     const by0=Math.floor(this.pos.y), by1=Math.floor(this.pos.y+PLR_H);
     const bz0=Math.floor(this.pos.z-hw), bz1=Math.floor(this.pos.z+hw);
     for(let bx=bx0;bx<=bx1;bx++) for(let by=by0;by<=by1;by++) for(let bz=bz0;bz<=bz1;bz++){
-      if(!SOLID[this.world.getBlock(bx,by,bz)]) continue;
+      const _bid=this.world.getBlock(bx,by,bz);
+      if(!SOLID[_bid]) continue;
+      if(_bid===OAK_DOOR||_bid===OAK_DOOR_TOP||_bid===PINE_DOOR||_bid===PINE_DOOR_TOP){
+        const _bY=(_bid===OAK_DOOR_TOP||_bid===PINE_DOOR_TOP)?by-1:by;
+        const _ds=doorStates.get(`${bx},${_bY},${bz}`);
+        if(_ds&&_ds.open) continue;
+      }
       const ox=Math.min(this.pos.x+hw,bx+1)-Math.max(this.pos.x-hw,bx);
       const oy=Math.min(this.pos.y+PLR_H,by+1)-Math.max(this.pos.y,by);
       const oz=Math.min(this.pos.z+hw,bz+1)-Math.max(this.pos.z-hw,bz);
@@ -2004,7 +2027,13 @@ class Player{
     const by0=Math.floor(this.pos.y+0.05), by1=Math.floor(this.pos.y+PLR_H-0.05);
     const bz0=Math.floor(this.pos.z-hw), bz1=Math.floor(this.pos.z+hw);
     for(let bx=bx0;bx<=bx1;bx++) for(let by=by0;by<=by1;by++) for(let bz=bz0;bz<=bz1;bz++){
-      if(!SOLID[this.world.getBlock(bx,by,bz)]) continue;
+      const _bid=this.world.getBlock(bx,by,bz);
+      if(!SOLID[_bid]) continue;
+      if(_bid===OAK_DOOR||_bid===OAK_DOOR_TOP||_bid===PINE_DOOR||_bid===PINE_DOOR_TOP){
+        const _bY=(_bid===OAK_DOOR_TOP||_bid===PINE_DOOR_TOP)?by-1:by;
+        const _ds=doorStates.get(`${bx},${_bY},${bz}`);
+        if(_ds&&_ds.open) continue;
+      }
       const ox=Math.min(this.pos.x+hw,bx+1)-Math.max(this.pos.x-hw,bx);
       const oy=Math.min(this.pos.y+PLR_H,by+1)-Math.max(this.pos.y,by);
       const oz=Math.min(this.pos.z+hw,bz+1)-Math.max(this.pos.z-hw,bz);
@@ -4868,6 +4897,7 @@ async function generateWorld(){
   loadingEl.style.display='flex';
   clearMobs();
   clearDroppedItems();
+  doorStates.clear();
   world.clear();   // wipe any chunks from a previous world so the new seed/terrain applies
   const total=(rdist*2+1)**2;
   let done=0;
@@ -5094,6 +5124,41 @@ canvas.addEventListener('mousedown',e=>{
     if(t && world.getBlock(t.bx,t.by,t.bz)===CRAFT_TABLE){
       openCraftTable();
       return;
+    }
+
+    // Interact with door — toggle open/close 90°
+    if(t){
+      const tId=world.getBlock(t.bx,t.by,t.bz);
+      if(tId===OAK_DOOR||tId===OAK_DOOR_TOP||tId===PINE_DOOR||tId===PINE_DOOR_TOP){
+        const bx=t.bx, bz=t.bz;
+        const botY=(tId===OAK_DOOR_TOP||tId===PINE_DOOR_TOP)?t.by-1:t.by;
+        const key=`${bx},${botY},${bz}`;
+        const cur=doorStates.get(key)||{open:false,hingeRight:false};
+        const newOpen=!cur.open;
+        // Check for adjacent door of same X row (double-door)
+        const lId=world.getBlock(bx-1,botY,bz);
+        const rId=world.getBlock(bx+1,botY,bz);
+        const isDoor=id=>(id===OAK_DOOR||id===PINE_DOOR);
+        const hasLeft=isDoor(lId), hasRight=isDoor(rId);
+        // Left door of pair swings left (hingeRight=false); right door swings right (hingeRight=true)
+        const hingeRight = hasLeft;
+        doorStates.set(key,{open:newOpen,hingeRight});
+        // Sync neighbour
+        if(hasRight){
+          doorStates.set(`${bx+1},${botY},${bz}`,{open:newOpen,hingeRight:true});
+          const nc=world.getChunk(Math.floor((bx+1)/CHUNK),Math.floor(bz/CHUNK));
+          if(nc) world.buildMesh(nc);
+        } else if(hasLeft){
+          doorStates.set(`${bx-1},${botY},${bz}`,{open:newOpen,hingeRight:false});
+          const nc=world.getChunk(Math.floor((bx-1)/CHUNK),Math.floor(bz/CHUNK));
+          if(nc) world.buildMesh(nc);
+        }
+        // Rebuild this chunk
+        const cc=world.getChunk(Math.floor(bx/CHUNK),Math.floor(bz/CHUNK));
+        if(cc) world.buildMesh(cc);
+        playPlaceSound(tId===OAK_DOOR||tId===OAK_DOOR_TOP?OAK_DOOR:PINE_DOOR);
+        return;
+      }
     }
 
     const blk=player.selectedBlock;
@@ -5460,6 +5525,11 @@ function loop(t){
           if(id===OAK_DOOR_TOP)  { dropId=OAK_DOOR;  world.setBlock(aim.bx,aim.by-1,aim.bz,AIR); }
           if(id===PINE_DOOR_TOP) { dropId=PINE_DOOR; world.setBlock(aim.bx,aim.by-1,aim.bz,AIR); }
           if(id===OAK_DOOR||id===PINE_DOOR) world.setBlock(aim.bx,aim.by+1,aim.bz,AIR);
+          // Clear door state
+          if(id===OAK_DOOR||id===OAK_DOOR_TOP||id===PINE_DOOR||id===PINE_DOOR_TOP){
+            const _dBotY=(id===OAK_DOOR_TOP||id===PINE_DOOR_TOP)?aim.by-1:aim.by;
+            doorStates.delete(`${aim.bx},${_dBotY},${aim.bz}`);
+          }
           if(gamemode==='survival' && id!==AIR){
             // Needs-pick blocks only drop with the correct tool
             if(!NEEDS_PICK.has(id) || IS_PICK.has(held))
