@@ -1858,7 +1858,8 @@ class World{
     for(let i=0;i<64;i++){
       if(dist>maxDist) break;
       const id=this.getBlock(x,y,z);
-      if(SOLID[id]||id===FOLIAGE||id===FLOWER_RED||id===FLOWER_YELLOW) return {bx:x,by:y,bz:z,nx,ny,nz};
+      if(SOLID[id]||id===FOLIAGE||id===FLOWER_RED||id===FLOWER_YELLOW||
+         id===WATER||id===BOWL||id===WATER_BOWL||id===FOOD_BOWL) return {bx:x,by:y,bz:z,nx,ny,nz};
       if(tmx<tmy&&tmx<tmz){dist=tmx;tmx+=tdx;nx=-sx;ny=0;nz=0;x+=sx;}
       else if(tmy<tmz)    {dist=tmy;tmy+=tdy;nx=0;ny=-sy;nz=0;y+=sy;}
       else                {dist=tmz;tmz+=tdz;nx=0;ny=0;nz=-sz;z+=sz;}
@@ -2757,10 +2758,7 @@ handGroup.visible = false;
 
 const HAND_FLAT = new Set([STICK, WOOD_PICK, STONE_PICK,
   FOLIAGE, FLOWER_RED, FLOWER_YELLOW,
-  OAK_DOOR, PINE_DOOR, OAK_DOOR_TOP, PINE_DOOR_TOP,
-  IRON_INGOT, IRON_BUCKET, WATER_BUCKET,
-  RAW_PORKCHOP, RAW_BEEF,
-  BOWL, WATER_BOWL, FOOD_BOWL]);
+  OAK_DOOR, PINE_DOOR, OAK_DOOR_TOP, PINE_DOOR_TOP]);
 
 function updateHandUVs(){
   const id = player ? player.selectedBlock : GRASS;
@@ -2845,6 +2843,9 @@ const BREAK_SND = {
   [OAK_DOOR_TOP]:  [{f:'bandpass',hz:420, q:1.0, v:0.35, d:0.16}],
   [PINE_DOOR]:     [{f:'bandpass',hz:460, q:1.0, v:0.33, d:0.15}],
   [PINE_DOOR_TOP]: [{f:'bandpass',hz:460, q:1.0, v:0.33, d:0.15}],
+  [BOWL]:       [{f:'bandpass',hz:540, q:1.2, v:0.28, d:0.13}],
+  [WATER_BOWL]: [{f:'bandpass',hz:540, q:1.2, v:0.28, d:0.13}],
+  [FOOD_BOWL]:  [{f:'bandpass',hz:540, q:1.2, v:0.28, d:0.13}],
 };
 
 function playBreakSound(blockId){
@@ -2896,6 +2897,10 @@ const PLACE_SND = {
   [PINE_PLANK]:   {f:'bandpass', hz:300, q:0.7, v:0.22, d:0.10},
   [OAK_DOOR]:     {f:'bandpass', hz:340, q:0.8, v:0.28, d:0.12},
   [PINE_DOOR]:    {f:'bandpass', hz:370, q:0.8, v:0.26, d:0.11},
+  [BOWL]:       {f:'bandpass', hz:520, q:1.1, v:0.24, d:0.10},
+  [WATER_BOWL]: {f:'bandpass', hz:520, q:1.1, v:0.24, d:0.10},
+  [FOOD_BOWL]:  {f:'bandpass', hz:520, q:1.1, v:0.24, d:0.10},
+  [WATER]:      {f:'lowpass',  hz:380, q:0.6, v:0.32, d:0.16},
 };
 function playPlaceSound(blockId){
   const sp = PLACE_SND[blockId] || PLACE_SND[STONE];
@@ -5509,24 +5514,38 @@ canvas.addEventListener('mousedown',e=>{
       return;
     }
 
-    // Bucket + bowl interactions (before generic placement)
-    const _aimed=world.getBlock(t.bx,t.by,t.bz);
-    if(blk===IRON_BUCKET && _aimed===WATER){
+    // Compute placement position (adjacent face)
+    const aimed=world.getBlock(t.bx,t.by,t.bz);
+    const replaceable=aimed===FOLIAGE||aimed===FLOWER_RED||aimed===FLOWER_YELLOW;
+    const px=replaceable?t.bx:t.bx+t.nx;
+    const py=replaceable?t.by:t.by+t.ny;
+    const pz=replaceable?t.bz:t.bz+t.nz;
+    if(py<0||py>=HEIGHT) return;
+
+    // ── Bucket interactions ──────────────────────────────────
+    if(blk===IRON_BUCKET && aimed===WATER){
+      // Fill bucket from water source
       const si=player.slot;
       player.hotbar[si]=WATER_BUCKET;
       buildHotbar(); return;
     }
-    if(blk===WATER_BUCKET && _aimed===BOWL){
-      world.setBlock(t.bx,t.by,t.bz,WATER_BOWL);
-      if(gamemode==='survival'){
-        const si=player.slot;
-        player.hotbar[si]=IRON_BUCKET;
-        buildHotbar();
+    if(blk===WATER_BUCKET){
+      if(aimed===BOWL){
+        // Pour water into empty bowl
+        world.setBlock(t.bx,t.by,t.bz,WATER_BOWL);
+        const si=player.slot; player.hotbar[si]=IRON_BUCKET;
+        playPlaceSound(WATER); handPlaceT=0; buildHotbar(); return;
       }
-      return;
+      // Place water in world, bucket becomes empty
+      world.setBlock(px,py,pz,WATER);
+      const si=player.slot; player.hotbar[si]=IRON_BUCKET;
+      playPlaceSound(WATER); handPlaceT=0; buildHotbar(); return;
     }
-    if((blk===RAW_PORKCHOP||blk===RAW_BEEF) && _aimed===BOWL){
+
+    // ── Bowl filling ─────────────────────────────────────────
+    if((blk===RAW_PORKCHOP||blk===RAW_BEEF) && aimed===BOWL){
       world.setBlock(t.bx,t.by,t.bz,FOOD_BOWL);
+      playPlaceSound(BOWL); handPlaceT=0;
       if(gamemode==='survival'){
         const si=player.slot;
         player.hotbarCounts[si]--;
@@ -5536,16 +5555,8 @@ canvas.addEventListener('mousedown',e=>{
       return;
     }
 
-    // Normal block placement — replace foliage/flowers instead of placing adjacent
-    const aimed=world.getBlock(t.bx,t.by,t.bz);
-    const replaceable=aimed===FOLIAGE||aimed===FLOWER_RED||aimed===FLOWER_YELLOW||aimed===BOWL||aimed===WATER_BOWL||aimed===FOOD_BOWL;
-    const px=replaceable?t.bx:t.bx+t.nx;
-    const py=replaceable?t.by:t.by+t.ny;
-    const pz=replaceable?t.bz:t.bz+t.nz;
-    if(py<0||py>=HEIGHT) return;
-    // Doors need an empty block above
+    // ── Normal block placement ───────────────────────────────
     if((blk===OAK_DOOR||blk===PINE_DOOR) && world.getBlock(px,py+1,pz)!==AIR) return;
-    // Items can't be placed as world blocks
     if(NON_PLACEABLE.has(blk)) return;
     // Don't place inside player AABB
     const p=player.pos, hw=PLR_W+0.1;
