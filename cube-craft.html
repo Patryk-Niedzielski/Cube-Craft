@@ -2916,6 +2916,52 @@ function playPlaceSound(blockId){
   src.start(now); src.stop(now+sp.d+0.01);
 }
 
+// ── MOB SOUNDS (oscillator + noise) ───────────────────────────────
+const _MOB_HIT_CFG = {
+  pig:     { hz1:520, hz2:270, dur:0.12, v:0.22, wave:'sawtooth' },
+  cow:     { hz1:290, hz2:140, dur:0.15, v:0.26, wave:'sawtooth' },
+  wolf:    { hz1:640, hz2:300, dur:0.10, v:0.22, wave:'sawtooth' },
+  cat:     { hz1:760, hz2:360, dur:0.10, v:0.20, wave:'triangle' },
+  chicken: { hz1:880, hz2:440, dur:0.08, v:0.18, wave:'square'   },
+  fish:    { hz1:200, hz2:100, dur:0.10, v:0.14, wave:'sine'     },
+};
+const _MOB_DIE_CFG = {
+  pig:     { hz1:440, hz2:130, dur:0.26, v:0.30, wave:'sawtooth' },
+  cow:     { hz1:240, hz2: 75, dur:0.32, v:0.34, wave:'sawtooth' },
+  wolf:    { hz1:520, hz2:150, dur:0.22, v:0.28, wave:'sawtooth' },
+  cat:     { hz1:650, hz2:190, dur:0.20, v:0.24, wave:'triangle' },
+  chicken: { hz1:740, hz2:210, dur:0.18, v:0.20, wave:'square'   },
+  fish:    { hz1:180, hz2: 75, dur:0.18, v:0.18, wave:'sine'     },
+};
+
+function _playMobSnd(cfg, thudVol, thudDur){
+  const ctx=getActx(), now=ctx.currentTime;
+  // Voice: oscillator with frequency drop
+  const osc=ctx.createOscillator();
+  osc.type=cfg.wave;
+  osc.frequency.setValueAtTime(cfg.hz1, now);
+  osc.frequency.exponentialRampToValueAtTime(cfg.hz2, now+cfg.dur);
+  const og=ctx.createGain();
+  og.gain.setValueAtTime(cfg.v, now);
+  og.gain.exponentialRampToValueAtTime(0.001, now+cfg.dur);
+  osc.connect(og); og.connect(ctx.destination);
+  osc.start(now); osc.stop(now+cfg.dur+0.01);
+  // Impact thud (filtered noise)
+  const tLen=Math.ceil(ctx.sampleRate*thudDur);
+  const tBuf=ctx.createBuffer(1,tLen,ctx.sampleRate);
+  const tCh=tBuf.getChannelData(0);
+  for(let i=0;i<tLen;i++) tCh[i]=Math.random()*2-1;
+  const ts=ctx.createBufferSource(); ts.buffer=tBuf;
+  const tf=ctx.createBiquadFilter(); tf.type='lowpass'; tf.frequency.value=280;
+  const tg=ctx.createGain();
+  tg.gain.setValueAtTime(thudVol, now);
+  tg.gain.exponentialRampToValueAtTime(0.001, now+thudDur);
+  ts.connect(tf); tf.connect(tg); tg.connect(ctx.destination);
+  ts.start(now); ts.stop(now+thudDur+0.01);
+}
+function playMobHurt(type){ _playMobSnd(_MOB_HIT_CFG[type]||_MOB_HIT_CFG.pig, 0.16, 0.07); }
+function playMobDeath(type){ _playMobSnd(_MOB_DIE_CFG[type]||_MOB_DIE_CFG.pig, 0.28, 0.14); }
+
 // ── DROPPED ITEMS ─────────────────────────────────────────────────
 class DroppedItem{
   constructor(id,x,y,z){
@@ -3675,8 +3721,11 @@ class Mob {
     this.hp -= dmg;
     if (this.hp <= 0) {
       this._dead = true;
+      playMobDeath(this.type);
       const drop = this.type==='pig' ? RAW_PORKCHOP : this.type==='cow' ? RAW_BEEF : null;
       if (drop) spawnDroppedItem(drop, this.pos.x, this.pos.y + 0.5, this.pos.z);
+    } else {
+      playMobHurt(this.type);
     }
   }
 
