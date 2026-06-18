@@ -3558,6 +3558,14 @@ class Mob {
     this.group       = buildMobGroup(type);
     scene.add(this.group);
     this._syncTransform();
+    if (this.type === 'wolf') {
+      this.hunger     = 100;
+      this.thirst     = 100;
+      this._wolfState = 'wander'; // 'wander'|'seek_food'|'seek_water'|'eating'|'drinking'
+      this._bowlPos   = null;     // {bx,by,bz} of targeted bowl
+      this._eatTimer  = 0;
+      this._scanCd    = 1 + Math.random(); // stagger initial scans
+    }
   }
 
   _syncTransform() {
@@ -3572,19 +3580,23 @@ class Mob {
   update(dt) {
     if (this.type === 'fish') { this._updateFish(dt); return; }
 
-    // Wander AI
-    this.wanderTimer -= dt;
-    if (this.wanderTimer <= 0) {
-      if (this.idle) {
-        this.idle = false;
-        this.yaw  = Math.random() * Math.PI * 2;
-        this.wanderTimer = 2 + Math.random() * 4;
-      } else if (Math.random() < 0.35) {
-        this.idle = true;
-        this.wanderTimer = 1.5 + Math.random() * 2;
-      } else {
-        this.yaw = Math.random() * Math.PI * 2;
-        this.wanderTimer = 2 + Math.random() * 4;
+    const wolfOverride = this.type === 'wolf' && this._updateWolfNeeds(dt);
+
+    // Wander AI — skip when wolf is seeking/eating/drinking
+    if (!wolfOverride) {
+      this.wanderTimer -= dt;
+      if (this.wanderTimer <= 0) {
+        if (this.idle) {
+          this.idle = false;
+          this.yaw  = Math.random() * Math.PI * 2;
+          this.wanderTimer = 2 + Math.random() * 4;
+        } else if (Math.random() < 0.35) {
+          this.idle = true;
+          this.wanderTimer = 1.5 + Math.random() * 2;
+        } else {
+          this.yaw = Math.random() * Math.PI * 2;
+          this.wanderTimer = 2 + Math.random() * 4;
+        }
       }
     }
 
@@ -3715,6 +3727,86 @@ class Mob {
       this.group.userData.tail.rotation.y = Math.sin(this.animPhase * 3) * 0.45;
     }
     this._syncTransform();
+  }
+
+  _findNearestBowl(bowlType) {
+    const R = 14;
+    const ox = Math.floor(this.pos.x), oy = Math.floor(this.pos.y), oz = Math.floor(this.pos.z);
+    let best = null, bestD = Infinity;
+    for (let dx = -R; dx <= R; dx++) for (let dz = -R; dz <= R; dz++) {
+      for (let dy = -3; dy <= 3; dy++) {
+        if (world.getBlock(ox+dx, oy+dy, oz+dz) === bowlType) {
+          const d = dx*dx + dz*dz + dy*dy*4;
+          if (d < bestD) { bestD = d; best = {bx:ox+dx, by:oy+dy, bz:oz+dz}; }
+        }
+      }
+    }
+    return best;
+  }
+
+  // Returns true when wolf is overriding wander AI (seeking/eating/drinking)
+  _updateWolfNeeds(dt) {
+    this.hunger = Math.max(0, this.hunger - dt * 0.55);
+    this.thirst = Math.max(0, this.thirst - dt * 0.75);
+    const head = this.group.userData.head;
+
+    // Periodic scan for nearby bowls
+    this._scanCd -= dt;
+    if (this._scanCd <= 0 && this._wolfState === 'wander') {
+      this._scanCd = 2.0;
+      if (this.thirst < 35) {
+        const p = this._findNearestBowl(WATER_BOWL);
+        if (p) { this._bowlPos = p; this._wolfState = 'seek_water'; }
+      } else if (this.hunger < 35) {
+        const p = this._findNearestBowl(FOOD_BOWL);
+        if (p) { this._bowlPos = p; this._wolfState = 'seek_food'; }
+      }
+    }
+
+    // Seeking a bowl
+    if (this._wolfState === 'seek_food' || this._wolfState === 'seek_water') {
+      const bp = this._bowlPos;
+      const need = this._wolfState === 'seek_food' ? FOOD_BOWL : WATER_BOWL;
+      // Abort if bowl was removed
+      if (world.getBlock(bp.bx, bp.by, bp.bz) !== need) {
+        this._wolfState = 'wander'; this._bowlPos = null;
+        if (head) head.rotation.x = 0;
+        return false;
+      }
+      const dx = bp.bx + 0.5 - this.pos.x;
+      const dz = bp.bz + 0.5 - this.pos.z;
+      this.yaw  = Math.atan2(-dx, -dz);
+      this.idle = false;
+      if (head) head.rotation.x = 0;
+      // Close enough → start eating/drinking
+      if (Math.sqrt(dx*dx + dz*dz) < 0.9) {
+        this._wolfState = this._wolfState === 'seek_food' ? 'eating' : 'drinking';
+        this._eatTimer  = 3.2;
+        this.idle       = true;
+      }
+      return true;
+    }
+
+    // Eating / drinking
+    if (this._wolfState === 'eating' || this._wolfState === 'drinking') {
+      this._eatTimer -= dt;
+      this.idle = true;
+      // Head bob: tilt down toward bowl, oscillate
+      if (head) head.rotation.x = 0.54 + Math.sin(this._eatTimer * Math.PI * 4.5) * 0.28;
+      if (this._eatTimer <= 0) {
+        const bp = this._bowlPos;
+        world.setBlock(bp.bx, bp.by, bp.bz, BOWL); // empty the bowl
+        if (this._wolfState === 'eating') this.hunger = Math.min(100, this.hunger + 65);
+        else                              this.thirst = Math.min(100, this.thirst + 80);
+        if (head) head.rotation.x = 0;
+        this._wolfState = 'wander';
+        this._bowlPos   = null;
+        this.wanderTimer = 1 + Math.random() * 2;
+      }
+      return true;
+    }
+
+    return false; // 'wander' — let normal wander AI run
   }
 
   hurt(dmg) {
