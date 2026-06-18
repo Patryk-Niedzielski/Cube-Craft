@@ -1610,41 +1610,72 @@ class World{
       if(id===AIR) continue;
 
       if(id===BOWL||id===WATER_BOWL||id===FOOD_BOWL){
-        // 3D shallow slab: 0.8×0.28×0.8, centered in block
+        // 3D bowl: wooden outer walls with recessed inner contents
         const ci=TEX_IDX[id][0];
-        const u0=ci/N_TILES, u1=(ci+1)/N_TILES;
-        const bx0=ox+x+0.1, bx1=ox+x+0.9;
-        const by0=y, by1=y+0.28;
-        const bz0=oz+z+0.1, bz1=oz+z+0.9;
-        // top face (bright)
+        const wi=22; // PLANK tile for wooden walls
+        const cu0=ci/N_TILES, cu1=(ci+1)/N_TILES;
+        const wu0=wi/N_TILES, wu1=(wi+1)/N_TILES;
+        const bh=0.42, rw=0.13; // bowl height, rim wall width
+        const bx0=ox+x+0.10, bx1=ox+x+0.90;
+        const bz0=oz+z+0.10, bz1=oz+z+0.90;
+        const by1=y+bh;
+        const ibx0=bx0+rw, ibx1=bx1-rw;
+        const ibz0=bz0+rw, ibz1=bz1-rw;
+        const iby=y+0.10; // inner floor (recessed)
+        // Outer front wall (z0)
         fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
-        fpos.push(bx0,by1,bz0, bx1,by1,bz0, bx1,by1,bz1, bx0,by1,bz1);
-        fuv.push(u0,0, u1,0, u1,1, u0,1);
+        fpos.push(bx0,y,bz0, bx1,y,bz0, bx1,by1,bz0, bx0,by1,bz0);
+        fuv.push(wu0,0, wu1,0, wu1,1, wu0,1);
+        fcol.push(0.82,0.82,0.82, 0.82,0.82,0.82, 0.82,0.82,0.82, 0.82,0.82,0.82);
+        fvi+=4;
+        // Outer back wall (z1)
+        fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
+        fpos.push(bx1,y,bz1, bx0,y,bz1, bx0,by1,bz1, bx1,by1,bz1);
+        fuv.push(wu0,0, wu1,0, wu1,1, wu0,1);
+        fcol.push(0.82,0.82,0.82, 0.82,0.82,0.82, 0.82,0.82,0.82, 0.82,0.82,0.82);
+        fvi+=4;
+        // Outer left wall (x0)
+        fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
+        fpos.push(bx0,y,bz1, bx0,y,bz0, bx0,by1,bz0, bx0,by1,bz1);
+        fuv.push(wu0,0, wu1,0, wu1,1, wu0,1);
+        fcol.push(0.72,0.72,0.72, 0.72,0.72,0.72, 0.72,0.72,0.72, 0.72,0.72,0.72);
+        fvi+=4;
+        // Outer right wall (x1)
+        fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
+        fpos.push(bx1,y,bz0, bx1,y,bz1, bx1,by1,bz1, bx1,by1,bz0);
+        fuv.push(wu0,0, wu1,0, wu1,1, wu0,1);
+        fcol.push(0.72,0.72,0.72, 0.72,0.72,0.72, 0.72,0.72,0.72, 0.72,0.72,0.72);
+        fvi+=4;
+        // Top rim strips (4 narrow bands forming a ring)
+        // front strip
+        fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
+        fpos.push(bx0,by1,bz0, bx1,by1,bz0, bx1,by1,bz0+rw, bx0,by1,bz0+rw);
+        fuv.push(wu0,0, wu1,0, wu1,1, wu0,1);
         fcol.push(1.0,1.0,1.0, 1.0,1.0,1.0, 1.0,1.0,1.0, 1.0,1.0,1.0);
         fvi+=4;
-        // front face (z0)
+        // back strip
         fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
-        fpos.push(bx0,by0,bz0, bx1,by0,bz0, bx1,by1,bz0, bx0,by1,bz0);
-        fuv.push(u0,0, u1,0, u1,1, u0,1);
-        fcol.push(0.82,0.82,0.82, 0.82,0.82,0.82, 0.82,0.82,0.82, 0.82,0.82,0.82);
+        fpos.push(bx0,by1,bz1-rw, bx1,by1,bz1-rw, bx1,by1,bz1, bx0,by1,bz1);
+        fuv.push(wu0,0, wu1,0, wu1,1, wu0,1);
+        fcol.push(1.0,1.0,1.0, 1.0,1.0,1.0, 1.0,1.0,1.0, 1.0,1.0,1.0);
         fvi+=4;
-        // back face (z1)
+        // left strip
         fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
-        fpos.push(bx1,by0,bz1, bx0,by0,bz1, bx0,by1,bz1, bx1,by1,bz1);
-        fuv.push(u0,0, u1,0, u1,1, u0,1);
-        fcol.push(0.82,0.82,0.82, 0.82,0.82,0.82, 0.82,0.82,0.82, 0.82,0.82,0.82);
+        fpos.push(bx0,by1,bz0+rw, bx0+rw,by1,bz0+rw, bx0+rw,by1,bz1-rw, bx0,by1,bz1-rw);
+        fuv.push(wu0,0, wu1,0, wu1,1, wu0,1);
+        fcol.push(1.0,1.0,1.0, 1.0,1.0,1.0, 1.0,1.0,1.0, 1.0,1.0,1.0);
         fvi+=4;
-        // left face (x0)
+        // right strip
         fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
-        fpos.push(bx0,by0,bz1, bx0,by0,bz0, bx0,by1,bz0, bx0,by1,bz1);
-        fuv.push(u0,0, u1,0, u1,1, u0,1);
-        fcol.push(0.72,0.72,0.72, 0.72,0.72,0.72, 0.72,0.72,0.72, 0.72,0.72,0.72);
+        fpos.push(bx1-rw,by1,bz0+rw, bx1,by1,bz0+rw, bx1,by1,bz1-rw, bx1-rw,by1,bz1-rw);
+        fuv.push(wu0,0, wu1,0, wu1,1, wu0,1);
+        fcol.push(1.0,1.0,1.0, 1.0,1.0,1.0, 1.0,1.0,1.0, 1.0,1.0,1.0);
         fvi+=4;
-        // right face (x1)
+        // Inner floor (contents visible from above)
         fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
-        fpos.push(bx1,by0,bz0, bx1,by0,bz1, bx1,by1,bz1, bx1,by1,bz0);
-        fuv.push(u0,0, u1,0, u1,1, u0,1);
-        fcol.push(0.72,0.72,0.72, 0.72,0.72,0.72, 0.72,0.72,0.72, 0.72,0.72,0.72);
+        fpos.push(ibx0,iby,ibz0, ibx1,iby,ibz0, ibx1,iby,ibz1, ibx0,iby,ibz1);
+        fuv.push(cu0,0, cu1,0, cu1,1, cu0,1);
+        fcol.push(1.0,1.0,1.0, 1.0,1.0,1.0, 1.0,1.0,1.0, 1.0,1.0,1.0);
         fvi+=4;
         continue;
       }
@@ -2758,7 +2789,9 @@ handGroup.visible = false;
 
 const HAND_FLAT = new Set([STICK, WOOD_PICK, STONE_PICK,
   FOLIAGE, FLOWER_RED, FLOWER_YELLOW,
-  OAK_DOOR, PINE_DOOR, OAK_DOOR_TOP, PINE_DOOR_TOP]);
+  OAK_DOOR, PINE_DOOR, OAK_DOOR_TOP, PINE_DOOR_TOP,
+  IRON_INGOT, IRON_BUCKET, WATER_BUCKET,
+  RAW_PORKCHOP, RAW_BEEF]);
 
 function updateHandUVs(){
   const id = player ? player.selectedBlock : GRASS;
@@ -2792,6 +2825,11 @@ function updateHandUVs(){
       uv.setXY(b+3, (ci+1)/N_TILES, 0);
     }
     uv.needsUpdate = true;
+    if(id===BOWL||id===WATER_BOWL||id===FOOD_BOWL){
+      handMesh.scale.set(1.15, 0.50, 1.15);
+    } else {
+      handMesh.scale.set(1, 1, 1);
+    }
   }
 }
 
@@ -5560,8 +5598,8 @@ canvas.addEventListener('mousedown',e=>{
       buildHotbar(); return;
     }
     if(blk===WATER_BUCKET){
-      if(aimed===BOWL){
-        // Pour water into empty bowl
+      if(aimed===BOWL||aimed===FOOD_BOWL){
+        // Pour water into empty or food bowl → water bowl
         world.setBlock(t.bx,t.by,t.bz,WATER_BOWL);
         const si=player.slot; player.hotbar[si]=IRON_BUCKET;
         playPlaceSound(WATER); handPlaceT=0; buildHotbar(); return;
@@ -5573,7 +5611,7 @@ canvas.addEventListener('mousedown',e=>{
     }
 
     // ── Bowl filling ─────────────────────────────────────────
-    if((blk===RAW_PORKCHOP||blk===RAW_BEEF) && aimed===BOWL){
+    if((blk===RAW_PORKCHOP||blk===RAW_BEEF) && (aimed===BOWL||aimed===WATER_BOWL)){
       world.setBlock(t.bx,t.by,t.bz,FOOD_BOWL);
       playPlaceSound(BOWL); handPlaceT=0;
       if(gamemode==='survival'){
