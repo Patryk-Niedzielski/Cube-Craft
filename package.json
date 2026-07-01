@@ -5,6 +5,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "server": "node server.js",
     "build:mac": "electron-builder --mac",
     "build:win": "electron-builder --win"
   },
@@ -13,6 +14,7 @@
     "productName": "Cube Craft",
     "files": [
       "main.js",
+      "server.js",
       "cube-craft.html",
       "assets/**",
       "node_modules/three/build/**",

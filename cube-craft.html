@@ -233,10 +233,17 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
 #chest-hotbar-row{display:grid;grid-template-columns:repeat(9,40px);gap:4px}
 /* ── MULTIPLAYER DIALOG ── */
 #mp-screen{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:60;background:rgba(0,0,0,0.6)}
-#mp-panel{background:#c6c6c6;padding:20px 24px;border:3px solid;border-top-color:#fff;border-left-color:#fff;border-bottom-color:#555;border-right-color:#555;font-family:'Press Start 2P',monospace;display:flex;flex-direction:column;align-items:center;gap:12px;max-width:420px;text-align:center}
+#mp-panel{background:#c6c6c6;padding:20px 24px;border:3px solid;border-top-color:#fff;border-left-color:#fff;border-bottom-color:#555;border-right-color:#555;font-family:'Press Start 2P',monospace;display:flex;flex-direction:column;align-items:center;gap:10px;width:440px;max-width:90vw;text-align:center}
 #mp-title{font-size:12px;color:#333;text-shadow:1px 1px 0 rgba(255,255,255,0.6)}
-#mp-msg{font-size:8px;color:#444;line-height:1.7;margin:0}
-#mp-server-row{display:flex;gap:6px;width:100%}
+#mp-msg{font-size:7px;color:#444;line-height:1.7;margin:0}
+.mp-sep{height:1px;background:#999;width:100%;margin:2px 0}
+#mp-list{width:100%;max-height:170px;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
+.mp-entry{display:flex;align-items:center;gap:6px;background:#8b8b8b;border:2px solid;border-top-color:#a8a8a8;border-left-color:#a8a8a8;border-bottom-color:#555;border-right-color:#555;padding:5px 6px}
+.mp-entry .mp-en{flex:1;text-align:left;overflow:hidden}
+.mp-entry .mp-en b{font-size:7px;color:#111;display:block}
+.mp-entry .mp-en span{font-size:6px;color:#333}
+#mp-add-row{display:flex;gap:5px;width:100%}
+#mp-name{width:88px;font-family:'Press Start 2P',monospace;font-size:7px;padding:6px;background:#222;color:#eee;border:2px solid #000;outline:none}
 #mp-address{flex:1;font-family:'Press Start 2P',monospace;font-size:7px;padding:6px 8px;background:#222;color:#eee;border:2px solid #000;outline:none}
 #mp-status{font-size:7px;color:#c04040;min-height:10px}
 /* ── WORLD CREATE SCREEN ── */
@@ -696,14 +703,15 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
 <div id="mp-screen">
   <div id="mp-panel">
     <div id="mp-title">Multiplayer</div>
-    <button class="mc-btn" id="mp-local-btn" style="width:100%;font-size:8px" onclick="startLocalGame()">Host Local Game</button>
-    <p id="mp-msg">Local Game links every Cube&nbsp;Craft window open on <b>this computer</b> —
-      open the game in another tab/window and press Host Local Game there too to play together.</p>
-    <div style="height:1px;background:#999;width:100%;margin:2px 0"></div>
-    <div style="font-size:7px;color:#555">Online servers (coming soon):</div>
-    <div id="mp-server-row">
-      <input id="mp-address" type="text" placeholder="server address (e.g. play.example.com)" spellcheck="false" autocomplete="off">
-      <button class="mc-btn" id="mp-connect" style="font-size:7px;min-width:0;padding:6px 10px">Connect</button>
+    <button class="mc-btn" id="mp-local-btn" style="width:100%;font-size:8px" onclick="startLocalGame()">Host Local Game (this PC)</button>
+    <p id="mp-msg">To host for friends: run <b>node&nbsp;server.js</b> on your PC and share your <b>IP:port</b>. Others add it below and click Join.</p>
+    <div class="mp-sep"></div>
+    <div style="font-size:8px;color:#333;align-self:flex-start">Server List</div>
+    <div id="mp-list"></div>
+    <div id="mp-add-row">
+      <input id="mp-name" type="text" placeholder="name" spellcheck="false" autocomplete="off" maxlength="24">
+      <input id="mp-address" type="text" placeholder="address:port (e.g. 192.168.1.5:25565)" spellcheck="false" autocomplete="off">
+      <button class="mc-btn" id="mp-add" style="font-size:7px;min-width:0;padding:6px 10px">Add</button>
     </div>
     <div id="mp-status"></div>
     <button class="mc-btn" style="width:120px;font-size:7px;margin-top:4px" onclick="closeMultiplayer()">Back</button>
@@ -5966,7 +5974,7 @@ function migrateOldSave(){
 
 function saveWorld(){
   if(!gameStarted || !currentWorldId) return;
-  if(currentWorldId==='__local_mp__') return; // local multiplayer session isn't persisted
+  if(currentWorldId==='__local_mp__'||currentWorldId==='__net_mp__') return; // multiplayer sessions aren't persisted
   const data={
     v:1, seed:worldSeed, gamemode, cheats:cheatsEnabled,
     player:{
@@ -7011,33 +7019,63 @@ document.getElementById('wc-cancel').addEventListener('click',()=>{
 
 document.getElementById('play-btn').addEventListener('click', openWorldSelect);
 
-// ── MULTIPLAYER (placeholder — no server backend yet) ──
+// ── MULTIPLAYER ───────────────────────────────────────────
+// Two transports share one message protocol:
+//   • 'local' — BroadcastChannel, links windows/tabs on THIS computer
+//   • 'ws'    — WebSocket to a host running server.js (LAN / internet)
+// Peers render each other as interpolated avatars and share block edits.
 const mpScreenEl = document.getElementById('mp-screen');
-function openMultiplayer(){
-  const st=document.getElementById('mp-status'); if(st) st.textContent='';
-  const addr=document.getElementById('mp-address'); if(addr) addr.value='';
-  mpScreenEl.style.display='flex';
-}
-function closeMultiplayer(){ mpScreenEl.style.display='none'; }
-document.getElementById('mp-connect').addEventListener('click',()=>{
-  const addr=document.getElementById('mp-address').value.trim();
-  const st=document.getElementById('mp-status');
-  st.textContent = addr ? 'Could not reach "'+addr+'" — servers are not online yet.'
-                        : 'Enter a server address. (Multiplayer servers are coming soon!)';
-});
-document.getElementById('mp-address').addEventListener('keydown',e=>{
-  if(e.code==='Enter'){ e.preventDefault(); document.getElementById('mp-connect').click(); }
-});
-
-// ── LOCAL MULTIPLAYER (same computer, via BroadcastChannel) ──
-// Links every game window/tab on this machine: each broadcasts its player
-// state; peers render each other as avatars, and block edits are shared.
-let mpActive=false, mpChannel=null;
-const mpId = 'p'+Math.random().toString(36).slice(2,8);
+let mpActive=false, mpMode=null, mpChannel=null, mpWS=null;
+let mpId = 'p'+Math.random().toString(36).slice(2,8);
 const mpPeers = new Map();      // id → {group, x,y,z,yaw, tx,ty,tz,tyaw, last}
 const MP_LOCAL_SEED = 424242;   // shared seed so all local players get identical terrain
 let _mpSendT = 0;
 
+function openMultiplayer(){
+  const st=document.getElementById('mp-status'); if(st) st.textContent='';
+  buildServerList();
+  mpScreenEl.style.display='flex';
+}
+function closeMultiplayer(){ mpScreenEl.style.display='none'; }
+
+// ── Saved server list (localStorage) ──
+const MP_SERVERS_KEY='cubecraft_servers';
+function getServers(){ try{ return JSON.parse(localStorage.getItem(MP_SERVERS_KEY))||[]; }catch(e){ return []; } }
+function saveServers(list){ localStorage.setItem(MP_SERVERS_KEY, JSON.stringify(list)); }
+function buildServerList(){
+  const el=document.getElementById('mp-list'); if(!el) return;
+  el.innerHTML='';
+  const servers=getServers();
+  if(!servers.length){
+    const d=document.createElement('div'); d.style.cssText='font-size:6px;color:#555;padding:6px';
+    d.textContent='No servers yet — add one below.'; el.appendChild(d); return;
+  }
+  servers.forEach((s,i)=>{
+    const row=document.createElement('div'); row.className='mp-entry';
+    const info=document.createElement('div'); info.className='mp-en';
+    info.innerHTML='<b></b><span></span>';
+    info.querySelector('b').textContent=s.name||s.addr;
+    info.querySelector('span').textContent=s.addr;
+    const join=document.createElement('button'); join.className='mc-btn'; join.style.cssText='font-size:6px;min-width:0;padding:5px 8px'; join.textContent='Join';
+    join.addEventListener('click',()=>mpJoinServer(s.addr));
+    const del=document.createElement('button'); del.className='mc-btn'; del.style.cssText='font-size:6px;min-width:0;padding:5px 7px;background:#5a3a3a'; del.textContent='✕';
+    del.addEventListener('click',()=>{ const l=getServers(); l.splice(i,1); saveServers(l); buildServerList(); });
+    row.append(info,join,del);
+    el.appendChild(row);
+  });
+}
+document.getElementById('mp-add').addEventListener('click',()=>{
+  const addr=document.getElementById('mp-address').value.trim();
+  const name=document.getElementById('mp-name').value.trim();
+  if(!addr){ document.getElementById('mp-status').textContent='Enter an address like 192.168.1.5:25565'; return; }
+  const l=getServers(); l.push({name:name||addr, addr}); saveServers(l);
+  document.getElementById('mp-name').value=''; document.getElementById('mp-address').value='';
+  document.getElementById('mp-status').textContent='';
+  buildServerList();
+});
+document.getElementById('mp-address').addEventListener('keydown',e=>{ if(e.code==='Enter'){ e.preventDefault(); document.getElementById('mp-add').click(); } });
+
+// ── Shared networking core ──
 function mpBuildAvatar(){
   const g=new THREE.Group();
   const skin=_FM(0xC9A06B), shirt=_FM(0x3A6EA5), pants=_FM(0x33356A), head=_FM(0xE0B48A);
@@ -7050,46 +7088,42 @@ function mpBuildAvatar(){
   scene.add(g);
   return g;
 }
-function mpConnect(){
-  if(mpActive) return true;
-  if(typeof BroadcastChannel==='undefined') return false;
-  mpChannel=new BroadcastChannel('cubecraft-local');
-  mpChannel.onmessage=mpOnMessage;
-  mpActive=true;
-  mpChannel.postMessage({t:'join', id:mpId});   // ask existing peers to reveal themselves
-  return true;
+function mpSend(obj){
+  if(!mpActive) return;
+  if(mpMode==='ws'){ if(mpWS && mpWS.readyState===1){ obj.id=mpId; mpWS.send(JSON.stringify(obj)); } }
+  else if(mpMode==='local'){ obj.id=mpId; mpChannel.postMessage(obj); }
 }
 function mpDisconnect(){
   if(!mpActive) return;
-  try{ mpChannel.postMessage({t:'leave', id:mpId}); mpChannel.close(); }catch(e){}
-  mpChannel=null; mpActive=false;
+  try{
+    if(mpMode==='local'){ mpChannel.postMessage({t:'leave', id:mpId}); mpChannel.close(); }
+    else if(mpMode==='ws' && mpWS){ mpWS.close(); }
+  }catch(e){}
+  mpChannel=null; mpWS=null; mpActive=false; mpMode=null;
   for(const p of mpPeers.values()) scene.remove(p.group);
   mpPeers.clear();
 }
-function mpOnMessage(e){
-  const m=e.data; if(!m || m.id===mpId) return;
+// Unified message handler for both transports
+function mpHandle(m){
+  if(!m || m.id===mpId) return;
   if(m.t==='leave'){ const p=mpPeers.get(m.id); if(p){ scene.remove(p.group); mpPeers.delete(m.id); } return; }
-  if(m.t==='join'){ mpSendState(); return; } // new peer joined — reveal ourselves
+  if(m.t==='join'){ mpSend({t:'state', x:player.pos.x, y:player.pos.y, z:player.pos.z, yaw:player.yaw}); return; }
   if(m.t==='state'){
     let p=mpPeers.get(m.id);
-    if(!p){ p={group:mpBuildAvatar(), x:m.x,y:m.y,z:m.z,yaw:m.yaw, tx:m.x,ty:m.y,tz:m.z,tyaw:m.yaw, last:0}; mpPeers.set(m.id,p); addChatMsg('A player joined the local game','ok'); }
+    if(!p){ p={group:mpBuildAvatar(), x:m.x,y:m.y,z:m.z,yaw:m.yaw, tx:m.x,ty:m.y,tz:m.z,tyaw:m.yaw, last:0}; mpPeers.set(m.id,p); addChatMsg('A player joined','ok'); }
     p.tx=m.x; p.ty=m.y; p.tz=m.z; p.tyaw=m.yaw; p.last=performance.now();
     return;
   }
   if(m.t==='block'){ world.setBlock(m.x,m.y,m.z,m.b); return; }
 }
-function mpSendState(){
-  if(!mpActive) return;
-  mpChannel.postMessage({t:'state', id:mpId, x:player.pos.x, y:player.pos.y, z:player.pos.z, yaw:player.yaw});
-}
-function mpSendBlock(x,y,z,b){ if(mpActive) mpChannel.postMessage({t:'block', id:mpId, x,y,z,b}); }
+function mpSendBlock(x,y,z,b){ mpSend({t:'block', x,y,z,b}); }
 function mpUpdate(dt){
   if(!mpActive) return;
   _mpSendT-=dt;
-  if(_mpSendT<=0){ _mpSendT=0.066; mpSendState(); }   // ~15 updates/sec
+  if(_mpSendT<=0){ _mpSendT=0.066; mpSend({t:'state', x:player.pos.x, y:player.pos.y, z:player.pos.z, yaw:player.yaw}); }
   const now=performance.now(), k=Math.min(1,dt*12);
   for(const [id,p] of mpPeers){
-    if(now-p.last>5000){ scene.remove(p.group); mpPeers.delete(id); continue; } // timed out
+    if(now-p.last>5000){ scene.remove(p.group); mpPeers.delete(id); continue; }
     p.x+=(p.tx-p.x)*k; p.y+=(p.ty-p.y)*k; p.z+=(p.tz-p.z)*k;
     let d=p.tyaw-p.yaw; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI;
     p.yaw+=d*k;
@@ -7098,23 +7132,75 @@ function mpUpdate(dt){
   }
 }
 
+// ── Local (same computer) ──
 async function startLocalGame(){
   closeMultiplayer();
   overlayEl.style.display='none';
   worldSeed=MP_LOCAL_SEED; initPerm(worldSeed);
-  gamemode='survival'; cheatsEnabled=true;
-  player.flying=false;
+  gamemode='survival'; cheatsEnabled=true; player.flying=false;
   trackingMods=false; worldMods=new Map();
   chestData.clear(); seededChests.clear(); cropSet.clear();
-  currentWorldId='__local_mp__';   // not persisted (saveWorld skips local MP)
+  currentWorldId='__local_mp__';
   await generateWorld();
   trackingMods=true;
-  gameReady=true; gameStarted=true;
-  prevT=performance.now();
+  gameReady=true; gameStarted=true; prevT=performance.now();
   buildHotbar(); buildHealth(); buildHunger(); refreshGamemodeBadge();
-  mpConnect();
+  if(typeof BroadcastChannel!=='undefined'){
+    mpChannel=new BroadcastChannel('cubecraft-local');
+    mpChannel.onmessage=(e)=>mpHandle(e.data);
+    mpActive=true; mpMode='local';
+    mpSend({t:'join'});
+  }
   clickHint.style.display='flex';
   addChatMsg('Local game started — open another window to play together!','ok');
+}
+
+// ── Join a hosted server (WebSocket) ──
+function mpJoinServer(addr){
+  const st=document.getElementById('mp-status');
+  let url=addr.trim();
+  if(!/^wss?:\/\//.test(url)) url='ws://'+url;
+  st.textContent='Connecting to '+addr+'…';
+  let ws;
+  try{ ws=new WebSocket(url); }catch(e){ st.textContent='Invalid address: '+addr; return; }
+  mpWS=ws;
+  let welcomed=false;
+  ws.onopen=()=>{ st.textContent='Connected — loading world…'; };
+  ws.onerror=()=>{ if(!welcomed) st.textContent='Could not connect to '+addr; };
+  ws.onclose=()=>{
+    if(!welcomed){ st.textContent='Could not connect to '+addr; return; }
+    addChatMsg('Disconnected from server','err'); mpDisconnect();
+  };
+  ws.onmessage=(ev)=>{
+    let m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
+    if(m.t==='welcome' && !welcomed){
+      welcomed=true; mpId=m.id; mpMode='ws'; mpActive=true;
+      startNetworkGame(m.seed, m.edits||{});
+    } else {
+      mpHandle(m);
+    }
+  };
+}
+async function startNetworkGame(seed, editMap){
+  closeMultiplayer();
+  overlayEl.style.display='none';
+  worldSeed=seed|0; initPerm(worldSeed);
+  gamemode='survival'; cheatsEnabled=true; player.flying=false;
+  trackingMods=false; worldMods=new Map();
+  chestData.clear(); seededChests.clear(); cropSet.clear();
+  currentWorldId='__net_mp__';
+  await generateWorld();
+  // Apply the host's block edits so we match the shared world
+  for(const key in editMap){
+    const [x,y,z]=key.split(',').map(Number);
+    world.setBlock(x,y,z,editMap[key]);
+  }
+  trackingMods=true;
+  gameReady=true; gameStarted=true; prevT=performance.now();
+  buildHotbar(); buildHealth(); buildHunger(); refreshGamemodeBadge();
+  mpSend({t:'join'});
+  clickHint.style.display='flex';
+  addChatMsg('Joined server!','ok');
 }
 
 // Migrate any old single save on startup
