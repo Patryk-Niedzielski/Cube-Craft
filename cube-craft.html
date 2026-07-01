@@ -1029,6 +1029,7 @@ const RAW_PORKCHOP=55, RAW_BEEF=56;
 const BOWL=57, WATER_BOWL=58, FOOD_BOWL=59;
 const COAL_ORE=60, IRON_ORE=61, GOLD_ORE=62, COAL=63, GOLD_INGOT=64;
 const FURNACE=65, COOKED_PORKCHOP=66, COOKED_BEEF=67;
+const TORCH=68;
 
 // ── TOOL SYSTEM CONSTANTS ─────────────────────────────────
 const NEEDS_PICK  = new Set([STONE, COBBLESTONE, MOSSY_COBBLE, CRACKED_STONE, COAL_ORE, IRON_ORE, GOLD_ORE, FURNACE]); // blocks that require a pickaxe
@@ -1036,7 +1037,7 @@ const IS_PICK     = new Set([WOOD_PICK, STONE_PICK]);
 const TOOL_SPEED  = {[WOOD_PICK]:1.0, [STONE_PICK]:1.5}; // speed mult vs base stone hardness
 const TOOL_MAX_DUR= {[WOOD_PICK]:60,  [STONE_PICK]:130};
 const UNSTACKABLE = new Set([WOOD_PICK, STONE_PICK]);    // these never stack
-const FLAT_ITEMS  = new Set([STICK, WOOD_PICK, STONE_PICK, IRON_INGOT, GOLD_INGOT, COAL, RAW_PORKCHOP, RAW_BEEF, COOKED_PORKCHOP, COOKED_BEEF]); // rendered as 2D sprites
+const FLAT_ITEMS  = new Set([STICK, WOOD_PICK, STONE_PICK, IRON_INGOT, GOLD_INGOT, COAL, RAW_PORKCHOP, RAW_BEEF, COOKED_PORKCHOP, COOKED_BEEF, TORCH]); // rendered as 2D sprites
 const SPAWN_EGG_MOB={[PIG_EGG]:'pig',[COW_EGG]:'cow',[WOLF_EGG]:'wolf',[CAT_EGG]:'cat',[CHICKEN_EGG]:'chicken',[FISH_EGG]:'fish'};
 const NON_PLACEABLE = new Set([IRON_INGOT,IRON_BUCKET,WATER_BUCKET,RAW_PORKCHOP,RAW_BEEF,COAL,GOLD_INGOT,COOKED_PORKCHOP,COOKED_BEEF]);
 // What a block drops when mined (defaults to the block itself if absent)
@@ -1057,14 +1058,15 @@ const BLOCK_NAME=['Air','Grass','Dirt','Stone','Oak Log','Leaves','Sand','Bedroc
   'Iron Ingot','Iron Bucket','Water Bucket','Raw Porkchop','Raw Beef',
   'Bowl','Water Bowl','Food Bowl',
   'Coal Ore','Iron Ore','Gold Ore','Coal','Gold Ingot',
-  'Furnace','Cooked Porkchop','Cooked Beef'];
+  'Furnace','Cooked Porkchop','Cooked Beef','Torch'];
 const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3, 0,0,0,0,0,0, 0.2, 0.25, 0.0, 0.0, 0.7, 1.0, 0,0,0, 0.6, 1.0, 1.0, 1.1,
   0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4, // wool 30-45
   1.2, 0.7, 0.8, 0.8, 0.8, 0.8, // pine log, pine plank, oak door×2, pine door×2
   0,0,0,0,0, // iron ingot, iron bucket, water bucket, raw porkchop, raw beef
   0.2,0.2,0.2, // bowl, water bowl, food bowl
   3.0,3.0,3.0,0,0, // coal ore, iron ore, gold ore, coal(item), gold ingot(item)
-  3.5,0,0]; // furnace, cooked porkchop(item), cooked beef(item)
+  3.5,0,0, // furnace, cooked porkchop(item), cooked beef(item)
+  0.05]; // torch
 const TEX_IDX={
   [GRASS]:   [0,2,1],
   [DIRT]:    [2,2,2],
@@ -1133,6 +1135,7 @@ const TEX_IDX={
   [FURNACE]:         [67,67,66],
   [COOKED_PORKCHOP]: [68,68,68],
   [COOKED_BEEF]:     [69,69,69],
+  [TORCH]:           [70,70,70],
 };
 // SOLID: player collides with these
 const SOLID=new Uint8Array(256);
@@ -1724,6 +1727,24 @@ class World{
         continue;
       }
 
+      if(id===TORCH){
+        // Small centred X-cross with an over-bright colour so it glows at
+        // night (survives the day/night tint multiply on the shared material)
+        const ci=TEX_IDX[id][0], bh=0.62, sh=4.2;
+        const cx0=ox+x+0.30, cx1=ox+x+0.70, cz0=oz+z+0.30, cz1=oz+z+0.70;
+        fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
+        fpos.push(cx0,y,cz0, cx1,y,cz1, cx1,y+bh,cz1, cx0,y+bh,cz0);
+        fuv.push(ci/N_TILES,0, (ci+1)/N_TILES,0, (ci+1)/N_TILES,1, ci/N_TILES,1);
+        fcol.push(sh,sh,sh, sh,sh,sh, sh,sh,sh, sh,sh,sh);
+        fvi+=4;
+        fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
+        fpos.push(cx1,y,cz0, cx0,y,cz1, cx0,y+bh,cz1, cx1,y+bh,cz0);
+        fuv.push(ci/N_TILES,0, (ci+1)/N_TILES,0, (ci+1)/N_TILES,1, ci/N_TILES,1);
+        fcol.push(sh,sh,sh, sh,sh,sh, sh,sh,sh, sh,sh,sh);
+        fvi+=4;
+        continue;
+      }
+
       if(id===FOLIAGE||id===FLOWER_RED||id===FLOWER_YELLOW){
         // X-cross billboard: two diagonal quads
         const ci=TEX_IDX[id][0], bh=0.9, sh=1.0;
@@ -1934,7 +1955,7 @@ class World{
       if(dist>maxDist) break;
       const id=this.getBlock(x,y,z);
       if(SOLID[id]||id===FOLIAGE||id===FLOWER_RED||id===FLOWER_YELLOW||
-         id===WATER||id===BOWL||id===WATER_BOWL||id===FOOD_BOWL) return {bx:x,by:y,bz:z,nx,ny,nz};
+         id===WATER||id===BOWL||id===WATER_BOWL||id===FOOD_BOWL||id===TORCH) return {bx:x,by:y,bz:z,nx,ny,nz};
       if(tmx<tmy&&tmx<tmz){dist=tmx;tmx+=tdx;nx=-sx;ny=0;nz=0;x+=sx;}
       else if(tmy<tmz)    {dist=tmy;tmy+=tdy;nx=0;ny=-sy;nz=0;y+=sy;}
       else                {dist=tmz;tmz+=tdz;nx=0;ny=0;nz=-sz;z+=sz;}
@@ -2327,7 +2348,7 @@ hlMesh.visible=false;
 scene.add(hlMesh);
 
 // ── TEXTURE ATLAS (16×16 pixel art, 16 tiles → 256×16 px, power-of-2) ───────
-const N_TILES = 70;
+const N_TILES = 71;
 const TS      = 16;
 const atlasCvs = document.createElement('canvas');
 atlasCvs.width  = TS * N_TILES;  // 256
@@ -2897,6 +2918,21 @@ for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
     else tsp(69,x,y, 128+Math.round((n-0.5)*20), 80+Math.round((n-0.5)*14), 46+Math.round((n-0.5)*10));
   }
 }
+// Tile 70 — TORCH (wooden stick with bright flame on top; transparent bg)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  // stick: vertical bar in lower ~two-thirds
+  if(x>=7&&x<=8&&y>=7&&y<=15){
+    const s=Math.round((th(70*TS+x,y)-0.5)*14);
+    tsp(70,x,y, 120+s, 82+s, 40+s);
+  }
+  // flame: teardrop near the top
+  const fx=x-7.5, fy=y-4.5; const r=Math.sqrt(fx*fx*1.3+fy*fy);
+  if(y<=7 && r<3.2){
+    if(r<1.5) tsp(70,x,y, 255,246,180);      // white-hot core
+    else if(r<2.4) tsp(70,x,y, 255,196,60);  // orange
+    else tsp(70,x,y, 236,120,26);            // outer flame
+  }
+}
 
 const atlasTexture = new THREE.CanvasTexture(atlasCvs);
 atlasTexture.magFilter     = THREE.NearestFilter;  // crisp pixels, no blurring
@@ -2969,7 +3005,7 @@ const HAND_FLAT = new Set([STICK, WOOD_PICK, STONE_PICK,
   FOLIAGE, FLOWER_RED, FLOWER_YELLOW,
   OAK_DOOR, PINE_DOOR, OAK_DOOR_TOP, PINE_DOOR_TOP,
   IRON_INGOT, IRON_BUCKET, WATER_BUCKET,
-  RAW_PORKCHOP, RAW_BEEF, COAL, GOLD_INGOT, COOKED_PORKCHOP, COOKED_BEEF]);
+  RAW_PORKCHOP, RAW_BEEF, COAL, GOLD_INGOT, COOKED_PORKCHOP, COOKED_BEEF, TORCH]);
 
 function updateHandUVs(){
   const id = player ? player.selectedBlock : GRASS;
@@ -3121,6 +3157,7 @@ const PLACE_SND = {
   [WATER_BOWL]: {f:'bandpass', hz:520, q:1.1, v:0.24, d:0.10},
   [FOOD_BOWL]:  {f:'bandpass', hz:520, q:1.1, v:0.24, d:0.10},
   [WATER]:      {f:'lowpass',  hz:380, q:0.6, v:0.32, d:0.16},
+  [TORCH]:      {f:'bandpass', hz:520, q:0.9, v:0.20, d:0.07},
 };
 function playPlaceSound(blockId){
   const sp = PLACE_SND[blockId] || PLACE_SND[STONE];
@@ -4196,7 +4233,7 @@ const CREATIVE_PAGE_SIZE=27;
 const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,PINE_LOG,LEAVES,PINE_LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS,SNOW,
   FLOWER_RED,FLOWER_YELLOW,PLANK,PINE_PLANK,CRAFT_TABLE,STICK,WOOD_PICK,STONE_PICK,
   GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE,
-  COAL_ORE,IRON_ORE,GOLD_ORE,COAL,IRON_INGOT,GOLD_INGOT,FURNACE,
+  COAL_ORE,IRON_ORE,GOLD_ORE,COAL,IRON_INGOT,GOLD_INGOT,FURNACE,TORCH,
   OAK_DOOR,PINE_DOOR,
   IRON_BUCKET,WATER_BUCKET,RAW_PORKCHOP,RAW_BEEF,COOKED_PORKCHOP,COOKED_BEEF,
   BOWL,WATER_BOWL,FOOD_BOWL,
@@ -5073,6 +5110,13 @@ const CT_RECIPES=[
   {pattern:[IRON_INGOT,AIR,IRON_INGOT, AIR,IRON_INGOT,AIR, AIR,AIR,AIR], out:IRON_BUCKET, outCount:1},
   // Furnace: 8 cobblestone ring (empty centre)
   {pattern:[COBBLESTONE,COBBLESTONE,COBBLESTONE, COBBLESTONE,AIR,COBBLESTONE, COBBLESTONE,COBBLESTONE,COBBLESTONE], out:FURNACE, outCount:1},
+  // Torch: coal above a stick (3 columns)
+  {pattern:[COAL,AIR,AIR, STICK,AIR,AIR, AIR,AIR,AIR], out:TORCH, outCount:4},
+  {pattern:[AIR,COAL,AIR, AIR,STICK,AIR, AIR,AIR,AIR], out:TORCH, outCount:4},
+  {pattern:[AIR,AIR,COAL, AIR,AIR,STICK, AIR,AIR,AIR], out:TORCH, outCount:4},
+  {pattern:[AIR,AIR,AIR, COAL,AIR,AIR, STICK,AIR,AIR], out:TORCH, outCount:4},
+  {pattern:[AIR,AIR,AIR, AIR,COAL,AIR, AIR,STICK,AIR], out:TORCH, outCount:4},
+  {pattern:[AIR,AIR,AIR, AIR,AIR,COAL, AIR,AIR,STICK], out:TORCH, outCount:4},
 ];
 
 function computeCtOutput(){
