@@ -154,6 +154,9 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
 #inv-main-grid{display:grid;grid-template-columns:repeat(9,40px);gap:4px}
 #inv-title{font-size:9px;color:#333;margin-bottom:10px;text-shadow:1px 1px 0 rgba(255,255,255,0.6)}
 .inv-label{font-size:7px;color:#333;margin:8px 0 4px;text-shadow:1px 1px 0 rgba(255,255,255,0.5)}
+#creative-cats{display:flex;flex-wrap:wrap;gap:3px;margin:2px 0 6px;max-width:396px}
+.cc-tab{font-family:'Press Start 2P',monospace;font-size:6px;padding:5px 6px;cursor:pointer;background:#8b8b8b;color:#222;border:2px solid;border-top-color:#fff;border-left-color:#fff;border-bottom-color:#555;border-right-color:#555;text-shadow:1px 1px 0 rgba(255,255,255,0.4)}
+.cc-tab.cc-active{background:#c6c6c6;border-top-color:#555;border-left-color:#555;border-bottom-color:#fff;border-right-color:#fff;color:#000}
 #inv-page-nav{display:none;align-items:center;justify-content:center;gap:10px;margin:6px 0 2px}
 #inv-page-info{font-size:7px;color:#333;min-width:52px;text-align:center;font-family:'Press Start 2P',monospace;text-shadow:1px 1px 0 rgba(255,255,255,0.5)}
 #inv-prev:disabled,#inv-next:disabled{opacity:0.35;cursor:default;pointer-events:none}
@@ -771,6 +774,7 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
       </div>
     </div>
     <div class="inv-label" id="inv-grid-label">INVENTORY <span style="font-size:6px;opacity:0.6">(right-click to clear)</span></div>
+    <div id="creative-cats" style="display:none"></div>
     <div id="inv-main-grid"></div>
     <div id="inv-page-nav">
       <button class="mc-btn" id="inv-prev" style="padding:3px 10px;font-size:9px;min-width:0">◀</button>
@@ -4443,6 +4447,23 @@ const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,PINE_LOG,LEAVES,PINE_LEAVES,SAND,BE
   PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
   BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL,
   PIG_EGG,COW_EGG,WOLF_EGG,CAT_EGG,CHICKEN_EGG,FISH_EGG];
+// Creative inventory tabs — grouped by kind
+const CREATIVE_CATEGORIES=[
+  {name:'Nature', blocks:[GRASS,DIRT,STONE,SAND,GRAVEL,SNOW,BEDROCK,WATER,
+    WOOD,PINE_LOG,LEAVES,PINE_LEAVES,FOLIAGE,FLOWER_RED,FLOWER_YELLOW,
+    COAL_ORE,IRON_ORE,GOLD_ORE,FARMLAND]},
+  {name:'Building', blocks:[PLANK,PINE_PLANK,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE,GLASS,
+    CRAFT_TABLE,FURNACE,CHEST,OAK_DOOR,PINE_DOOR,BED,
+    WHITE_WOOL,ORANGE_WOOL,MAGENTA_WOOL,LIGHT_BLUE_WOOL,YELLOW_WOOL,LIME_WOOL,
+    PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
+    BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL]},
+  {name:'Decor', blocks:[TORCH,CAMPFIRE,BOWL,WATER_BOWL,FOOD_BOWL]},
+  {name:'Tools', blocks:[WOOD_PICK,STONE_PICK,HOE,IRON_BUCKET,WATER_BUCKET,
+    STICK,COAL,IRON_INGOT,GOLD_INGOT,SEEDS]},
+  {name:'Food', blocks:[RAW_PORKCHOP,RAW_BEEF,COOKED_PORKCHOP,COOKED_BEEF,WHEAT,BREAD]},
+  {name:'Eggs', blocks:[PIG_EGG,COW_EGG,WOLF_EGG,CAT_EGG,CHICKEN_EGG,FISH_EGG]},
+];
+let creativeCat=0;
 const DEFAULT_HOTBAR=new Array(9).fill(AIR);
 let showDbg=false;
 // Mining
@@ -5105,12 +5126,24 @@ function buildInvMainGrid(){
   });
 }
 
+function buildCreativeCats(){
+  const el=document.getElementById('creative-cats'); if(!el) return;
+  el.innerHTML='';
+  CREATIVE_CATEGORIES.forEach((cat,i)=>{
+    const b=document.createElement('div');
+    b.className='cc-tab'+(i===creativeCat?' cc-active':'');
+    b.textContent=cat.name;
+    b.addEventListener('click',()=>{ creativeCat=i; creativePageIdx=0; buildCreativeCats(); buildCreativeGrid(); });
+    el.append(b);
+  });
+}
 function buildCreativeGrid(){
   invMainGridEl.innerHTML='';
-  const totalPages=Math.max(1,Math.ceil(CREATIVE_BLOCKS.length/CREATIVE_PAGE_SIZE));
+  const catBlocks=CREATIVE_CATEGORIES[creativeCat].blocks;
+  const totalPages=Math.max(1,Math.ceil(catBlocks.length/CREATIVE_PAGE_SIZE));
   creativePageIdx=Math.min(creativePageIdx,totalPages-1);
   const start=creativePageIdx*CREATIVE_PAGE_SIZE;
-  CREATIVE_BLOCKS.slice(start,start+CREATIVE_PAGE_SIZE).forEach(id=>{
+  catBlocks.slice(start,start+CREATIVE_PAGE_SIZE).forEach(id=>{
     const s=document.createElement('div');
     s.className='inv-slot';
     const img=document.createElement('img'); img.src=makeBlockIcon(id);
@@ -5135,10 +5168,13 @@ function buildInvScreen(){
   if(cr){
     invGridLabelEl.textContent='BLOCKS';
     invPageNav.style.display='flex';
+    document.getElementById('creative-cats').style.display='flex';
+    buildCreativeCats();
     buildCreativeGrid();
   } else {
     invGridLabelEl.innerHTML='INVENTORY <span style="font-size:6px;opacity:0.6">(right-click to clear)</span>';
     invPageNav.style.display='none';
+    document.getElementById('creative-cats').style.display='none';
     buildInvMainGrid();
   }
   buildInvHotbar();
