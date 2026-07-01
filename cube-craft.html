@@ -35,6 +35,7 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
 #hunger{display:flex;flex-wrap:wrap;gap:0;width:182px;flex-direction:row-reverse}
 .mc-heart{width:9px;height:9px;image-rendering:pixelated;display:block}
 .mc-drum{width:9px;height:9px;image-rendering:pixelated;display:block}
+#minimap{position:fixed;top:8px;right:8px;z-index:9;image-rendering:pixelated;border:2px solid rgba(0,0,0,0.55);border-radius:2px;background:#7ea6c8;display:none;pointer-events:none}
 #air-bar{display:none;gap:0;line-height:1}
 .mc-bubble{width:9px;height:9px;image-rendering:pixelated;display:block}
 #xp-bar-wrap{
@@ -664,6 +665,7 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
 <div id="break-bar-wrap"><div id="break-bar"></div></div>
 <div id="dbg"></div>
 <div id="fps-counter" style="display:none;position:fixed;top:8px;right:8px;font-family:'Press Start 2P',monospace;font-size:9px;color:#fff;text-shadow:1px 1px 0 #000;background:rgba(0,0,0,0.4);padding:3px 6px;z-index:10;pointer-events:none"></div>
+<canvas id="minimap" width="126" height="126"></canvas>
 <div id="ver">v0.01</div>
 
 <div id="overlay">
@@ -3225,6 +3227,18 @@ _eggTile(92, '#4c8a3a', '#2f5f28');
 // Tile 93 — SKELETON_EGG (bone-white with grey spots)
 _eggTile(93, '#dcdcdc', '#9a9a9a');
 
+// ── MINIMAP COLOURS — average colour of each block's top tile ──
+const MINI_COL = {};
+(()=>{
+  for(const idStr in TEX_IDX){
+    const id=+idStr; const ti=TEX_IDX[id][0];
+    const d=atx.getImageData(ti*TS,0,TS,TS).data;
+    let r=0,g=0,b=0,n=0;
+    for(let i=0;i<d.length;i+=4){ if(d[i+3]>16){ r+=d[i]; g+=d[i+1]; b+=d[i+2]; n++; } }
+    if(n>0) MINI_COL[id]=`rgb(${(r/n)|0},${(g/n)|0},${(b/n)|0})`;
+  }
+})();
+
 const atlasTexture = new THREE.CanvasTexture(atlasCvs);
 atlasTexture.magFilter     = THREE.NearestFilter;  // crisp pixels, no blurring
 atlasTexture.minFilter     = THREE.NearestFilter;
@@ -4904,6 +4918,7 @@ function showHUD(on){
   hudEl.style.display=on?'flex':'none';
   blockHint.style.display=on?'block':'none';
   dbgEl.style.display=(on&&showDbg)?'block':'none';
+  miniCanvas.style.display=on?'block':'none';
   if(!chatOpen) chatAreaEl.style.display=on?'flex':'none';
   if(!on){ breakBarWrap.style.display='none'; underwaterOverlay.style.display='none'; }
 }
@@ -6215,6 +6230,43 @@ function updatePlayerNeeds(dt){
   } else player._starveT=0;
 }
 
+// ── MINIMAP ───────────────────────────────────────────────
+const miniCanvas = document.getElementById('minimap');
+const miniCtx = miniCanvas.getContext('2d');
+const MINI_CELLS = 42, MINI_CELL = 3;   // 42×42 blocks, 3px each = 126px
+let _miniT = 0;
+function updateMinimap(dt){
+  _miniT -= dt;
+  if(_miniT > 0) return;
+  _miniT = 0.35;
+  const R = MINI_CELLS >> 1;
+  const px = Math.floor(player.pos.x), pz = Math.floor(player.pos.z);
+  const top = Math.min(HEIGHT-1, Math.floor(player.pos.y) + 40);
+  const bottom = Math.max(1, top - 80);
+  for(let dz=-R; dz<R; dz++) for(let dx=-R; dx<R; dx++){
+    const wx = px+dx, wz = pz+dz;
+    let col = '#7ea6c8'; // sky/unknown
+    for(let y=top; y>=bottom; y--){
+      const id = world.getBlock(wx,y,wz);
+      if(id!==AIR){ col = MINI_COL[id] || '#888'; break; }
+    }
+    miniCtx.fillStyle = col;
+    miniCtx.fillRect((dx+R)*MINI_CELL, (dz+R)*MINI_CELL, MINI_CELL, MINI_CELL);
+  }
+  // Player marker — triangle pointing the way the player faces
+  const cx = R*MINI_CELL, cy = R*MINI_CELL;
+  const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
+  const rx = -fz, rz = fx; // right vector (perpendicular)
+  miniCtx.fillStyle = '#fff';
+  miniCtx.strokeStyle = '#000'; miniCtx.lineWidth = 1;
+  miniCtx.beginPath();
+  miniCtx.moveTo(cx + fx*6,        cy + fz*6);
+  miniCtx.lineTo(cx - fx*4 + rx*4, cy - fz*4 + rz*4);
+  miniCtx.lineTo(cx - fx*4 - rx*4, cy - fz*4 - rz*4);
+  miniCtx.closePath();
+  miniCtx.fill(); miniCtx.stroke();
+}
+
 // Advance wheat growth: every few seconds a random subset of crops matures
 function updateCrops(dt){
   _cropTimer+=dt;
@@ -6956,6 +7008,7 @@ function loop(t){
   updateDayNight(dt);
   updatePlayerNeeds(dt);
   updateCrops(dt);
+  updateMinimap(dt);
   updateMobs(dt);
   // Q-drop
   if(keys['KeyQ']&&!chatOpen&&!inventoryOpen&&!paused&&gamemode!=='spectator'){
