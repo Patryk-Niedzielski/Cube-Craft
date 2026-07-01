@@ -696,7 +696,11 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
 <div id="mp-screen">
   <div id="mp-panel">
     <div id="mp-title">Multiplayer</div>
-    <p id="mp-msg">Multiplayer isn't available yet.<br>Servers &amp; LAN play are coming in a future update!</p>
+    <button class="mc-btn" id="mp-local-btn" style="width:100%;font-size:8px" onclick="startLocalGame()">Host Local Game</button>
+    <p id="mp-msg">Local Game links every Cube&nbsp;Craft window open on <b>this computer</b> —
+      open the game in another tab/window and press Host Local Game there too to play together.</p>
+    <div style="height:1px;background:#999;width:100%;margin:2px 0"></div>
+    <div style="font-size:7px;color:#555">Online servers (coming soon):</div>
     <div id="mp-server-row">
       <input id="mp-address" type="text" placeholder="server address (e.g. play.example.com)" spellcheck="false" autocomplete="off">
       <button class="mc-btn" id="mp-connect" style="font-size:7px;min-width:0;padding:6px 10px">Connect</button>
@@ -5962,6 +5966,7 @@ function migrateOldSave(){
 
 function saveWorld(){
   if(!gameStarted || !currentWorldId) return;
+  if(currentWorldId==='__local_mp__') return; // local multiplayer session isn't persisted
   const data={
     v:1, seed:worldSeed, gamemode, cheats:cheatsEnabled,
     player:{
@@ -6440,6 +6445,7 @@ pauseScreen.addEventListener('click', e=>{ if(e.target===pauseScreen) requestLoc
 
 function doSaveAndQuit(){
   saveWorld();
+  mpDisconnect();
   if(inventoryOpen) closeInventory();
   if(ctOpen) closeCraftTable();
   if(chestOpen) closeChest();
@@ -6832,8 +6838,9 @@ canvas.addEventListener('mousedown',e=>{
        py>=Math.floor(p.y)&&py<Math.ceil(p.y+PLR_H)&&
        pz>=Math.floor(p.z-hw)&&pz<Math.ceil(p.z+hw)) return;
     world.setBlock(px,py,pz,blk);
-    if(blk===OAK_DOOR&&py+1<HEIGHT) world.setBlock(px,py+1,pz,OAK_DOOR_TOP);
-    if(blk===PINE_DOOR&&py+1<HEIGHT) world.setBlock(px,py+1,pz,PINE_DOOR_TOP);
+    mpSendBlock(px,py,pz,blk);
+    if(blk===OAK_DOOR&&py+1<HEIGHT){ world.setBlock(px,py+1,pz,OAK_DOOR_TOP); mpSendBlock(px,py+1,pz,OAK_DOOR_TOP); }
+    if(blk===PINE_DOOR&&py+1<HEIGHT){ world.setBlock(px,py+1,pz,PINE_DOOR_TOP); mpSendBlock(px,py+1,pz,PINE_DOOR_TOP); }
     playPlaceSound(blk);
     handPlaceT=0;
     if(gamemode==='survival'){
@@ -7022,12 +7029,100 @@ document.getElementById('mp-address').addEventListener('keydown',e=>{
   if(e.code==='Enter'){ e.preventDefault(); document.getElementById('mp-connect').click(); }
 });
 
+// ── LOCAL MULTIPLAYER (same computer, via BroadcastChannel) ──
+// Links every game window/tab on this machine: each broadcasts its player
+// state; peers render each other as avatars, and block edits are shared.
+let mpActive=false, mpChannel=null;
+const mpId = 'p'+Math.random().toString(36).slice(2,8);
+const mpPeers = new Map();      // id → {group, x,y,z,yaw, tx,ty,tz,tyaw, last}
+const MP_LOCAL_SEED = 424242;   // shared seed so all local players get identical terrain
+let _mpSendT = 0;
+
+function mpBuildAvatar(){
+  const g=new THREE.Group();
+  const skin=_FM(0xC9A06B), shirt=_FM(0x3A6EA5), pants=_FM(0x33356A), head=_FM(0xE0B48A);
+  _box(g, shirt, 0.46,0.64,0.26,  0, 1.02, 0);
+  _box(g, head,  0.46,0.46,0.46,  0, 1.56, 0);
+  _box(g, skin,  0.15,0.58,0.16, -0.31,1.08, 0);
+  _box(g, skin,  0.15,0.58,0.16,  0.31,1.08, 0);
+  _box(g, pants, 0.17,0.66,0.18, -0.12,0.36, 0);
+  _box(g, pants, 0.17,0.66,0.18,  0.12,0.36, 0);
+  scene.add(g);
+  return g;
+}
+function mpConnect(){
+  if(mpActive) return true;
+  if(typeof BroadcastChannel==='undefined') return false;
+  mpChannel=new BroadcastChannel('cubecraft-local');
+  mpChannel.onmessage=mpOnMessage;
+  mpActive=true;
+  mpChannel.postMessage({t:'join', id:mpId});   // ask existing peers to reveal themselves
+  return true;
+}
+function mpDisconnect(){
+  if(!mpActive) return;
+  try{ mpChannel.postMessage({t:'leave', id:mpId}); mpChannel.close(); }catch(e){}
+  mpChannel=null; mpActive=false;
+  for(const p of mpPeers.values()) scene.remove(p.group);
+  mpPeers.clear();
+}
+function mpOnMessage(e){
+  const m=e.data; if(!m || m.id===mpId) return;
+  if(m.t==='leave'){ const p=mpPeers.get(m.id); if(p){ scene.remove(p.group); mpPeers.delete(m.id); } return; }
+  if(m.t==='join'){ mpSendState(); return; } // new peer joined — reveal ourselves
+  if(m.t==='state'){
+    let p=mpPeers.get(m.id);
+    if(!p){ p={group:mpBuildAvatar(), x:m.x,y:m.y,z:m.z,yaw:m.yaw, tx:m.x,ty:m.y,tz:m.z,tyaw:m.yaw, last:0}; mpPeers.set(m.id,p); addChatMsg('A player joined the local game','ok'); }
+    p.tx=m.x; p.ty=m.y; p.tz=m.z; p.tyaw=m.yaw; p.last=performance.now();
+    return;
+  }
+  if(m.t==='block'){ world.setBlock(m.x,m.y,m.z,m.b); return; }
+}
+function mpSendState(){
+  if(!mpActive) return;
+  mpChannel.postMessage({t:'state', id:mpId, x:player.pos.x, y:player.pos.y, z:player.pos.z, yaw:player.yaw});
+}
+function mpSendBlock(x,y,z,b){ if(mpActive) mpChannel.postMessage({t:'block', id:mpId, x,y,z,b}); }
+function mpUpdate(dt){
+  if(!mpActive) return;
+  _mpSendT-=dt;
+  if(_mpSendT<=0){ _mpSendT=0.066; mpSendState(); }   // ~15 updates/sec
+  const now=performance.now(), k=Math.min(1,dt*12);
+  for(const [id,p] of mpPeers){
+    if(now-p.last>5000){ scene.remove(p.group); mpPeers.delete(id); continue; } // timed out
+    p.x+=(p.tx-p.x)*k; p.y+=(p.ty-p.y)*k; p.z+=(p.tz-p.z)*k;
+    let d=p.tyaw-p.yaw; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI;
+    p.yaw+=d*k;
+    p.group.position.set(p.x,p.y,p.z);
+    p.group.rotation.y=p.yaw;
+  }
+}
+
+async function startLocalGame(){
+  closeMultiplayer();
+  overlayEl.style.display='none';
+  worldSeed=MP_LOCAL_SEED; initPerm(worldSeed);
+  gamemode='survival'; cheatsEnabled=true;
+  player.flying=false;
+  trackingMods=false; worldMods=new Map();
+  chestData.clear(); seededChests.clear(); cropSet.clear();
+  currentWorldId='__local_mp__';   // not persisted (saveWorld skips local MP)
+  await generateWorld();
+  trackingMods=true;
+  gameReady=true; gameStarted=true;
+  prevT=performance.now();
+  buildHotbar(); buildHealth(); buildHunger(); refreshGamemodeBadge();
+  mpConnect();
+  clickHint.style.display='flex';
+  addChatMsg('Local game started — open another window to play together!','ok');
+}
+
 // Migrate any old single save on startup
 migrateOldSave();
 
 // ── AUTO-SAVE ─────────────────────────────────────────────
 setInterval(saveWorld, 30000);
-window.addEventListener('beforeunload', saveWorld);
+window.addEventListener('beforeunload', ()=>{ saveWorld(); mpDisconnect(); });
 
 // ── MAIN LOOP ────────────────────────────────────────────
 let prevT=performance.now();
@@ -7051,6 +7146,7 @@ function loop(t){
   updatePlayerNeeds(dt);
   updateCrops(dt);
   updateMinimap(dt);
+  mpUpdate(dt);
   updateMobs(dt);
   // Q-drop
   if(keys['KeyQ']&&!chatOpen&&!inventoryOpen&&!paused&&gamemode!=='spectator'){
@@ -7182,6 +7278,7 @@ function loop(t){
         if(pct>=1){
           playBreakSound(id);
           world.setBlock(aim.bx,aim.by,aim.bz,AIR);
+          mpSendBlock(aim.bx,aim.by,aim.bz,AIR);
           // Chest: spill stored contents into the world, then clear its data
           if(id===CHEST){
             const ck=`${aim.bx},${aim.by},${aim.bz}`;
