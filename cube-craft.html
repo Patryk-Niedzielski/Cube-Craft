@@ -221,6 +221,12 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
 #ct-output.has-output{outline:2px solid #a0a040;background:#9a9a60}
 #ct-inv-grid{display:grid;grid-template-columns:repeat(9,40px);gap:4px}
 #ct-hotbar-row{display:grid;grid-template-columns:repeat(9,40px);gap:4px}
+/* ── CHEST SCREEN (reuses ct-panel styling) ── */
+#chest-screen{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:20;background:rgba(0,0,0,0.55)}
+#chest-panel{background:#c6c6c6;padding:16px 18px 14px;border:3px solid;border-top-color:#fff;border-left-color:#fff;border-bottom-color:#555;border-right-color:#555;font-family:'Press Start 2P',monospace;max-height:90vh;overflow-y:auto}
+#chest-grid{display:grid;grid-template-columns:repeat(9,40px);gap:4px}
+#chest-inv-grid{display:grid;grid-template-columns:repeat(9,40px);gap:4px}
+#chest-hotbar-row{display:grid;grid-template-columns:repeat(9,40px);gap:4px}
 /* ── WORLD CREATE SCREEN ── */
 /* ── SHARED: full-screen dirt-background menu ── */
 .mc-dirt-screen{
@@ -801,6 +807,21 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
   </div>
 </div>
 
+<!-- ── CHEST SCREEN ── -->
+<div id="chest-screen">
+  <div id="chest-panel">
+    <div id="ct-title"><span>Chest</span></div>
+    <div id="chest-grid"></div>
+    <div class="inv-label" style="margin-top:8px">Inventory</div>
+    <div id="chest-inv-grid"></div>
+    <div class="inv-label" style="margin-top:6px">Hotbar</div>
+    <div id="chest-hotbar-row"></div>
+    <div style="margin-top:10px;display:flex;justify-content:flex-end">
+      <button class="mc-btn" style="width:100px;font-size:7px" onclick="closeChest()">Close [E]</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── CURSOR ITEM (floating drag icon) ── -->
 <div id="cursor-item">
   <img id="cursor-item-img" style="width:32px;height:32px;image-rendering:pixelated;display:block">
@@ -1029,7 +1050,7 @@ const RAW_PORKCHOP=55, RAW_BEEF=56;
 const BOWL=57, WATER_BOWL=58, FOOD_BOWL=59;
 const COAL_ORE=60, IRON_ORE=61, GOLD_ORE=62, COAL=63, GOLD_INGOT=64;
 const FURNACE=65, COOKED_PORKCHOP=66, COOKED_BEEF=67;
-const TORCH=68;
+const TORCH=68, CHEST=69;
 
 // ── TOOL SYSTEM CONSTANTS ─────────────────────────────────
 const NEEDS_PICK  = new Set([STONE, COBBLESTONE, MOSSY_COBBLE, CRACKED_STONE, COAL_ORE, IRON_ORE, GOLD_ORE, FURNACE]); // blocks that require a pickaxe
@@ -1058,7 +1079,7 @@ const BLOCK_NAME=['Air','Grass','Dirt','Stone','Oak Log','Leaves','Sand','Bedroc
   'Iron Ingot','Iron Bucket','Water Bucket','Raw Porkchop','Raw Beef',
   'Bowl','Water Bowl','Food Bowl',
   'Coal Ore','Iron Ore','Gold Ore','Coal','Gold Ingot',
-  'Furnace','Cooked Porkchop','Cooked Beef','Torch'];
+  'Furnace','Cooked Porkchop','Cooked Beef','Torch','Chest'];
 const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3, 0,0,0,0,0,0, 0.2, 0.25, 0.0, 0.0, 0.7, 1.0, 0,0,0, 0.6, 1.0, 1.0, 1.1,
   0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4, // wool 30-45
   1.2, 0.7, 0.8, 0.8, 0.8, 0.8, // pine log, pine plank, oak door×2, pine door×2
@@ -1066,7 +1087,7 @@ const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.
   0.2,0.2,0.2, // bowl, water bowl, food bowl
   3.0,3.0,3.0,0,0, // coal ore, iron ore, gold ore, coal(item), gold ingot(item)
   3.5,0,0, // furnace, cooked porkchop(item), cooked beef(item)
-  0.05]; // torch
+  0.05,2.0]; // torch, chest
 const TEX_IDX={
   [GRASS]:   [0,2,1],
   [DIRT]:    [2,2,2],
@@ -1136,6 +1157,7 @@ const TEX_IDX={
   [COOKED_PORKCHOP]: [68,68,68],
   [COOKED_BEEF]:     [69,69,69],
   [TORCH]:           [70,70,70],
+  [CHEST]:           [72,72,71],
 };
 // SOLID: player collides with these
 const SOLID=new Uint8Array(256);
@@ -1144,14 +1166,14 @@ const SOLID=new Uint8Array(256);
   PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
   BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL,
   PINE_LOG,PINE_PLANK,OAK_DOOR,OAK_DOOR_TOP,PINE_DOOR,PINE_DOOR_TOP,
-  COAL_ORE,IRON_ORE,GOLD_ORE,FURNACE].forEach(id=>SOLID[id]=1);
+  COAL_ORE,IRON_ORE,GOLD_ORE,FURNACE,CHEST].forEach(id=>SOLID[id]=1);
 // OPAQUE: completely hides adjacent faces (no leaves, no water)
 const OPAQUE=new Uint8Array(256);
 [GRASS,DIRT,STONE,WOOD,SAND,BEDROCK,SNOW,PLANK,CRAFT_TABLE,GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE,
   WHITE_WOOL,ORANGE_WOOL,MAGENTA_WOOL,LIGHT_BLUE_WOOL,YELLOW_WOOL,LIME_WOOL,
   PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
   BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL,
-  PINE_LOG,PINE_PLANK,COAL_ORE,IRON_ORE,GOLD_ORE,FURNACE].forEach(id=>OPAQUE[id]=1);
+  PINE_LOG,PINE_PLANK,COAL_ORE,IRON_ORE,GOLD_ORE,FURNACE,CHEST].forEach(id=>OPAQUE[id]=1);
 // Doors are solid but NOT opaque — they render as thin panels, not full cubes
 
 // ── FACE GEOMETRY ─────────────────────────────────────────
@@ -2348,7 +2370,7 @@ hlMesh.visible=false;
 scene.add(hlMesh);
 
 // ── TEXTURE ATLAS (16×16 pixel art, 16 tiles → 256×16 px, power-of-2) ───────
-const N_TILES = 71;
+const N_TILES = 73;
 const TS      = 16;
 const atlasCvs = document.createElement('canvas');
 atlasCvs.width  = TS * N_TILES;  // 256
@@ -2933,6 +2955,24 @@ for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
     else tsp(70,x,y, 236,120,26);            // outer flame
   }
 }
+// Tile 71 — CHEST side (wooden planks, iron latch band)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const s=Math.round((th(71*TS+x,y)-0.5)*14);
+  const plank=(y%4===0);
+  tsp(71,x,y, (plank?128:158)+s, (plank?86:112)+s, (plank?36:52)+s);
+  // dark seam splitting lid (y=6) from body
+  if(y===6) tsp(71,x,y, 70,44,18);
+  // iron latch in the centre
+  if(x>=7&&x<=8&&y>=5&&y<=8){ const g=Math.round((th(71*TS+x+3,y)-0.5)*16); tsp(71,x,y, 150+g,150+g,158+g); }
+}
+// Tile 72 — CHEST top (wooden planks)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const s=Math.round((th(72*TS+x,y)-0.5)*14);
+  const plank=(x%4===0);
+  tsp(72,x,y, (plank?128:158)+s, (plank?86:112)+s, (plank?36:52)+s);
+  // latch nub at front edge
+  if(y>=7&&y<=8&&x>=7&&x<=8){ const g=Math.round((th(72*TS+x+3,y)-0.5)*16); tsp(72,x,y, 150+g,150+g,158+g); }
+}
 
 const atlasTexture = new THREE.CanvasTexture(atlasCvs);
 atlasTexture.magFilter     = THREE.NearestFilter;  // crisp pixels, no blurring
@@ -3102,6 +3142,7 @@ const BREAK_SND = {
   [IRON_ORE]:  [{f:'bandpass',hz:1700,q:3.5,v:0.55,d:0.08},{f:'lowpass',hz:200,q:0.5,v:0.28,d:0.06}],
   [GOLD_ORE]:  [{f:'bandpass',hz:1700,q:3.5,v:0.55,d:0.08},{f:'lowpass',hz:200,q:0.5,v:0.28,d:0.06}],
   [FURNACE]:   [{f:'bandpass',hz:1500,q:3.0,v:0.50,d:0.09},{f:'lowpass',hz:220,q:0.5,v:0.26,d:0.07}],
+  [CHEST]:     [{f:'bandpass',hz:420, q:1.0, v:0.32, d:0.14}],
 };
 
 function playBreakSound(blockId){
@@ -3158,6 +3199,7 @@ const PLACE_SND = {
   [FOOD_BOWL]:  {f:'bandpass', hz:520, q:1.1, v:0.24, d:0.10},
   [WATER]:      {f:'lowpass',  hz:380, q:0.6, v:0.32, d:0.16},
   [TORCH]:      {f:'bandpass', hz:520, q:0.9, v:0.20, d:0.07},
+  [CHEST]:      {f:'bandpass', hz:360, q:0.8, v:0.30, d:0.13},
 };
 function playPlaceSound(blockId){
   const sp = PLACE_SND[blockId] || PLACE_SND[STONE];
@@ -4229,11 +4271,19 @@ let playerSpawnPos={x:8.5, y:SEA+6, z:8.5};
 let cheatsEnabled=false;
 let worldMods=new Map(), trackingMods=false;
 let _lastSpaceTime=0, _suppressSpaceFly=false;
+// Chest storage: key "wx,wy,wz" → array of 27 {id,cnt,dur}. Open chest loads
+// into chestSlots/Counts/Dur; closing writes back.
+const chestData=new Map();
+let chestOpen=false, _openChestKey=null;
+const CHEST_SIZE=27;
+const chestSlots=new Array(CHEST_SIZE).fill(AIR);
+const chestCounts=new Array(CHEST_SIZE).fill(0);
+const chestDur=new Array(CHEST_SIZE).fill(0);
 const CREATIVE_PAGE_SIZE=27;
 const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,PINE_LOG,LEAVES,PINE_LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS,SNOW,
   FLOWER_RED,FLOWER_YELLOW,PLANK,PINE_PLANK,CRAFT_TABLE,STICK,WOOD_PICK,STONE_PICK,
   GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE,
-  COAL_ORE,IRON_ORE,GOLD_ORE,COAL,IRON_INGOT,GOLD_INGOT,FURNACE,TORCH,
+  COAL_ORE,IRON_ORE,GOLD_ORE,COAL,IRON_INGOT,GOLD_INGOT,FURNACE,TORCH,CHEST,
   OAK_DOOR,PINE_DOOR,
   IRON_BUCKET,WATER_BUCKET,RAW_PORKCHOP,RAW_BEEF,COOKED_PORKCHOP,COOKED_BEEF,
   BOWL,WATER_BOWL,FOOD_BOWL,
@@ -4598,19 +4648,24 @@ function slotGet(t,i){
   if(t==='inv'||t==='ctinv') return {id:player.inventory[i],cnt:player.inventoryCounts[i],dur:player.inventoryDur[i]};
   if(t==='craft') return {id:craftSlots[i],cnt:craftCounts[i],dur:0};
   if(t==='ctgrid') return {id:ctSlots[i],cnt:ctCounts[i],dur:0};
+  if(t==='chesthot') return {id:player.hotbar[i],cnt:player.hotbarCounts[i],dur:player.hotbarDur[i]};
+  if(t==='chestinv') return {id:player.inventory[i],cnt:player.inventoryCounts[i],dur:player.inventoryDur[i]};
+  if(t==='chest') return {id:chestSlots[i],cnt:chestCounts[i],dur:chestDur[i]};
   return {id:AIR,cnt:0,dur:0};
 }
 function slotSet(t,i,id,cnt,dur=0){
-  if(t==='invhot'||t==='cthot'){player.hotbar[i]=id;player.hotbarCounts[i]=cnt;player.hotbarDur[i]=dur;}
-  else if(t==='inv'||t==='ctinv'){player.inventory[i]=id;player.inventoryCounts[i]=cnt;player.inventoryDur[i]=dur;}
+  if(t==='invhot'||t==='cthot'||t==='chesthot'){player.hotbar[i]=id;player.hotbarCounts[i]=cnt;player.hotbarDur[i]=dur;}
+  else if(t==='inv'||t==='ctinv'||t==='chestinv'){player.inventory[i]=id;player.inventoryCounts[i]=cnt;player.inventoryDur[i]=dur;}
   else if(t==='craft'){craftSlots[i]=id;craftCounts[i]=cnt;}
   else if(t==='ctgrid'){ctSlots[i]=id;ctCounts[i]=cnt;}
+  else if(t==='chest'){chestSlots[i]=id;chestCounts[i]=cnt;chestDur[i]=dur;}
 }
 function invDragRebuild(){
   buildHotbar();buildInvHotbar();
   if(gamemode==='creative') buildCreativeGrid(); else buildInvMainGrid();
   buildCraftGrid();
   if(ctOpen){buildCtGrid();buildCtInvGrid();buildCtHotbar();}
+  if(chestOpen){buildChestGrid();buildChestInvGrid();buildChestHotbar();}
 }
 const _ciEl  = document.getElementById('cursor-item');
 const _ciImg = document.getElementById('cursor-item-img');
@@ -4668,7 +4723,7 @@ function _collectToStack(targetId,x,y){
   const existingCount=(cursorItem&&cursorItem.id===targetId)?cursorItem.count:0;
   const existingDur=cursorItem?cursorItem.dur:0;
   let total=existingCount;
-  const scanTypes=[['invhot',9],['inv',27],...(ctOpen?[['cthot',9],['ctinv',27]]:[] )];
+  const scanTypes=[['invhot',9],['inv',27],...(ctOpen?[['cthot',9],['ctinv',27]]:[] ),...(chestOpen?[['chest',CHEST_SIZE]]:[] )];
   for(const [t,count] of scanTypes){
     for(let i=0;i<count;i++){
       if(total>=64) break;
@@ -5110,6 +5165,8 @@ const CT_RECIPES=[
   {pattern:[IRON_INGOT,AIR,IRON_INGOT, AIR,IRON_INGOT,AIR, AIR,AIR,AIR], out:IRON_BUCKET, outCount:1},
   // Furnace: 8 cobblestone ring (empty centre)
   {pattern:[COBBLESTONE,COBBLESTONE,COBBLESTONE, COBBLESTONE,AIR,COBBLESTONE, COBBLESTONE,COBBLESTONE,COBBLESTONE], out:FURNACE, outCount:1},
+  // Chest: 8 oak planks ring (empty centre)
+  {pattern:[PLANK,PLANK,PLANK, PLANK,AIR,PLANK, PLANK,PLANK,PLANK], out:CHEST, outCount:1},
   // Torch: coal above a stick (3 columns)
   {pattern:[COAL,AIR,AIR, STICK,AIR,AIR, AIR,AIR,AIR], out:TORCH, outCount:4},
   {pattern:[AIR,COAL,AIR, AIR,STICK,AIR, AIR,AIR,AIR], out:TORCH, outCount:4},
@@ -5248,6 +5305,93 @@ function closeCraftTable(){
   }
 }
 
+// ── CHEST STORAGE ─────────────────────────────────────────
+const chestScreenEl = document.getElementById('chest-screen');
+function buildChestGrid(){
+  const gridEl=document.getElementById('chest-grid'); if(!gridEl) return;
+  gridEl.innerHTML='';
+  for(let i=0;i<CHEST_SIZE;i++){
+    const s=document.createElement('div'); s.className='inv-slot';
+    const id=chestSlots[i];
+    if(id!==AIR){
+      const img=document.createElement('img'); img.src=makeBlockIcon(id);
+      const tip=document.createElement('div'); tip.className='inv-slot-tip'; tip.textContent=BLOCK_NAME[id];
+      s.append(img,tip);
+      if(chestCounts[i]>1){const b=document.createElement('span');b.className='slot-count';b.textContent=chestCounts[i];s.append(b);}
+    }
+    attachSlotDrag(s,'chest',i);
+    s.addEventListener('contextmenu',e=>e.preventDefault());
+    gridEl.appendChild(s);
+  }
+}
+function buildChestInvGrid(){
+  const gridEl=document.getElementById('chest-inv-grid'); if(!gridEl) return;
+  gridEl.innerHTML='';
+  player.inventory.forEach((id,i)=>{
+    const s=document.createElement('div'); s.className='inv-slot';
+    if(id!==AIR){
+      const img=document.createElement('img'); img.src=makeBlockIcon(id);
+      const tip=document.createElement('div'); tip.className='inv-slot-tip'; tip.textContent=BLOCK_NAME[id];
+      s.append(img,tip);
+      if(player.inventoryCounts[i]>1){const b=document.createElement('span');b.className='slot-count';b.textContent=player.inventoryCounts[i];s.append(b);}
+    }
+    attachSlotDrag(s,'chestinv',i);
+    s.addEventListener('contextmenu',e=>e.preventDefault());
+    gridEl.appendChild(s);
+  });
+}
+function buildChestHotbar(){
+  const row=document.getElementById('chest-hotbar-row'); if(!row) return;
+  row.innerHTML='';
+  player.hotbar.forEach((id,i)=>{
+    const s=document.createElement('div'); s.className='inv-slot'+(i===player.slot?' inv-active':'');
+    if(id!==AIR){
+      const img=document.createElement('img'); img.src=makeBlockIcon(id);
+      const tip=document.createElement('div'); tip.className='inv-slot-tip'; tip.textContent=BLOCK_NAME[id];
+      s.append(img,tip);
+      if(player.hotbarCounts[i]>1){const b=document.createElement('span');b.className='slot-count';b.textContent=player.hotbarCounts[i];s.append(b);}
+    }
+    attachSlotDrag(s,'chesthot',i);
+    row.appendChild(s);
+  });
+}
+function openChest(wx,wy,wz){
+  _openChestKey=`${wx},${wy},${wz}`;
+  const stored=chestData.get(_openChestKey);
+  for(let i=0;i<CHEST_SIZE;i++){
+    const c=stored&&stored[i];
+    chestSlots[i]=c?c.id:AIR; chestCounts[i]=c?c.cnt:0; chestDur[i]=c?c.dur:0;
+  }
+  chestOpen=true;
+  document.exitPointerLock();
+  buildChestGrid();buildChestInvGrid();buildChestHotbar();
+  chestScreenEl.style.display='flex';
+}
+function _writeBackChest(){
+  if(!_openChestKey) return;
+  const arr=[];
+  let any=false;
+  for(let i=0;i<CHEST_SIZE;i++){
+    if(chestSlots[i]!==AIR&&chestCounts[i]>0){ arr[i]={id:chestSlots[i],cnt:chestCounts[i],dur:chestDur[i]}; any=true; }
+    else arr[i]=null;
+  }
+  if(any) chestData.set(_openChestKey,arr);
+  else chestData.delete(_openChestKey);
+}
+function closeChest(){
+  if(cursorItem){ slotSet(cursorItem.srcType,cursorItem.srcIdx,cursorItem.id,cursorItem.count,cursorItem.dur); cursorItem=null; _ciEl.style.display='none'; }
+  _writeBackChest();
+  _openChestKey=null;
+  chestOpen=false;
+  chestScreenEl.style.display='none';
+  for(const k in keys) keys[k]=false;
+  if(gameStarted){
+    showHUD(true);
+    const req=canvas.requestPointerLock();
+    if(req&&typeof req.then==='function') req.catch(()=>{showHUD(false);clickHint.style.display='flex';});
+  }
+}
+
 // ── RECIPE BOOK ───────────────────────────────────────────
 const recipeBookEl = document.getElementById('recipe-book');
 const recipeBookListEl = document.getElementById('recipe-book-list');
@@ -5374,7 +5518,8 @@ function saveWorld(){
       inventory:[...player.inventory], inventoryCounts:[...player.inventoryCounts], inventoryDur:[...player.inventoryDur],
       hp:player.hp, hunger:player.hunger, worldTime
     },
-    mods:Object.fromEntries(worldMods)
+    mods:Object.fromEntries(worldMods),
+    chests:Object.fromEntries(chestData)
   };
   try{
     localStorage.setItem('cubecraft_world_'+currentWorldId, JSON.stringify(data));
@@ -5400,6 +5545,10 @@ async function startFromSave(save, worldId){
       world.setBlock(wx,wy,wz,id);
     }
     for(const [key,id] of Object.entries(save.mods)) worldMods.set(key,id);
+  }
+  chestData.clear();
+  if(save.chests){
+    for(const [key,arr] of Object.entries(save.chests)) chestData.set(key,arr);
   }
   trackingMods=true;
   const p=save.player;
@@ -5731,8 +5880,8 @@ function requestLock(){
   const req = canvas.requestPointerLock();
   if(req && typeof req.then === 'function') req.catch(()=>{});
 }
-canvas.addEventListener('click', ()=>{ if(gameReady&&!locked&&!paused&&!chatOpen&&!inventoryOpen&&!giveMenuOpen&&!tpbiomeMenuOpen&&!ctOpen) requestLock(); });
-clickHint.addEventListener('click', ()=>{ if(!chatOpen&&!inventoryOpen&&!giveMenuOpen&&!tpbiomeMenuOpen&&!ctOpen) requestLock(); });
+canvas.addEventListener('click', ()=>{ if(gameReady&&!locked&&!paused&&!chatOpen&&!inventoryOpen&&!giveMenuOpen&&!tpbiomeMenuOpen&&!ctOpen&&!chestOpen) requestLock(); });
+clickHint.addEventListener('click', ()=>{ if(!chatOpen&&!inventoryOpen&&!giveMenuOpen&&!tpbiomeMenuOpen&&!ctOpen&&!chestOpen) requestLock(); });
 
 // Cursor icon always follows mouse; detect hold-drag threshold
 document.addEventListener('mousemove',e=>{
@@ -5776,6 +5925,7 @@ function doSaveAndQuit(){
   saveWorld();
   if(inventoryOpen) closeInventory();
   if(ctOpen) closeCraftTable();
+  if(chestOpen) closeChest();
   showHUD(false);
   clickHint.style.display='none';
   gameStarted=false; gameReady=false; paused=false; playerDead=false;
@@ -5909,6 +6059,13 @@ canvas.addEventListener('mousedown',e=>{
     // Interact with crafting table
     if(t && world.getBlock(t.bx,t.by,t.bz)===CRAFT_TABLE){
       openCraftTable();
+      return;
+    }
+
+    // Interact with chest — open storage
+    if(t && world.getBlock(t.bx,t.by,t.bz)===CHEST){
+      playPlaceSound(CHEST);
+      openChest(t.bx,t.by,t.bz);
       return;
     }
 
@@ -6071,6 +6228,7 @@ document.addEventListener('keydown',e=>{
   keys[e.code]=true;
   if(e.code==='Escape'){
     if(ctOpen){ closeCraftTable(); return; }
+    if(chestOpen){ closeChest(); return; }
     if(giveMenuOpen){ closeGiveMenu(); return; }
     if(tpbiomeMenuOpen){ closeTpbiomeMenu(); return; }
     if(inventoryOpen){ closeInventory(); return; }
@@ -6078,6 +6236,7 @@ document.addEventListener('keydown',e=>{
     else if(paused&&gameStarted) requestLock();
     return;
   }
+  if(e.code==='KeyE' && chestOpen){ e.preventDefault(); closeChest(); return; }
   if(e.code==='KeyE' && ctOpen){ e.preventDefault(); closeCraftTable(); return; }
   if(e.code==='KeyE' && inventoryOpen){ e.preventDefault(); closeInventory(); return; }
   if(e.code==='KeyE' && locked && gameStarted && gamemode!=='spectator'){ e.preventDefault(); openInventory(); return; }
@@ -6370,6 +6529,17 @@ function loop(t){
         if(pct>=1){
           playBreakSound(id);
           world.setBlock(aim.bx,aim.by,aim.bz,AIR);
+          // Chest: spill stored contents into the world, then clear its data
+          if(id===CHEST){
+            const ck=`${aim.bx},${aim.by},${aim.bz}`;
+            const stored=chestData.get(ck);
+            if(stored){
+              for(const c of stored){
+                if(c&&c.id!==AIR){ for(let n=0;n<c.cnt;n++) spawnDroppedItem(c.id,aim.bx+0.5,aim.by+0.5,aim.bz+0.5); }
+              }
+              chestData.delete(ck);
+            }
+          }
           // Door tops drop their bottom-half item; door bottoms silently remove top
           let dropId = BLOCK_DROP[id] ?? id;
           if(id===OAK_DOOR_TOP)  { dropId=OAK_DOOR;  world.setBlock(aim.bx,aim.by-1,aim.bz,AIR); }
