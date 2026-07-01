@@ -1176,12 +1176,12 @@ void main(){
 }`;
 const SKY_FRAG=`
 varying vec3 vDir;
+uniform vec3 uZenith;
+uniform vec3 uHorizon;
 void main(){
   float h=normalize(vDir).y;
   float t=clamp((h+0.05)/1.05,0.0,1.0);
-  vec3 zenith =vec3(0.18,0.44,0.86);
-  vec3 horizon=vec3(0.72,0.87,1.00);
-  gl_FragColor=vec4(mix(horizon,zenith,sqrt(t)),1.0);
+  gl_FragColor=vec4(mix(uHorizon,uZenith,sqrt(t)),1.0);
 }`;
 
 // ── PERLIN NOISE ──────────────────────────────────────────
@@ -2150,9 +2150,71 @@ scene.fog=new THREE.Fog(0xb8deff, rdist*CHUNK*0.50, rdist*CHUNK*0.98);
 
 const skyDome=new THREE.Mesh(
   new THREE.SphereGeometry(450,16,8),
-  new THREE.ShaderMaterial({vertexShader:SKY_VERT,fragmentShader:SKY_FRAG,side:THREE.BackSide,depthWrite:false,fog:false})
+  new THREE.ShaderMaterial({vertexShader:SKY_VERT,fragmentShader:SKY_FRAG,side:THREE.BackSide,depthWrite:false,fog:false,
+    uniforms:{
+      uZenith:{value:new THREE.Color(0.18,0.44,0.86)},
+      uHorizon:{value:new THREE.Color(0.72,0.87,1.00)},
+    }})
 );
 scene.add(skyDome);
+
+// ── DAY/NIGHT CYCLE ───────────────────────────────────────
+// worldTime advances each frame; dayFrac 0..1 (0=dawn, .25=noon, .5=dusk, .75=midnight)
+const DAY_LENGTH = 600;          // seconds for a full day-night cycle
+let worldTime = DAY_LENGTH * 0.10;  // start mid-morning
+const dayTintColor = new THREE.Color(1,1,1); // multiplies baked vertex colours
+// Colour keyframes for sky/fog/light across the cycle
+const _skyDay     = {zen:new THREE.Color(0.18,0.44,0.86), hor:new THREE.Color(0.72,0.87,1.00), fog:new THREE.Color(0.72,0.87,1.00), light:1.00};
+const _skySunset  = {zen:new THREE.Color(0.30,0.28,0.55), hor:new THREE.Color(0.98,0.55,0.30), fog:new THREE.Color(0.85,0.55,0.42), light:0.72};
+const _skyNight   = {zen:new THREE.Color(0.02,0.03,0.10), hor:new THREE.Color(0.06,0.08,0.18), fog:new THREE.Color(0.05,0.07,0.16), light:0.22};
+const _c1=new THREE.Color(), _c2=new THREE.Color(), _c3=new THREE.Color(), _c4=new THREE.Color();
+// Returns {light, applies sky/fog}. Called each frame.
+let currentLightLevel = 1.0;
+function updateDayNight(dt){
+  worldTime += dt;
+  const frac = (worldTime % DAY_LENGTH) / DAY_LENGTH; // 0..1
+  // Move the sun across the sky (east→up→west), dipping below at night
+  const ang = (frac * Math.PI * 2) - Math.PI/2;
+  SUN_DIR.set(Math.cos(ang)*0.6, Math.sin(ang)*1.2, 0.35).normalize();
+  // Pick palette by phase
+  let a,b,mix;
+  if(frac < 0.22){          // dawn → day
+    a=_skyNight; b=_skyDay; mix=Math.min(1,frac/0.22);
+    if(frac<0.06){ a=_skyNight; b=_skySunset; mix=frac/0.06; }
+    else { a=_skySunset; b=_skyDay; mix=(frac-0.06)/0.16; }
+  } else if(frac < 0.45){   // full day
+    a=_skyDay; b=_skyDay; mix=0;
+  } else if(frac < 0.55){   // day → sunset
+    a=_skyDay; b=_skySunset; mix=(frac-0.45)/0.10;
+  } else if(frac < 0.62){   // sunset → night
+    a=_skySunset; b=_skyNight; mix=(frac-0.55)/0.07;
+  } else if(frac < 0.95){   // full night
+    a=_skyNight; b=_skyNight; mix=0;
+  } else {                  // night → dawn
+    a=_skyNight; b=_skyNight; mix=0;
+  }
+  const sm = skyDome.material.uniforms;
+  sm.uZenith.value.copy(a.zen).lerp(b.zen, mix);
+  sm.uHorizon.value.copy(a.hor).lerp(b.hor, mix);
+  scene.fog.color.copy(_c3.copy(a.fog).lerp(b.fog, mix));
+  const light = a.light + (b.light - a.light) * mix;
+  currentLightLevel = light;
+  dayTintColor.setScalar(light);
+  // Apply tint to all terrain materials (baked-shading multiply)
+  applyDayTint();
+}
+function applyDayTint(){
+  for(const chunk of world.chunks.values()){
+    if(chunk.mesh) chunk.mesh.material.color.copy(dayTintColor);
+    if(chunk.foliageMesh) chunk.foliageMesh.material.color.copy(dayTintColor);
+    if(chunk.glassMesh) chunk.glassMesh.material.color.copy(dayTintColor);
+  }
+  foliageMat.color.copy(dayTintColor);
+  glassMat.color.copy(dayTintColor);
+  // Sun/moon brightness
+  sunMat.color.setRGB(currentLightLevel*0.99+0.01, currentLightLevel*0.98+0.02, currentLightLevel*0.88+0.02);
+}
+function isNight(){ return currentLightLevel < 0.4; }
 
 const camera=new THREE.PerspectiveCamera(80, window.innerWidth/window.innerHeight, 0.1, 500);
 scene.add(camera); // needed for hand mesh (camera child) to render
@@ -5826,6 +5888,7 @@ function loop(t){
   const prevHp=player.hp;
   player.update(dt,keys);
   world.loadAround(player.pos.x, player.pos.z);
+  updateDayNight(dt);
   updateMobs(dt);
   // Q-drop
   if(keys['KeyQ']&&!chatOpen&&!inventoryOpen&&!paused&&gamemode!=='spectator'){
