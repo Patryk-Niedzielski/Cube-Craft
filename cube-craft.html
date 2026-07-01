@@ -1025,18 +1025,22 @@ const IRON_INGOT=52, IRON_BUCKET=53, WATER_BUCKET=54;
 const RAW_PORKCHOP=55, RAW_BEEF=56;
 const BOWL=57, WATER_BOWL=58, FOOD_BOWL=59;
 const COAL_ORE=60, IRON_ORE=61, GOLD_ORE=62, COAL=63, GOLD_INGOT=64;
+const FURNACE=65, COOKED_PORKCHOP=66, COOKED_BEEF=67;
 
 // ── TOOL SYSTEM CONSTANTS ─────────────────────────────────
-const NEEDS_PICK  = new Set([STONE, COBBLESTONE, MOSSY_COBBLE, CRACKED_STONE, COAL_ORE, IRON_ORE, GOLD_ORE]); // blocks that require a pickaxe
+const NEEDS_PICK  = new Set([STONE, COBBLESTONE, MOSSY_COBBLE, CRACKED_STONE, COAL_ORE, IRON_ORE, GOLD_ORE, FURNACE]); // blocks that require a pickaxe
 const IS_PICK     = new Set([WOOD_PICK, STONE_PICK]);
 const TOOL_SPEED  = {[WOOD_PICK]:1.0, [STONE_PICK]:1.5}; // speed mult vs base stone hardness
 const TOOL_MAX_DUR= {[WOOD_PICK]:60,  [STONE_PICK]:130};
 const UNSTACKABLE = new Set([WOOD_PICK, STONE_PICK]);    // these never stack
-const FLAT_ITEMS  = new Set([STICK, WOOD_PICK, STONE_PICK, IRON_INGOT, GOLD_INGOT, COAL, RAW_PORKCHOP, RAW_BEEF]); // rendered as 2D sprites
+const FLAT_ITEMS  = new Set([STICK, WOOD_PICK, STONE_PICK, IRON_INGOT, GOLD_INGOT, COAL, RAW_PORKCHOP, RAW_BEEF, COOKED_PORKCHOP, COOKED_BEEF]); // rendered as 2D sprites
 const SPAWN_EGG_MOB={[PIG_EGG]:'pig',[COW_EGG]:'cow',[WOLF_EGG]:'wolf',[CAT_EGG]:'cat',[CHICKEN_EGG]:'chicken',[FISH_EGG]:'fish'};
-const NON_PLACEABLE = new Set([IRON_INGOT,IRON_BUCKET,WATER_BUCKET,RAW_PORKCHOP,RAW_BEEF,COAL,GOLD_INGOT]);
+const NON_PLACEABLE = new Set([IRON_INGOT,IRON_BUCKET,WATER_BUCKET,RAW_PORKCHOP,RAW_BEEF,COAL,GOLD_INGOT,COOKED_PORKCHOP,COOKED_BEEF]);
 // What a block drops when mined (defaults to the block itself if absent)
 const BLOCK_DROP = {[COAL_ORE]:COAL};
+// Furnace smelting recipes: input block/item id → output id
+const SMELT = {[IRON_ORE]:IRON_INGOT, [GOLD_ORE]:GOLD_INGOT, [SAND]:GLASS,
+  [RAW_PORKCHOP]:COOKED_PORKCHOP, [RAW_BEEF]:COOKED_BEEF};
 // key = "wx,botY,wz" (bottom block position); value = {open:bool, hingeRight:bool}
 const doorStates = new Map();
 
@@ -1049,13 +1053,15 @@ const BLOCK_NAME=['Air','Grass','Dirt','Stone','Oak Log','Leaves','Sand','Bedroc
   'Pine Log','Pine Plank','Oak Door','Oak Door','Pine Door','Pine Door',
   'Iron Ingot','Iron Bucket','Water Bucket','Raw Porkchop','Raw Beef',
   'Bowl','Water Bowl','Food Bowl',
-  'Coal Ore','Iron Ore','Gold Ore','Coal','Gold Ingot'];
+  'Coal Ore','Iron Ore','Gold Ore','Coal','Gold Ingot',
+  'Furnace','Cooked Porkchop','Cooked Beef'];
 const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3, 0,0,0,0,0,0, 0.2, 0.25, 0.0, 0.0, 0.7, 1.0, 0,0,0, 0.6, 1.0, 1.0, 1.1,
   0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4, // wool 30-45
   1.2, 0.7, 0.8, 0.8, 0.8, 0.8, // pine log, pine plank, oak door×2, pine door×2
   0,0,0,0,0, // iron ingot, iron bucket, water bucket, raw porkchop, raw beef
   0.2,0.2,0.2, // bowl, water bowl, food bowl
-  3.0,3.0,3.0,0,0]; // coal ore, iron ore, gold ore, coal(item), gold ingot(item)
+  3.0,3.0,3.0,0,0, // coal ore, iron ore, gold ore, coal(item), gold ingot(item)
+  3.5,0,0]; // furnace, cooked porkchop(item), cooked beef(item)
 const TEX_IDX={
   [GRASS]:   [0,2,1],
   [DIRT]:    [2,2,2],
@@ -1121,6 +1127,9 @@ const TEX_IDX={
   [GOLD_ORE]:        [63,63,63],
   [COAL]:            [64,64,64],
   [GOLD_INGOT]:      [65,65,65],
+  [FURNACE]:         [67,67,66],
+  [COOKED_PORKCHOP]: [68,68,68],
+  [COOKED_BEEF]:     [69,69,69],
 };
 // SOLID: player collides with these
 const SOLID=new Uint8Array(256);
@@ -1129,14 +1138,14 @@ const SOLID=new Uint8Array(256);
   PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
   BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL,
   PINE_LOG,PINE_PLANK,OAK_DOOR,OAK_DOOR_TOP,PINE_DOOR,PINE_DOOR_TOP,
-  COAL_ORE,IRON_ORE,GOLD_ORE].forEach(id=>SOLID[id]=1);
+  COAL_ORE,IRON_ORE,GOLD_ORE,FURNACE].forEach(id=>SOLID[id]=1);
 // OPAQUE: completely hides adjacent faces (no leaves, no water)
 const OPAQUE=new Uint8Array(256);
 [GRASS,DIRT,STONE,WOOD,SAND,BEDROCK,SNOW,PLANK,CRAFT_TABLE,GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE,
   WHITE_WOOL,ORANGE_WOOL,MAGENTA_WOOL,LIGHT_BLUE_WOOL,YELLOW_WOOL,LIME_WOOL,
   PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
   BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL,
-  PINE_LOG,PINE_PLANK,COAL_ORE,IRON_ORE,GOLD_ORE].forEach(id=>OPAQUE[id]=1);
+  PINE_LOG,PINE_PLANK,COAL_ORE,IRON_ORE,GOLD_ORE,FURNACE].forEach(id=>OPAQUE[id]=1);
 // Doors are solid but NOT opaque — they render as thin panels, not full cubes
 
 // ── FACE GEOMETRY ─────────────────────────────────────────
@@ -2313,7 +2322,7 @@ hlMesh.visible=false;
 scene.add(hlMesh);
 
 // ── TEXTURE ATLAS (16×16 pixel art, 16 tiles → 256×16 px, power-of-2) ───────
-const N_TILES = 66;
+const N_TILES = 70;
 const TS      = 16;
 const atlasCvs = document.createElement('canvas');
 atlasCvs.width  = TS * N_TILES;  // 256
@@ -2846,6 +2855,43 @@ for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
     tsp(65,x,y, (top?250:214)+s, (top?214:174)+s, (top?70:40)+s);
   }
 }
+// Tile 66 — FURNACE face (stone brick with dark opening + embers)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const brick=((y%5===0)||((x+ (Math.floor(y/5)%2?3:0))%6===0));
+  const s=Math.round((th(66*TS+x,y)-0.5)*16);
+  tsp(66,x,y, (brick?96:120)+s, (brick?96:120)+s, (brick?98:122)+s);
+  // opening
+  if(x>=4&&x<=11&&y>=7&&y<=13){
+    if(y>=11){ const e=th(66*TS+x*2+1,y); tsp(66,x,y, 220+Math.round(e*30),90+Math.round(e*60),20); } // embers
+    else tsp(66,x,y, 24,20,18);
+  }
+}
+// Tile 67 — FURNACE top (plain stone brick)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const brick=((y%5===0)||((x+ (Math.floor(y/5)%2?3:0))%6===0));
+  const s=Math.round((th(67*TS+x,y)-0.5)*16);
+  tsp(67,x,y, (brick?96:120)+s, (brick?96:120)+s, (brick?98:122)+s);
+}
+// Tile 68 — COOKED_PORKCHOP (browned meat)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const bone=x>=9&&x<=14&&y>=1&&y<=5;
+  const chop=x>=2&&x<=13&&y>=2&&y<=13;
+  if(bone){ tsp(68,x,y, 228,218,188); }
+  else if(chop){
+    const n=th(68*TS+x,y);
+    if(n>0.72) tsp(68,x,y, 190,132,84);
+    else tsp(68,x,y, 150+Math.round((n-0.5)*20), 96+Math.round((n-0.5)*16), 52+Math.round((n-0.5)*12));
+  }
+}
+// Tile 69 — COOKED_BEEF (browned steak)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const meat=x>=2&&x<=13&&y>=2&&y<=13;
+  if(meat){
+    const n=th(69*TS+x,y);
+    if(n>0.68) tsp(69,x,y, 168,116,72);
+    else tsp(69,x,y, 128+Math.round((n-0.5)*20), 80+Math.round((n-0.5)*14), 46+Math.round((n-0.5)*10));
+  }
+}
 
 const atlasTexture = new THREE.CanvasTexture(atlasCvs);
 atlasTexture.magFilter     = THREE.NearestFilter;  // crisp pixels, no blurring
@@ -2918,7 +2964,7 @@ const HAND_FLAT = new Set([STICK, WOOD_PICK, STONE_PICK,
   FOLIAGE, FLOWER_RED, FLOWER_YELLOW,
   OAK_DOOR, PINE_DOOR, OAK_DOOR_TOP, PINE_DOOR_TOP,
   IRON_INGOT, IRON_BUCKET, WATER_BUCKET,
-  RAW_PORKCHOP, RAW_BEEF, COAL, GOLD_INGOT]);
+  RAW_PORKCHOP, RAW_BEEF, COAL, GOLD_INGOT, COOKED_PORKCHOP, COOKED_BEEF]);
 
 function updateHandUVs(){
   const id = player ? player.selectedBlock : GRASS;
@@ -3011,6 +3057,10 @@ const BREAK_SND = {
   [BOWL]:       [{f:'bandpass',hz:540, q:1.2, v:0.28, d:0.13}],
   [WATER_BOWL]: [{f:'bandpass',hz:540, q:1.2, v:0.28, d:0.13}],
   [FOOD_BOWL]:  [{f:'bandpass',hz:540, q:1.2, v:0.28, d:0.13}],
+  [COAL_ORE]:  [{f:'bandpass',hz:1700,q:3.5,v:0.55,d:0.08},{f:'lowpass',hz:200,q:0.5,v:0.28,d:0.06}],
+  [IRON_ORE]:  [{f:'bandpass',hz:1700,q:3.5,v:0.55,d:0.08},{f:'lowpass',hz:200,q:0.5,v:0.28,d:0.06}],
+  [GOLD_ORE]:  [{f:'bandpass',hz:1700,q:3.5,v:0.55,d:0.08},{f:'lowpass',hz:200,q:0.5,v:0.28,d:0.06}],
+  [FURNACE]:   [{f:'bandpass',hz:1500,q:3.0,v:0.50,d:0.09},{f:'lowpass',hz:220,q:0.5,v:0.26,d:0.07}],
 };
 
 function playBreakSound(blockId){
@@ -3084,6 +3134,25 @@ function playPlaceSound(blockId){
   gain.gain.exponentialRampToValueAtTime(0.001, now+sp.d);
   src.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
   src.start(now); src.stop(now+sp.d+0.01);
+}
+
+// Sizzle sound for furnace smelting / campfire cooking
+function playSmeltSound(){
+  const ctx = getActx();
+  const now = ctx.currentTime;
+  const d = 0.45;
+  const len = Math.ceil(ctx.sampleRate * d);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const ch = buf.getChannelData(0);
+  for(let i=0;i<len;i++) ch[i]=(Math.random()*2-1)*0.7;
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const filt = ctx.createBiquadFilter(); filt.type='bandpass'; filt.frequency.value=1400; filt.Q.value=0.8;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.22, now+0.05);
+  gain.gain.exponentialRampToValueAtTime(0.001, now+d);
+  src.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
+  src.start(now); src.stop(now+d+0.01);
 }
 
 // ── MOB SOUNDS (oscillator + noise) ───────────────────────────────
@@ -4103,9 +4172,9 @@ const CREATIVE_PAGE_SIZE=27;
 const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,PINE_LOG,LEAVES,PINE_LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS,SNOW,
   FLOWER_RED,FLOWER_YELLOW,PLANK,PINE_PLANK,CRAFT_TABLE,STICK,WOOD_PICK,STONE_PICK,
   GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE,
-  COAL_ORE,IRON_ORE,GOLD_ORE,COAL,IRON_INGOT,GOLD_INGOT,
+  COAL_ORE,IRON_ORE,GOLD_ORE,COAL,IRON_INGOT,GOLD_INGOT,FURNACE,
   OAK_DOOR,PINE_DOOR,
-  IRON_BUCKET,WATER_BUCKET,RAW_PORKCHOP,RAW_BEEF,
+  IRON_BUCKET,WATER_BUCKET,RAW_PORKCHOP,RAW_BEEF,COOKED_PORKCHOP,COOKED_BEEF,
   BOWL,WATER_BOWL,FOOD_BOWL,
   WHITE_WOOL,ORANGE_WOOL,MAGENTA_WOOL,LIGHT_BLUE_WOOL,YELLOW_WOOL,LIME_WOOL,
   PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
@@ -4934,6 +5003,8 @@ const CT_RECIPES=[
   {pattern:[PLANK,AIR,PLANK, AIR,PLANK,AIR, AIR,AIR,AIR], out:BOWL, outCount:4},
   // Iron Bucket: 3 iron ingots in V shape
   {pattern:[IRON_INGOT,AIR,IRON_INGOT, AIR,IRON_INGOT,AIR, AIR,AIR,AIR], out:IRON_BUCKET, outCount:1},
+  // Furnace: 8 cobblestone ring (empty centre)
+  {pattern:[COBBLESTONE,COBBLESTONE,COBBLESTONE, COBBLESTONE,AIR,COBBLESTONE, COBBLESTONE,COBBLESTONE,COBBLESTONE], out:FURNACE, outCount:1},
 ];
 
 function computeCtOutput(){
@@ -5387,6 +5458,34 @@ function giveBlock(id){
   }
 }
 
+// Count how many of an item the player holds across hotbar + inventory
+function countItem(id){
+  let n=0;
+  for(let i=0;i<9;i++) if(player.hotbar[i]===id) n+=player.hotbarCounts[i];
+  for(let i=0;i<27;i++) if(player.inventory[i]===id) n+=player.inventoryCounts[i];
+  return n;
+}
+// Remove n of an item from inventory (hotbar first). Returns true if all removed.
+function consumeItem(id,n=1){
+  if(countItem(id)<n) return false;
+  for(let i=0;i<9 && n>0;i++){
+    if(player.hotbar[i]===id){
+      const take=Math.min(n,player.hotbarCounts[i]);
+      player.hotbarCounts[i]-=take; n-=take;
+      if(player.hotbarCounts[i]<=0){ player.hotbar[i]=AIR; player.hotbarCounts[i]=0; player.hotbarDur[i]=0; }
+    }
+  }
+  for(let i=0;i<27 && n>0;i++){
+    if(player.inventory[i]===id){
+      const take=Math.min(n,player.inventoryCounts[i]);
+      player.inventoryCounts[i]-=take; n-=take;
+      if(player.inventoryCounts[i]<=0){ player.inventory[i]=AIR; player.inventoryCounts[i]=0; player.inventoryDur[i]=0; }
+    }
+  }
+  buildHotbar();
+  return true;
+}
+
 function dropSelectedItem(){
   const i=player.slot;
   const id=player.hotbar[i];
@@ -5689,6 +5788,23 @@ canvas.addEventListener('mousedown',e=>{
         playPlaceSound(tId===OAK_DOOR||tId===OAK_DOOR_TOP?OAK_DOOR:PINE_DOOR);
         return;
       }
+    }
+
+    // Interact with furnace — smelt held item, consuming 1 coal
+    if(t && world.getBlock(t.bx,t.by,t.bz)===FURNACE){
+      const held=player.selectedBlock;
+      const out=SMELT[held];
+      if(out===undefined){ addChatMsg('Hold an ore, sand, or raw food to smelt','err'); return; }
+      if(gamemode==='survival' && countItem(COAL)<1){ addChatMsg('Need coal to fuel the furnace','err'); return; }
+      // Consume 1 input + 1 coal, produce output
+      if(gamemode==='survival'){
+        if(!consumeItem(held,1)) return;
+        consumeItem(COAL,1);
+      }
+      giveBlock(out);
+      playSmeltSound();
+      handPlaceT=0;
+      return;
     }
 
     const blk=player.selectedBlock;
