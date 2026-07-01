@@ -1051,16 +1051,19 @@ const BOWL=57, WATER_BOWL=58, FOOD_BOWL=59;
 const COAL_ORE=60, IRON_ORE=61, GOLD_ORE=62, COAL=63, GOLD_INGOT=64;
 const FURNACE=65, COOKED_PORKCHOP=66, COOKED_BEEF=67;
 const TORCH=68, CHEST=69, CAMPFIRE=70, BED=71;
+const HOE=72, FARMLAND=73, WHEAT1=74, WHEAT2=75, WHEAT3=76, WHEAT4=77;
+const WHEAT=78, SEEDS=79, BREAD=80;
+const WHEAT_STAGES=[WHEAT1,WHEAT2,WHEAT3,WHEAT4];
 
 // ── TOOL SYSTEM CONSTANTS ─────────────────────────────────
 const NEEDS_PICK  = new Set([STONE, COBBLESTONE, MOSSY_COBBLE, CRACKED_STONE, COAL_ORE, IRON_ORE, GOLD_ORE, FURNACE]); // blocks that require a pickaxe
 const IS_PICK     = new Set([WOOD_PICK, STONE_PICK]);
 const TOOL_SPEED  = {[WOOD_PICK]:1.0, [STONE_PICK]:1.5}; // speed mult vs base stone hardness
 const TOOL_MAX_DUR= {[WOOD_PICK]:60,  [STONE_PICK]:130};
-const UNSTACKABLE = new Set([WOOD_PICK, STONE_PICK]);    // these never stack
-const FLAT_ITEMS  = new Set([STICK, WOOD_PICK, STONE_PICK, IRON_INGOT, GOLD_INGOT, COAL, RAW_PORKCHOP, RAW_BEEF, COOKED_PORKCHOP, COOKED_BEEF, TORCH]); // rendered as 2D sprites
+const UNSTACKABLE = new Set([WOOD_PICK, STONE_PICK, HOE]);    // these never stack
+const FLAT_ITEMS  = new Set([STICK, WOOD_PICK, STONE_PICK, IRON_INGOT, GOLD_INGOT, COAL, RAW_PORKCHOP, RAW_BEEF, COOKED_PORKCHOP, COOKED_BEEF, TORCH, HOE, WHEAT, SEEDS, BREAD]); // rendered as 2D sprites
 const SPAWN_EGG_MOB={[PIG_EGG]:'pig',[COW_EGG]:'cow',[WOLF_EGG]:'wolf',[CAT_EGG]:'cat',[CHICKEN_EGG]:'chicken',[FISH_EGG]:'fish'};
-const NON_PLACEABLE = new Set([IRON_INGOT,IRON_BUCKET,WATER_BUCKET,RAW_PORKCHOP,RAW_BEEF,COAL,GOLD_INGOT,COOKED_PORKCHOP,COOKED_BEEF]);
+const NON_PLACEABLE = new Set([IRON_INGOT,IRON_BUCKET,WATER_BUCKET,RAW_PORKCHOP,RAW_BEEF,COAL,GOLD_INGOT,COOKED_PORKCHOP,COOKED_BEEF,HOE,WHEAT,SEEDS,BREAD]);
 // What a block drops when mined (defaults to the block itself if absent)
 const BLOCK_DROP = {[COAL_ORE]:COAL};
 // Furnace smelting recipes: input block/item id → output id
@@ -1081,7 +1084,9 @@ const BLOCK_NAME=['Air','Grass','Dirt','Stone','Oak Log','Leaves','Sand','Bedroc
   'Iron Ingot','Iron Bucket','Water Bucket','Raw Porkchop','Raw Beef',
   'Bowl','Water Bowl','Food Bowl',
   'Coal Ore','Iron Ore','Gold Ore','Coal','Gold Ingot',
-  'Furnace','Cooked Porkchop','Cooked Beef','Torch','Chest','Campfire','Bed'];
+  'Furnace','Cooked Porkchop','Cooked Beef','Torch','Chest','Campfire','Bed',
+  'Wooden Hoe','Farmland','Wheat Crop','Wheat Crop','Wheat Crop','Wheat Crop',
+  'Wheat','Seeds','Bread'];
 const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3, 0,0,0,0,0,0, 0.2, 0.25, 0.0, 0.0, 0.7, 1.0, 0,0,0, 0.6, 1.0, 1.0, 1.1,
   0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4, // wool 30-45
   1.2, 0.7, 0.8, 0.8, 0.8, 0.8, // pine log, pine plank, oak door×2, pine door×2
@@ -1089,7 +1094,10 @@ const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.
   0.2,0.2,0.2, // bowl, water bowl, food bowl
   3.0,3.0,3.0,0,0, // coal ore, iron ore, gold ore, coal(item), gold ingot(item)
   3.5,0,0, // furnace, cooked porkchop(item), cooked beef(item)
-  0.05,2.0,0.4,0.4]; // torch, chest, campfire, bed
+  0.05,2.0,0.4,0.4, // torch, chest, campfire, bed
+  0,0.5, // hoe(item), farmland
+  0.02,0.02,0.02,0.02, // wheat crop stages 1-4
+  0,0,0]; // wheat, seeds, bread (items)
 const TEX_IDX={
   [GRASS]:   [0,2,1],
   [DIRT]:    [2,2,2],
@@ -1162,6 +1170,15 @@ const TEX_IDX={
   [CHEST]:           [72,72,71],
   [CAMPFIRE]:        [73,73,73],
   [BED]:             [74,75,75],
+  [HOE]:             [84,84,84],
+  [FARMLAND]:        [76,2,2],
+  [WHEAT1]:          [77,77,77],
+  [WHEAT2]:          [78,78,78],
+  [WHEAT3]:          [79,79,79],
+  [WHEAT4]:          [80,80,80],
+  [WHEAT]:           [81,81,81],
+  [SEEDS]:           [82,82,82],
+  [BREAD]:           [83,83,83],
 };
 // SOLID: player collides with these
 const SOLID=new Uint8Array(256);
@@ -1170,14 +1187,14 @@ const SOLID=new Uint8Array(256);
   PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
   BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL,
   PINE_LOG,PINE_PLANK,OAK_DOOR,OAK_DOOR_TOP,PINE_DOOR,PINE_DOOR_TOP,
-  COAL_ORE,IRON_ORE,GOLD_ORE,FURNACE,CHEST,BED].forEach(id=>SOLID[id]=1);
+  COAL_ORE,IRON_ORE,GOLD_ORE,FURNACE,CHEST,BED,FARMLAND].forEach(id=>SOLID[id]=1);
 // OPAQUE: completely hides adjacent faces (no leaves, no water)
 const OPAQUE=new Uint8Array(256);
 [GRASS,DIRT,STONE,WOOD,SAND,BEDROCK,SNOW,PLANK,CRAFT_TABLE,GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE,
   WHITE_WOOL,ORANGE_WOOL,MAGENTA_WOOL,LIGHT_BLUE_WOOL,YELLOW_WOOL,LIME_WOOL,
   PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
   BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL,
-  PINE_LOG,PINE_PLANK,COAL_ORE,IRON_ORE,GOLD_ORE,FURNACE,CHEST,BED].forEach(id=>OPAQUE[id]=1);
+  PINE_LOG,PINE_PLANK,COAL_ORE,IRON_ORE,GOLD_ORE,FURNACE,CHEST,BED,FARMLAND].forEach(id=>OPAQUE[id]=1);
 // Doors are solid but NOT opaque — they render as thin panels, not full cubes
 
 // ── FACE GEOMETRY ─────────────────────────────────────────
@@ -1796,6 +1813,24 @@ class World{
         continue;
       }
 
+      if(id===WHEAT1||id===WHEAT2||id===WHEAT3||id===WHEAT4){
+        // Wheat crop: X-cross billboard, taller as it matures
+        const stage=id-WHEAT1;
+        const ci=TEX_IDX[id][0], bh=0.35+stage*0.20, sh=1.0;
+        const cx0=ox+x+0.06, cx1=ox+x+0.94, cz0=oz+z+0.06, cz1=oz+z+0.94;
+        fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
+        fpos.push(cx0,y,cz0, cx1,y,cz1, cx1,y+bh,cz1, cx0,y+bh,cz0);
+        fuv.push(ci/N_TILES,0, (ci+1)/N_TILES,0, (ci+1)/N_TILES,1, ci/N_TILES,1);
+        fcol.push(sh,sh,sh, sh,sh,sh, sh,sh,sh, sh,sh,sh);
+        fvi+=4;
+        fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
+        fpos.push(cx1,y,cz0, cx0,y,cz1, cx0,y+bh,cz1, cx1,y+bh,cz0);
+        fuv.push(ci/N_TILES,0, (ci+1)/N_TILES,0, (ci+1)/N_TILES,1, ci/N_TILES,1);
+        fcol.push(sh,sh,sh, sh,sh,sh, sh,sh,sh, sh,sh,sh);
+        fvi+=4;
+        continue;
+      }
+
       if(id===FOLIAGE||id===FLOWER_RED||id===FLOWER_YELLOW){
         // X-cross billboard: two diagonal quads
         const ci=TEX_IDX[id][0], bh=0.9, sh=1.0;
@@ -2006,7 +2041,8 @@ class World{
       if(dist>maxDist) break;
       const id=this.getBlock(x,y,z);
       if(SOLID[id]||id===FOLIAGE||id===FLOWER_RED||id===FLOWER_YELLOW||
-         id===WATER||id===BOWL||id===WATER_BOWL||id===FOOD_BOWL||id===TORCH||id===CAMPFIRE) return {bx:x,by:y,bz:z,nx,ny,nz};
+         id===WATER||id===BOWL||id===WATER_BOWL||id===FOOD_BOWL||id===TORCH||id===CAMPFIRE||
+         id===WHEAT1||id===WHEAT2||id===WHEAT3||id===WHEAT4) return {bx:x,by:y,bz:z,nx,ny,nz};
       if(tmx<tmy&&tmx<tmz){dist=tmx;tmx+=tdx;nx=-sx;ny=0;nz=0;x+=sx;}
       else if(tmy<tmz)    {dist=tmy;tmy+=tdy;nx=0;ny=-sy;nz=0;y+=sy;}
       else                {dist=tmz;tmz+=tdz;nx=0;ny=0;nz=-sz;z+=sz;}
@@ -2399,7 +2435,7 @@ hlMesh.visible=false;
 scene.add(hlMesh);
 
 // ── TEXTURE ATLAS (16×16 pixel art, 16 tiles → 256×16 px, power-of-2) ───────
-const N_TILES = 76;
+const N_TILES = 85;
 const TS      = 16;
 const atlasCvs = document.createElement('canvas');
 atlasCvs.width  = TS * N_TILES;  // 256
@@ -3036,6 +3072,51 @@ for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
   else if(y<=12) tsp(75,x,y, 224+Math.min(0,s),224+Math.min(0,s),228+Math.min(0,s)); // white mattress
   else tsp(75,x,y, 110,72,32);                   // wooden base/legs
 }
+// Tile 76 — FARMLAND top (tilled dark soil with furrow rows)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const s=Math.round((th(76*TS+x,y)-0.5)*14);
+  const furrow=(y%4===0);
+  tsp(76,x,y, (furrow?70:96)+s, (furrow?44:62)+s, (furrow?22:30)+s);
+}
+// Tiles 77-80 — WHEAT crop growth stages (green sprouts → golden ears)
+for(let stage=0;stage<4;stage++){
+  const ti=77+stage;
+  const h0=13-stage*3;               // taller as it grows
+  const gp=[[70,120,40],[96,150,46],[150,160,54],[210,180,60]][stage]; // greener→golden
+  for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+    // a few vertical stalks
+    const stalk=(x===3||x===7||x===11)&&y>=h0;
+    if(stalk){ const s=Math.round((th(ti*TS+x,y)-0.5)*16); tsp(ti,x,y, gp[0]+s,gp[1]+s,gp[2]+s); }
+    // grain heads near the top when mature
+    if(stage>=2 && (x===3||x===7||x===11) && y>=h0 && y<=h0+3){
+      const s=Math.round((th(ti*TS+x+5,y)-0.5)*16); tsp(ti,x,y, 226+s,192+s,66+s);
+    }
+  }
+}
+// Tile 81 — WHEAT item (bundle of golden stalks)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const stalk=(x>=3&&x<=4)||(x>=7&&x<=8)||(x>=11&&x<=12);
+  if(stalk&&y>=2&&y<=14){ const s=Math.round((th(81*TS+x,y)-0.5)*16); tsp(81,x,y, 220+s,186+s,64+s); }
+}
+// Tile 82 — SEEDS (small scattered seeds)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const n=th(82*TS+x*2.3+1,y*1.9+2);
+  if(n>0.86 && x>=3&&x<=12&&y>=4&&y<=12){ const s=Math.round((th(82*TS+x,y)-0.5)*20); tsp(82,x,y, 150+s,178+s,70+s); }
+}
+// Tile 83 — BREAD (rounded golden loaf)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const dx=x-7.5, dy=(y-8)*1.6; const r=Math.sqrt(dx*dx+dy*dy);
+  if(r<6){ const s=Math.round((th(83*TS+x,y)-0.5)*16); const top=y<8;
+    tsp(83,x,y, (top?200:174)+s,(top?146:120)+s,(top?66:48)+s);
+    if(th(83*TS+x*3+1,y*2)>0.8) tsp(83,x,y, 150,100,40); } // score marks
+}
+// Tile 84 — HOE (wooden handle + head)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  // diagonal handle
+  if(Math.abs((x)-(y))<=1 && x>=4&&x<=13){ const s=Math.round((th(84*TS+x,y)-0.5)*14); tsp(84,x,y, 138+s,96+s,44+s); }
+  // head at top-left
+  if(y>=1&&y<=3&&x>=2&&x<=7){ const g=Math.round((th(84*TS+x,y)-0.5)*16); tsp(84,x,y, 150+g,150+g,158+g); }
+}
 
 const atlasTexture = new THREE.CanvasTexture(atlasCvs);
 atlasTexture.magFilter     = THREE.NearestFilter;  // crisp pixels, no blurring
@@ -3108,7 +3189,7 @@ const HAND_FLAT = new Set([STICK, WOOD_PICK, STONE_PICK,
   FOLIAGE, FLOWER_RED, FLOWER_YELLOW,
   OAK_DOOR, PINE_DOOR, OAK_DOOR_TOP, PINE_DOOR_TOP,
   IRON_INGOT, IRON_BUCKET, WATER_BUCKET,
-  RAW_PORKCHOP, RAW_BEEF, COAL, GOLD_INGOT, COOKED_PORKCHOP, COOKED_BEEF, TORCH]);
+  RAW_PORKCHOP, RAW_BEEF, COAL, GOLD_INGOT, COOKED_PORKCHOP, COOKED_BEEF, TORCH, HOE, WHEAT, SEEDS, BREAD]);
 
 function updateHandUVs(){
   const id = player ? player.selectedBlock : GRASS;
@@ -4346,11 +4427,15 @@ const CHEST_SIZE=27;
 const chestSlots=new Array(CHEST_SIZE).fill(AIR);
 const chestCounts=new Array(CHEST_SIZE).fill(0);
 const chestDur=new Array(CHEST_SIZE).fill(0);
+// Growing wheat crops: Set of "wx,wy,wz"; ticked to advance growth stages
+const cropSet=new Set();
+let _cropTimer=0;
 const CREATIVE_PAGE_SIZE=27;
 const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,PINE_LOG,LEAVES,PINE_LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS,SNOW,
   FLOWER_RED,FLOWER_YELLOW,PLANK,PINE_PLANK,CRAFT_TABLE,STICK,WOOD_PICK,STONE_PICK,
   GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE,
   COAL_ORE,IRON_ORE,GOLD_ORE,COAL,IRON_INGOT,GOLD_INGOT,FURNACE,TORCH,CHEST,CAMPFIRE,BED,
+  HOE,FARMLAND,SEEDS,WHEAT,BREAD,
   OAK_DOOR,PINE_DOOR,
   IRON_BUCKET,WATER_BUCKET,RAW_PORKCHOP,RAW_BEEF,COOKED_PORKCHOP,COOKED_BEEF,
   BOWL,WATER_BOWL,FOOD_BOWL,
@@ -5245,6 +5330,13 @@ const CT_RECIPES=[
   {pattern:[AIR,STICK,AIR, STICK,COAL,STICK, WOOD,WOOD,WOOD], out:CAMPFIRE, outCount:1},
   // Bed: 3 wool over 3 planks
   {pattern:[AIR,AIR,AIR, WHITE_WOOL,WHITE_WOOL,WHITE_WOOL, PLANK,PLANK,PLANK], out:BED, outCount:1},
+  // Wooden Hoe: 2 planks + 2 sticks (two orientations)
+  {pattern:[PLANK,PLANK,AIR, AIR,STICK,AIR, AIR,STICK,AIR], out:HOE, outCount:1},
+  {pattern:[AIR,PLANK,PLANK, AIR,STICK,AIR, AIR,STICK,AIR], out:HOE, outCount:1},
+  // Bread: 3 wheat in a row (any row)
+  {pattern:[WHEAT,WHEAT,WHEAT, AIR,AIR,AIR, AIR,AIR,AIR], out:BREAD, outCount:1},
+  {pattern:[AIR,AIR,AIR, WHEAT,WHEAT,WHEAT, AIR,AIR,AIR], out:BREAD, outCount:1},
+  {pattern:[AIR,AIR,AIR, AIR,AIR,AIR, WHEAT,WHEAT,WHEAT], out:BREAD, outCount:1},
 ];
 
 function computeCtOutput(){
@@ -5621,6 +5713,11 @@ async function startFromSave(save, worldId){
   if(save.chests){
     for(const [key,arr] of Object.entries(save.chests)) chestData.set(key,arr);
   }
+  // Resume growth for any immature crops recorded in the world's block edits
+  cropSet.clear();
+  for(const [key,id] of worldMods){
+    if(id===WHEAT1||id===WHEAT2||id===WHEAT3) cropSet.add(key);
+  }
   trackingMods=true;
   const p=save.player;
   if(p){
@@ -5824,6 +5921,7 @@ function consumeItem(id,n=1){
 const FOOD_VALUE = {
   [RAW_PORKCHOP]:3, [RAW_BEEF]:3,
   [COOKED_PORKCHOP]:8, [COOKED_BEEF]:8,
+  [BREAD]:5,
 };
 // Try to eat the held item; returns true if eaten
 function tryEatHeld(){
@@ -5859,6 +5957,22 @@ function updatePlayerNeeds(dt){
     player._starveT+=dt;
     if(player._starveT>=4){ player._starveT=0; if(player.hp>1){ player.hp--; buildHealth(); } }
   } else player._starveT=0;
+}
+
+// Advance wheat growth: every few seconds a random subset of crops matures
+function updateCrops(dt){
+  _cropTimer+=dt;
+  if(_cropTimer<2.5) return;
+  _cropTimer=0;
+  for(const key of [...cropSet]){
+    const [wx,wy,wz]=key.split(',').map(Number);
+    const id=world.getBlock(wx,wy,wz);
+    if(id!==WHEAT1&&id!==WHEAT2&&id!==WHEAT3){ cropSet.delete(key); continue; }
+    if(Math.random()<0.30){
+      world.setBlock(wx,wy,wz,id+1);           // advance one stage (rebuilds mesh)
+      if(id+1===WHEAT4) cropSet.delete(key);   // fully grown — stop ticking
+    }
+  }
 }
 
 function dropSelectedItem(){
@@ -6219,6 +6333,28 @@ canvas.addEventListener('mousedown',e=>{
       return;
     }
 
+    // Till grass/dirt into farmland with the hoe
+    if(t && player.selectedBlock===HOE){
+      const aimId=world.getBlock(t.bx,t.by,t.bz);
+      if((aimId===GRASS||aimId===DIRT) && world.getBlock(t.bx,t.by+1,t.bz)===AIR){
+        world.setBlock(t.bx,t.by,t.bz,FARMLAND);
+        playPlaceSound(DIRT); handPlaceT=0;
+      }
+      return;
+    }
+
+    // Plant seeds on farmland
+    if(t && player.selectedBlock===SEEDS){
+      const aimId=world.getBlock(t.bx,t.by,t.bz);
+      if(aimId===FARMLAND && world.getBlock(t.bx,t.by+1,t.bz)===AIR){
+        world.setBlock(t.bx,t.by+1,t.bz,WHEAT1);
+        cropSet.add(`${t.bx},${t.by+1},${t.bz}`);
+        playPlaceSound(GRASS); handPlaceT=0;
+        if(gamemode==='survival') consumeItem(SEEDS,1);
+      }
+      return;
+    }
+
     // Eat held food (unless aiming at a bowl we could fill with raw meat)
     {
       const held=player.selectedBlock;
@@ -6496,6 +6632,7 @@ function loop(t){
   world.loadAround(player.pos.x, player.pos.z);
   updateDayNight(dt);
   updatePlayerNeeds(dt);
+  updateCrops(dt);
   updateMobs(dt);
   // Q-drop
   if(keys['KeyQ']&&!chatOpen&&!inventoryOpen&&!paused&&gamemode!=='spectator'){
@@ -6638,6 +6775,21 @@ function loop(t){
               chestData.delete(ck);
             }
           }
+          // Wheat crop: custom drops (mature → wheat + seeds; young → seeds)
+          let suppressDefaultDrop=false;
+          if(id===WHEAT1||id===WHEAT2||id===WHEAT3||id===WHEAT4){
+            cropSet.delete(`${aim.bx},${aim.by},${aim.bz}`);
+            if(gamemode==='survival'){
+              if(id===WHEAT4){
+                spawnDroppedItem(WHEAT,aim.bx+0.5,aim.by+0.5,aim.bz+0.5);
+                const extra=1+Math.floor(Math.random()*2);
+                for(let n=0;n<extra;n++) spawnDroppedItem(SEEDS,aim.bx+0.5,aim.by+0.5,aim.bz+0.5);
+              } else {
+                spawnDroppedItem(SEEDS,aim.bx+0.5,aim.by+0.5,aim.bz+0.5);
+              }
+            }
+            suppressDefaultDrop=true;
+          }
           // Door tops drop their bottom-half item; door bottoms silently remove top
           let dropId = BLOCK_DROP[id] ?? id;
           if(id===OAK_DOOR_TOP)  { dropId=OAK_DOOR;  world.setBlock(aim.bx,aim.by-1,aim.bz,AIR); }
@@ -6648,10 +6800,13 @@ function loop(t){
             const _dBotY=(id===OAK_DOOR_TOP||id===PINE_DOOR_TOP)?aim.by-1:aim.by;
             doorStates.delete(`${aim.bx},${_dBotY},${aim.bz}`);
           }
-          if(gamemode==='survival' && id!==AIR){
+          if(gamemode==='survival' && id!==AIR && !suppressDefaultDrop){
             // Needs-pick blocks only drop with the correct tool
             if(!NEEDS_PICK.has(id) || IS_PICK.has(held))
               spawnDroppedItem(dropId,aim.bx+0.5,aim.by+0.5,aim.bz+0.5);
+            // Tall grass sometimes yields seeds
+            if(id===FOLIAGE && Math.random()<0.35)
+              spawnDroppedItem(SEEDS,aim.bx+0.5,aim.by+0.5,aim.bz+0.5);
             // Consume pickaxe durability
             if(NEEDS_PICK.has(id) && IS_PICK.has(held)){
               const si=player.slot;
