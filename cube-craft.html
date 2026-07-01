@@ -32,7 +32,9 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
 }
 #hud-bars{display:flex;align-items:flex-end;gap:8px;margin-bottom:2px}
 #health{display:flex;flex-wrap:wrap;gap:0;width:182px}
+#hunger{display:flex;flex-wrap:wrap;gap:0;width:182px;flex-direction:row-reverse}
 .mc-heart{width:9px;height:9px;image-rendering:pixelated;display:block}
+.mc-drum{width:9px;height:9px;image-rendering:pixelated;display:block}
 #air-bar{display:none;gap:0;line-height:1}
 .mc-bubble{width:9px;height:9px;image-rendering:pixelated;display:block}
 #xp-bar-wrap{
@@ -642,6 +644,7 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
   <div id="hud-bars">
     <div>
       <div id="air-bar"></div>
+      <div id="hunger"></div>
       <div id="health"></div>
     </div>
   </div>
@@ -1954,6 +1957,8 @@ class Player{
     this.yaw=0; this.pitch=0;
     this.onGround=false;
     this.hp=20; this.maxHp=20;
+    this.hunger=20; this.maxHunger=20;
+    this._hungerT=0; this._regenT=0; this._starveT=0;
     this.air=10; this.maxAir=10;
     this.drownTimer=0;
     this.inWater=false; this.headInWater=false;
@@ -3155,6 +3160,25 @@ function playSmeltSound(){
   src.start(now); src.stop(now+d+0.01);
 }
 
+// Two quick chewing thuds when eating
+function playEatSound(){
+  const ctx=getActx(); const now=ctx.currentTime;
+  for(let k=0;k<2;k++){
+    const t0=now+k*0.14, d=0.09;
+    const len=Math.ceil(ctx.sampleRate*d);
+    const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+    const ch=buf.getChannelData(0);
+    for(let i=0;i<len;i++) ch[i]=Math.random()*2-1;
+    const src=ctx.createBufferSource(); src.buffer=buf;
+    const filt=ctx.createBiquadFilter(); filt.type='lowpass'; filt.frequency.value=520; filt.Q.value=0.7;
+    const gain=ctx.createGain();
+    gain.gain.setValueAtTime(0.26,t0);
+    gain.gain.exponentialRampToValueAtTime(0.001,t0+d);
+    src.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
+    src.start(t0); src.stop(t0+d+0.01);
+  }
+}
+
 // ── MOB SOUNDS (oscillator + noise) ───────────────────────────────
 const _MOB_HIT_CFG = {
   pig:     { hz1:520, hz2:270, dur:0.12, v:0.22, wave:'sawtooth' },
@@ -4212,6 +4236,7 @@ const xhair        = document.getElementById('xhair');
 const hudEl        = document.getElementById('hud');
 const hotbarEl     = document.getElementById('hotbar');
 const healthEl     = document.getElementById('health');
+const hungerEl     = document.getElementById('hunger');
 const blockHint    = document.getElementById('block-hint');
 const breakBarWrap = document.getElementById('break-bar-wrap');
 const breakBar          = document.getElementById('break-bar');
@@ -4267,6 +4292,35 @@ function _heartUrl(fill){
 const HEART_FULL=_heartUrl('#ff2222');
 const HEART_HALF=_heartUrl('#ff7700');
 const HEART_EMPTY=_heartUrl('#3a1111');
+
+// Drumstick icon for the hunger bar
+const DRUM_PAT=[
+  [0,0,1,1,0,0,0],
+  [0,1,1,1,1,0,0],
+  [0,1,1,1,1,0,0],
+  [0,0,1,1,1,0,0],
+  [0,0,0,1,1,1,0],
+  [0,0,0,0,1,1,1],
+  [0,0,0,0,0,1,1],
+];
+function _drumUrl(fill){
+  const c=document.createElement('canvas'); c.width=c.height=9;
+  const x=c.getContext('2d');
+  x.fillStyle='#2b1a00';
+  DRUM_PAT.forEach((r,y)=>r.forEach((v,px)=>{
+    if(!v) return;
+    for(const[dx,dy]of[[-1,0],[1,0],[0,-1],[0,1]])
+      if(!((DRUM_PAT[y+dy]||[])[px+dx])) x.fillRect(px+1+dx,y+1+dy,1,1);
+  }));
+  x.fillStyle=fill;
+  DRUM_PAT.forEach((r,y)=>r.forEach((v,px)=>{ if(v) x.fillRect(px+1,y+1,1,1); }));
+  // bone tip
+  x.fillStyle='#f0e6c0'; x.fillRect(6,7,2,2);
+  return c.toDataURL();
+}
+const DRUM_FULL=_drumUrl('#b8641e');
+const DRUM_HALF=_drumUrl('#d89a4a');
+const DRUM_EMPTY=_drumUrl('#2b1a00');
 
 function makeBlockIcon(id){
   const ti=TEX_IDX[id]; if(!ti) return '';
@@ -4349,6 +4403,20 @@ function buildHealth(){
   }
 }
 
+function buildHunger(){
+  if(gamemode==='creative'||gamemode==='spectator'){ hungerEl.style.display='none'; return; }
+  hungerEl.style.display='flex';
+  hungerEl.innerHTML='';
+  const hg=player.hunger;
+  for(let i=0;i<10;i++){
+    const pts=hg-i*2;
+    const img=document.createElement('img');
+    img.className='mc-drum';
+    img.src=pts>=2?DRUM_FULL:pts>=1?DRUM_HALF:DRUM_EMPTY;
+    hungerEl.append(img);
+  }
+}
+
 function buildAir(){
   airBarEl.innerHTML='';
   for(let i=0;i<player.maxAir;i++){
@@ -4396,7 +4464,7 @@ function setGamemode(mode){
     player.slot=0;
     addChatMsg('Gamemode set to Survival','ok');
   }
-  buildHotbar(); buildHealth();
+  buildHotbar(); buildHealth(); buildHunger();
 }
 
 // ── CHAT ─────────────────────────────────────────────────
@@ -5260,7 +5328,7 @@ function saveWorld(){
       yaw:player.yaw, pitch:player.pitch, slot:player.slot,
       hotbar:[...player.hotbar], hotbarCounts:[...player.hotbarCounts], hotbarDur:[...player.hotbarDur],
       inventory:[...player.inventory], inventoryCounts:[...player.inventoryCounts], inventoryDur:[...player.inventoryDur],
-      hp:player.hp
+      hp:player.hp, hunger:player.hunger, worldTime
     },
     mods:Object.fromEntries(worldMods)
   };
@@ -5302,11 +5370,13 @@ async function startFromSave(save, worldId){
     if(p.inventoryCounts) player.inventoryCounts=[...p.inventoryCounts];
     if(p.inventoryDur) player.inventoryDur=[...p.inventoryDur];
     if(p.hp!=null) player.hp=p.hp;
+    if(p.hunger!=null) player.hunger=p.hunger;
+    if(p.worldTime!=null) worldTime=p.worldTime;
   }
   player.flying=false;
   gameReady=true; gameStarted=true;
   prevT=performance.now();
-  buildHotbar(); buildHealth(); refreshGamemodeBadge();
+  buildHotbar(); buildHealth(); buildHunger(); refreshGamemodeBadge();
   clickHint.style.display='flex';
 }
 
@@ -5486,6 +5556,47 @@ function consumeItem(id,n=1){
   return true;
 }
 
+// How much hunger each food restores (in half-drumsticks, i.e. points out of 20)
+const FOOD_VALUE = {
+  [RAW_PORKCHOP]:3, [RAW_BEEF]:3,
+  [COOKED_PORKCHOP]:8, [COOKED_BEEF]:8,
+};
+// Try to eat the held item; returns true if eaten
+function tryEatHeld(){
+  const i=player.slot;
+  const id=player.hotbar[i];
+  const val=FOOD_VALUE[id];
+  if(!val) return false;
+  if(player.hunger>=player.maxHunger) return false; // already full
+  player.hunger=Math.min(player.maxHunger, player.hunger+val);
+  if(gamemode==='survival'){
+    player.hotbarCounts[i]--;
+    if(player.hotbarCounts[i]<=0){ player.hotbar[i]=AIR; player.hotbarCounts[i]=0; }
+    buildHotbar();
+  }
+  buildHunger();
+  playEatSound();
+  return true;
+}
+// Hunger drain, health regen from food, and starvation damage (survival only)
+function updatePlayerNeeds(dt){
+  if(gamemode!=='survival'){ return; }
+  // Drain hunger over time (a full bar lasts ~5 min at rest; faster while sprinting)
+  const active = (Math.abs(player.vel.x)+Math.abs(player.vel.z))>3 ? 2.2 : 1.0;
+  player._hungerT += dt*active;
+  if(player._hungerT>=16 && player.hunger>0){ player._hungerT=0; player.hunger--; buildHunger(); }
+  // Regenerate health while well-fed
+  if(player.hunger>=18 && player.hp<player.maxHp){
+    player._regenT+=dt;
+    if(player._regenT>=3.5){ player._regenT=0; player.hp=Math.min(player.maxHp,player.hp+1); buildHealth(); }
+  } else player._regenT=0;
+  // Starvation damage when empty
+  if(player.hunger<=0){
+    player._starveT+=dt;
+    if(player._starveT>=4){ player._starveT=0; if(player.hp>1){ player.hp--; buildHealth(); } }
+  } else player._starveT=0;
+}
+
 function dropSelectedItem(){
   const i=player.slot;
   const id=player.hotbar[i];
@@ -5638,10 +5749,12 @@ function doSaveAndQuit(){
 function respawnPlayer(){
   playerDead=false;
   player.hp=player.maxHp;
+  player.hunger=player.maxHunger;
+  player._hungerT=0; player._regenT=0; player._starveT=0;
   player.vel.set(0,0,0);
   player.pos.set(playerSpawnPos.x, playerSpawnPos.y, playerSpawnPos.z);
   deathScreen.style.display='none';
-  buildHealth();
+  buildHealth(); buildHunger();
   showHUD(true);
   const req=canvas.requestPointerLock();
   if(req&&typeof req.then==='function') req.catch(()=>{ showHUD(false); clickHint.style.display='flex'; });
@@ -5805,6 +5918,16 @@ canvas.addEventListener('mousedown',e=>{
       playSmeltSound();
       handPlaceT=0;
       return;
+    }
+
+    // Eat held food (unless aiming at a bowl we could fill with raw meat)
+    {
+      const held=player.selectedBlock;
+      if(FOOD_VALUE[held]!==undefined){
+        const aimId = t ? world.getBlock(t.bx,t.by,t.bz) : AIR;
+        const fillingBowl = (held===RAW_PORKCHOP||held===RAW_BEEF) && (aimId===BOWL||aimId===WATER_BOWL);
+        if(!fillingBowl){ if(tryEatHeld()){ handPlaceT=0; return; } }
+      }
     }
 
     const blk=player.selectedBlock;
@@ -6031,7 +6154,7 @@ document.getElementById('wc-create').addEventListener('click', async()=>{
   gameReady=true;
   gameStarted=true;
   prevT=performance.now();
-  buildHotbar(); buildHealth(); refreshGamemodeBadge();
+  buildHotbar(); buildHealth(); buildHunger(); refreshGamemodeBadge();
   clickHint.style.display='flex';
 });
 
@@ -6071,6 +6194,7 @@ function loop(t){
   player.update(dt,keys);
   world.loadAround(player.pos.x, player.pos.z);
   updateDayNight(dt);
+  updatePlayerNeeds(dt);
   updateMobs(dt);
   // Q-drop
   if(keys['KeyQ']&&!chatOpen&&!inventoryOpen&&!paused&&gamemode!=='spectator'){
