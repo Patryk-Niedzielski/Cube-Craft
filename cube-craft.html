@@ -1050,7 +1050,7 @@ const RAW_PORKCHOP=55, RAW_BEEF=56;
 const BOWL=57, WATER_BOWL=58, FOOD_BOWL=59;
 const COAL_ORE=60, IRON_ORE=61, GOLD_ORE=62, COAL=63, GOLD_INGOT=64;
 const FURNACE=65, COOKED_PORKCHOP=66, COOKED_BEEF=67;
-const TORCH=68, CHEST=69, CAMPFIRE=70;
+const TORCH=68, CHEST=69, CAMPFIRE=70, BED=71;
 
 // ── TOOL SYSTEM CONSTANTS ─────────────────────────────────
 const NEEDS_PICK  = new Set([STONE, COBBLESTONE, MOSSY_COBBLE, CRACKED_STONE, COAL_ORE, IRON_ORE, GOLD_ORE, FURNACE]); // blocks that require a pickaxe
@@ -1081,7 +1081,7 @@ const BLOCK_NAME=['Air','Grass','Dirt','Stone','Oak Log','Leaves','Sand','Bedroc
   'Iron Ingot','Iron Bucket','Water Bucket','Raw Porkchop','Raw Beef',
   'Bowl','Water Bowl','Food Bowl',
   'Coal Ore','Iron Ore','Gold Ore','Coal','Gold Ingot',
-  'Furnace','Cooked Porkchop','Cooked Beef','Torch','Chest','Campfire'];
+  'Furnace','Cooked Porkchop','Cooked Beef','Torch','Chest','Campfire','Bed'];
 const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3, 0,0,0,0,0,0, 0.2, 0.25, 0.0, 0.0, 0.7, 1.0, 0,0,0, 0.6, 1.0, 1.0, 1.1,
   0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4, // wool 30-45
   1.2, 0.7, 0.8, 0.8, 0.8, 0.8, // pine log, pine plank, oak door×2, pine door×2
@@ -1089,7 +1089,7 @@ const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.
   0.2,0.2,0.2, // bowl, water bowl, food bowl
   3.0,3.0,3.0,0,0, // coal ore, iron ore, gold ore, coal(item), gold ingot(item)
   3.5,0,0, // furnace, cooked porkchop(item), cooked beef(item)
-  0.05,2.0,0.4]; // torch, chest, campfire
+  0.05,2.0,0.4,0.4]; // torch, chest, campfire, bed
 const TEX_IDX={
   [GRASS]:   [0,2,1],
   [DIRT]:    [2,2,2],
@@ -1161,6 +1161,7 @@ const TEX_IDX={
   [TORCH]:           [70,70,70],
   [CHEST]:           [72,72,71],
   [CAMPFIRE]:        [73,73,73],
+  [BED]:             [74,75,75],
 };
 // SOLID: player collides with these
 const SOLID=new Uint8Array(256);
@@ -1169,14 +1170,14 @@ const SOLID=new Uint8Array(256);
   PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
   BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL,
   PINE_LOG,PINE_PLANK,OAK_DOOR,OAK_DOOR_TOP,PINE_DOOR,PINE_DOOR_TOP,
-  COAL_ORE,IRON_ORE,GOLD_ORE,FURNACE,CHEST].forEach(id=>SOLID[id]=1);
+  COAL_ORE,IRON_ORE,GOLD_ORE,FURNACE,CHEST,BED].forEach(id=>SOLID[id]=1);
 // OPAQUE: completely hides adjacent faces (no leaves, no water)
 const OPAQUE=new Uint8Array(256);
 [GRASS,DIRT,STONE,WOOD,SAND,BEDROCK,SNOW,PLANK,CRAFT_TABLE,GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE,
   WHITE_WOOL,ORANGE_WOOL,MAGENTA_WOOL,LIGHT_BLUE_WOOL,YELLOW_WOOL,LIME_WOOL,
   PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
   BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL,
-  PINE_LOG,PINE_PLANK,COAL_ORE,IRON_ORE,GOLD_ORE,FURNACE,CHEST].forEach(id=>OPAQUE[id]=1);
+  PINE_LOG,PINE_PLANK,COAL_ORE,IRON_ORE,GOLD_ORE,FURNACE,CHEST,BED].forEach(id=>OPAQUE[id]=1);
 // Doors are solid but NOT opaque — they render as thin panels, not full cubes
 
 // ── FACE GEOMETRY ─────────────────────────────────────────
@@ -2398,7 +2399,7 @@ hlMesh.visible=false;
 scene.add(hlMesh);
 
 // ── TEXTURE ATLAS (16×16 pixel art, 16 tiles → 256×16 px, power-of-2) ───────
-const N_TILES = 74;
+const N_TILES = 76;
 const TS      = 16;
 const atlasCvs = document.createElement('canvas');
 atlasCvs.width  = TS * N_TILES;  // 256
@@ -3017,6 +3018,24 @@ for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
     else tsp(73,x,y, 220,90,24);
   }
 }
+// Tile 74 — BED top (red blanket with white pillow at one end)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const s=Math.round((th(74*TS+x,y)-0.5)*14);
+  if(y<=4){ // pillow
+    tsp(74,x,y, 236+Math.min(0,s),236+Math.min(0,s),240+Math.min(0,s));
+  } else { // red blanket
+    tsp(74,x,y, 190+s,40+s,44+s);
+  }
+  // wood frame border
+  if(x===0||x===15||y===0||y===15) tsp(74,x,y, 110,72,32);
+}
+// Tile 75 — BED side (mattress: white base, red top stripe, wood feet)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const s=Math.round((th(75*TS+x,y)-0.5)*12);
+  if(y<=6) tsp(75,x,y, 190+s,40+s,44+s);        // red upper
+  else if(y<=12) tsp(75,x,y, 224+Math.min(0,s),224+Math.min(0,s),228+Math.min(0,s)); // white mattress
+  else tsp(75,x,y, 110,72,32);                   // wooden base/legs
+}
 
 const atlasTexture = new THREE.CanvasTexture(atlasCvs);
 atlasTexture.magFilter     = THREE.NearestFilter;  // crisp pixels, no blurring
@@ -3188,6 +3207,7 @@ const BREAK_SND = {
   [FURNACE]:   [{f:'bandpass',hz:1500,q:3.0,v:0.50,d:0.09},{f:'lowpass',hz:220,q:0.5,v:0.26,d:0.07}],
   [CHEST]:     [{f:'bandpass',hz:420, q:1.0, v:0.32, d:0.14}],
   [CAMPFIRE]:  [{f:'bandpass',hz:600, q:1.4, v:0.30, d:0.12},{f:'lowpass',hz:160,q:0.5,v:0.20,d:0.10}],
+  [BED]:       [{f:'lowpass', hz:300, q:0.6, v:0.30, d:0.12}],
 };
 
 function playBreakSound(blockId){
@@ -3246,6 +3266,7 @@ const PLACE_SND = {
   [TORCH]:      {f:'bandpass', hz:520, q:0.9, v:0.20, d:0.07},
   [CHEST]:      {f:'bandpass', hz:360, q:0.8, v:0.30, d:0.13},
   [CAMPFIRE]:   {f:'bandpass', hz:520, q:1.0, v:0.28, d:0.12},
+  [BED]:        {f:'lowpass',  hz:280, q:0.6, v:0.26, d:0.11},
 };
 function playPlaceSound(blockId){
   const sp = PLACE_SND[blockId] || PLACE_SND[STONE];
@@ -4329,7 +4350,7 @@ const CREATIVE_PAGE_SIZE=27;
 const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,PINE_LOG,LEAVES,PINE_LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS,SNOW,
   FLOWER_RED,FLOWER_YELLOW,PLANK,PINE_PLANK,CRAFT_TABLE,STICK,WOOD_PICK,STONE_PICK,
   GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE,
-  COAL_ORE,IRON_ORE,GOLD_ORE,COAL,IRON_INGOT,GOLD_INGOT,FURNACE,TORCH,CHEST,CAMPFIRE,
+  COAL_ORE,IRON_ORE,GOLD_ORE,COAL,IRON_INGOT,GOLD_INGOT,FURNACE,TORCH,CHEST,CAMPFIRE,BED,
   OAK_DOOR,PINE_DOOR,
   IRON_BUCKET,WATER_BUCKET,RAW_PORKCHOP,RAW_BEEF,COOKED_PORKCHOP,COOKED_BEEF,
   BOWL,WATER_BOWL,FOOD_BOWL,
@@ -5222,6 +5243,8 @@ const CT_RECIPES=[
   {pattern:[AIR,AIR,AIR, AIR,AIR,COAL, AIR,AIR,STICK], out:TORCH, outCount:4},
   // Campfire: 3 sticks over coal over 3 logs
   {pattern:[AIR,STICK,AIR, STICK,COAL,STICK, WOOD,WOOD,WOOD], out:CAMPFIRE, outCount:1},
+  // Bed: 3 wool over 3 planks
+  {pattern:[AIR,AIR,AIR, WHITE_WOOL,WHITE_WOOL,WHITE_WOOL, PLANK,PLANK,PLANK], out:BED, outCount:1},
 ];
 
 function computeCtOutput(){
@@ -6114,6 +6137,21 @@ canvas.addEventListener('mousedown',e=>{
     if(t && world.getBlock(t.bx,t.by,t.bz)===CHEST){
       playPlaceSound(CHEST);
       openChest(t.bx,t.by,t.bz);
+      return;
+    }
+
+    // Interact with bed — sleep through the night, set spawn point
+    if(t && world.getBlock(t.bx,t.by,t.bz)===BED){
+      playerSpawnPos={x:t.bx+0.5, y:t.by+1, z:t.bz+0.5};
+      if(isNight()){
+        // Jump to just after the next dawn
+        const dayIndex=Math.floor(worldTime/DAY_LENGTH);
+        worldTime=(dayIndex+1)*DAY_LENGTH + DAY_LENGTH*0.02;
+        if(gamemode==='survival' && player.hp<player.maxHp){ player.hp=Math.min(player.maxHp,player.hp+4); buildHealth(); }
+        addChatMsg('Good morning! Spawn point set.','ok');
+      } else {
+        addChatMsg('You can only sleep at night. Spawn point set.','ok');
+      }
       return;
     }
 
