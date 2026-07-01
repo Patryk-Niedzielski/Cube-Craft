@@ -1058,23 +1058,24 @@ const TORCH=68, CHEST=69, CAMPFIRE=70, BED=71;
 const HOE=72, FARMLAND=73, WHEAT1=74, WHEAT2=75, WHEAT3=76, WHEAT4=77;
 const WHEAT=78, SEEDS=79, BREAD=80;
 const WHEAT_STAGES=[WHEAT1,WHEAT2,WHEAT3,WHEAT4];
+const FISHING_ROD=81, RAW_FISH=82, COOKED_FISH=83;
 
 // ── TOOL SYSTEM CONSTANTS ─────────────────────────────────
 const NEEDS_PICK  = new Set([STONE, COBBLESTONE, MOSSY_COBBLE, CRACKED_STONE, COAL_ORE, IRON_ORE, GOLD_ORE, FURNACE]); // blocks that require a pickaxe
 const IS_PICK     = new Set([WOOD_PICK, STONE_PICK]);
 const TOOL_SPEED  = {[WOOD_PICK]:1.0, [STONE_PICK]:1.5}; // speed mult vs base stone hardness
 const TOOL_MAX_DUR= {[WOOD_PICK]:60,  [STONE_PICK]:130};
-const UNSTACKABLE = new Set([WOOD_PICK, STONE_PICK, HOE]);    // these never stack
-const FLAT_ITEMS  = new Set([STICK, WOOD_PICK, STONE_PICK, IRON_INGOT, GOLD_INGOT, COAL, RAW_PORKCHOP, RAW_BEEF, COOKED_PORKCHOP, COOKED_BEEF, TORCH, HOE, WHEAT, SEEDS, BREAD]); // rendered as 2D sprites
+const UNSTACKABLE = new Set([WOOD_PICK, STONE_PICK, HOE, FISHING_ROD]);    // these never stack
+const FLAT_ITEMS  = new Set([STICK, WOOD_PICK, STONE_PICK, IRON_INGOT, GOLD_INGOT, COAL, RAW_PORKCHOP, RAW_BEEF, COOKED_PORKCHOP, COOKED_BEEF, TORCH, HOE, WHEAT, SEEDS, BREAD, FISHING_ROD, RAW_FISH, COOKED_FISH]); // rendered as 2D sprites
 const SPAWN_EGG_MOB={[PIG_EGG]:'pig',[COW_EGG]:'cow',[WOLF_EGG]:'wolf',[CAT_EGG]:'cat',[CHICKEN_EGG]:'chicken',[FISH_EGG]:'fish'};
-const NON_PLACEABLE = new Set([IRON_INGOT,IRON_BUCKET,WATER_BUCKET,RAW_PORKCHOP,RAW_BEEF,COAL,GOLD_INGOT,COOKED_PORKCHOP,COOKED_BEEF,HOE,WHEAT,SEEDS,BREAD]);
+const NON_PLACEABLE = new Set([IRON_INGOT,IRON_BUCKET,WATER_BUCKET,RAW_PORKCHOP,RAW_BEEF,COAL,GOLD_INGOT,COOKED_PORKCHOP,COOKED_BEEF,HOE,WHEAT,SEEDS,BREAD,FISHING_ROD,RAW_FISH,COOKED_FISH]);
 // What a block drops when mined (defaults to the block itself if absent)
 const BLOCK_DROP = {[COAL_ORE]:COAL};
 // Furnace smelting recipes: input block/item id → output id
 const SMELT = {[IRON_ORE]:IRON_INGOT, [GOLD_ORE]:GOLD_INGOT, [SAND]:GLASS,
-  [RAW_PORKCHOP]:COOKED_PORKCHOP, [RAW_BEEF]:COOKED_BEEF};
+  [RAW_PORKCHOP]:COOKED_PORKCHOP, [RAW_BEEF]:COOKED_BEEF, [RAW_FISH]:COOKED_FISH};
 // Campfire cooks raw food for free (no fuel): input → cooked output
-const FIRE_COOK = {[RAW_PORKCHOP]:COOKED_PORKCHOP, [RAW_BEEF]:COOKED_BEEF};
+const FIRE_COOK = {[RAW_PORKCHOP]:COOKED_PORKCHOP, [RAW_BEEF]:COOKED_BEEF, [RAW_FISH]:COOKED_FISH};
 // key = "wx,botY,wz" (bottom block position); value = {open:bool, hingeRight:bool}
 const doorStates = new Map();
 
@@ -1090,7 +1091,8 @@ const BLOCK_NAME=['Air','Grass','Dirt','Stone','Oak Log','Leaves','Sand','Bedroc
   'Coal Ore','Iron Ore','Gold Ore','Coal','Gold Ingot',
   'Furnace','Cooked Porkchop','Cooked Beef','Torch','Chest','Campfire','Bed',
   'Wooden Hoe','Farmland','Wheat Crop','Wheat Crop','Wheat Crop','Wheat Crop',
-  'Wheat','Seeds','Bread'];
+  'Wheat','Seeds','Bread',
+  'Fishing Rod','Raw Fish','Cooked Fish'];
 const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3, 0,0,0,0,0,0, 0.2, 0.25, 0.0, 0.0, 0.7, 1.0, 0,0,0, 0.6, 1.0, 1.0, 1.1,
   0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4, // wool 30-45
   1.2, 0.7, 0.8, 0.8, 0.8, 0.8, // pine log, pine plank, oak door×2, pine door×2
@@ -1101,7 +1103,8 @@ const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.
   0.05,2.0,0.4,0.4, // torch, chest, campfire, bed
   0,0.5, // hoe(item), farmland
   0.02,0.02,0.02,0.02, // wheat crop stages 1-4
-  0,0,0]; // wheat, seeds, bread (items)
+  0,0,0, // wheat, seeds, bread (items)
+  0,0,0]; // fishing rod, raw fish, cooked fish (items)
 const TEX_IDX={
   [GRASS]:   [0,2,1],
   [DIRT]:    [2,2,2],
@@ -1183,6 +1186,9 @@ const TEX_IDX={
   [WHEAT]:           [81,81,81],
   [SEEDS]:           [82,82,82],
   [BREAD]:           [83,83,83],
+  [FISHING_ROD]:     [85,85,85],
+  [RAW_FISH]:        [86,86,86],
+  [COOKED_FISH]:     [87,87,87],
 };
 // SOLID: player collides with these
 const SOLID=new Uint8Array(256);
@@ -2439,7 +2445,7 @@ hlMesh.visible=false;
 scene.add(hlMesh);
 
 // ── TEXTURE ATLAS (16×16 pixel art, 16 tiles → 256×16 px, power-of-2) ───────
-const N_TILES = 85;
+const N_TILES = 88;
 const TS      = 16;
 const atlasCvs = document.createElement('canvas');
 atlasCvs.width  = TS * N_TILES;  // 256
@@ -3121,6 +3127,31 @@ for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
   // head at top-left
   if(y>=1&&y<=3&&x>=2&&x<=7){ const g=Math.round((th(84*TS+x,y)-0.5)*16); tsp(84,x,y, 150+g,150+g,158+g); }
 }
+// Tile 85 — FISHING_ROD (diagonal brown rod + white line + red bob)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  // rod from bottom-left to top-right
+  if(Math.abs((15-y)-x)<=1 && x>=2&&x<=13){ const s=Math.round((th(85*TS+x,y)-0.5)*14); tsp(85,x,y, 130+s,88+s,40+s); }
+  // line dropping from the tip
+  if(x===13 && y>=2&&y<=11) tsp(85,x,y, 230,230,235);
+  // bobber
+  if(x>=12&&x<=14&&y>=11&&y<=13) tsp(85,x,y, 220,54,50);
+}
+// Tile 86 — RAW_FISH (blue-grey fish with tail)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const dx=x-8, dy=y-8; const body=(dx*dx)/28+(dy*dy)/9<1 && x<=12;
+  const tail=x>=11&&x<=14&&Math.abs(y-8)<=Math.abs(x-10);
+  if(body){ const s=Math.round((th(86*TS+x,y)-0.5)*16); tsp(86,x,y, 120+s,150+s,180+s); if(y<8&&th(86*TS+x,y)>0.6) tsp(86,x,y,150,175,200); }
+  else if(tail){ tsp(86,x,y, 96,124,150); }
+  if(body&&x===5&&y===7) tsp(86,x,y, 20,20,24); // eye
+}
+// Tile 87 — COOKED_FISH (golden-brown cooked fish)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const dx=x-8, dy=y-8; const body=(dx*dx)/28+(dy*dy)/9<1 && x<=12;
+  const tail=x>=11&&x<=14&&Math.abs(y-8)<=Math.abs(x-10);
+  if(body){ const s=Math.round((th(87*TS+x,y)-0.5)*16); tsp(87,x,y, 196+s,150+s,86+s); }
+  else if(tail){ tsp(87,x,y, 160,118,64); }
+  if(body&&x===5&&y===7) tsp(87,x,y, 40,28,20); // eye
+}
 
 const atlasTexture = new THREE.CanvasTexture(atlasCvs);
 atlasTexture.magFilter     = THREE.NearestFilter;  // crisp pixels, no blurring
@@ -3193,7 +3224,7 @@ const HAND_FLAT = new Set([STICK, WOOD_PICK, STONE_PICK,
   FOLIAGE, FLOWER_RED, FLOWER_YELLOW,
   OAK_DOOR, PINE_DOOR, OAK_DOOR_TOP, PINE_DOOR_TOP,
   IRON_INGOT, IRON_BUCKET, WATER_BUCKET,
-  RAW_PORKCHOP, RAW_BEEF, COAL, GOLD_INGOT, COOKED_PORKCHOP, COOKED_BEEF, TORCH, HOE, WHEAT, SEEDS, BREAD]);
+  RAW_PORKCHOP, RAW_BEEF, COAL, GOLD_INGOT, COOKED_PORKCHOP, COOKED_BEEF, TORCH, HOE, WHEAT, SEEDS, BREAD, FISHING_ROD, RAW_FISH, COOKED_FISH]);
 
 function updateHandUVs(){
   const id = player ? player.selectedBlock : GRASS;
@@ -4434,6 +4465,7 @@ const chestDur=new Array(CHEST_SIZE).fill(0);
 // Growing wheat crops: Set of "wx,wy,wz"; ticked to advance growth stages
 const cropSet=new Set();
 let _cropTimer=0;
+let _castPending=false; // true while a fishing cast is waiting for a bite
 const CREATIVE_PAGE_SIZE=27;
 const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,PINE_LOG,LEAVES,PINE_LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS,SNOW,
   FLOWER_RED,FLOWER_YELLOW,PLANK,PINE_PLANK,CRAFT_TABLE,STICK,WOOD_PICK,STONE_PICK,
@@ -4458,9 +4490,9 @@ const CREATIVE_CATEGORIES=[
     PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
     BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL]},
   {name:'Decor', blocks:[TORCH,CAMPFIRE,BOWL,WATER_BOWL,FOOD_BOWL]},
-  {name:'Tools', blocks:[WOOD_PICK,STONE_PICK,HOE,IRON_BUCKET,WATER_BUCKET,
+  {name:'Tools', blocks:[WOOD_PICK,STONE_PICK,HOE,FISHING_ROD,IRON_BUCKET,WATER_BUCKET,
     STICK,COAL,IRON_INGOT,GOLD_INGOT,SEEDS]},
-  {name:'Food', blocks:[RAW_PORKCHOP,RAW_BEEF,COOKED_PORKCHOP,COOKED_BEEF,WHEAT,BREAD]},
+  {name:'Food', blocks:[RAW_PORKCHOP,RAW_BEEF,COOKED_PORKCHOP,COOKED_BEEF,RAW_FISH,COOKED_FISH,WHEAT,BREAD]},
   {name:'Eggs', blocks:[PIG_EGG,COW_EGG,WOLF_EGG,CAT_EGG,CHICKEN_EGG,FISH_EGG]},
 ];
 let creativeCat=0;
@@ -5373,6 +5405,8 @@ const CT_RECIPES=[
   {pattern:[WHEAT,WHEAT,WHEAT, AIR,AIR,AIR, AIR,AIR,AIR], out:BREAD, outCount:1},
   {pattern:[AIR,AIR,AIR, WHEAT,WHEAT,WHEAT, AIR,AIR,AIR], out:BREAD, outCount:1},
   {pattern:[AIR,AIR,AIR, AIR,AIR,AIR, WHEAT,WHEAT,WHEAT], out:BREAD, outCount:1},
+  // Fishing Rod: 3 sticks in a diagonal
+  {pattern:[AIR,AIR,STICK, AIR,STICK,AIR, STICK,AIR,AIR], out:FISHING_ROD, outCount:1},
 ];
 
 function computeCtOutput(){
@@ -5957,7 +5991,7 @@ function consumeItem(id,n=1){
 const FOOD_VALUE = {
   [RAW_PORKCHOP]:3, [RAW_BEEF]:3,
   [COOKED_PORKCHOP]:8, [COOKED_BEEF]:8,
-  [BREAD]:5,
+  [BREAD]:5, [RAW_FISH]:2, [COOKED_FISH]:6,
 };
 // Try to eat the held item; returns true if eaten
 function tryEatHeld(){
@@ -6387,6 +6421,24 @@ canvas.addEventListener('mousedown',e=>{
         cropSet.add(`${t.bx},${t.by+1},${t.bz}`);
         playPlaceSound(GRASS); handPlaceT=0;
         if(gamemode==='survival') consumeItem(SEEDS,1);
+      }
+      return;
+    }
+
+    // Fishing: cast the rod at water, wait for a bite
+    if(t && player.selectedBlock===FISHING_ROD){
+      if(world.getBlock(t.bx,t.by,t.bz)===WATER && !_castPending){
+        _castPending=true;
+        handPlaceT=0;
+        playPlaceSound(WATER);
+        addChatMsg('Fishing…','ok');
+        const delay=1400+Math.random()*3200;
+        setTimeout(()=>{
+          _castPending=false;
+          if(!gameStarted || player.selectedBlock!==FISHING_ROD) return;
+          if(Math.random()<0.8){ giveBlock(RAW_FISH); playPlaceSound(WATER); addChatMsg('You caught a fish!','ok'); }
+          else addChatMsg('The fish got away…','err');
+        }, delay);
       }
       return;
     }
