@@ -231,6 +231,14 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
 #chest-grid{display:grid;grid-template-columns:repeat(9,40px);gap:4px}
 #chest-inv-grid{display:grid;grid-template-columns:repeat(9,40px);gap:4px}
 #chest-hotbar-row{display:grid;grid-template-columns:repeat(9,40px);gap:4px}
+/* ── MULTIPLAYER DIALOG ── */
+#mp-screen{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:60;background:rgba(0,0,0,0.6)}
+#mp-panel{background:#c6c6c6;padding:20px 24px;border:3px solid;border-top-color:#fff;border-left-color:#fff;border-bottom-color:#555;border-right-color:#555;font-family:'Press Start 2P',monospace;display:flex;flex-direction:column;align-items:center;gap:12px;max-width:420px;text-align:center}
+#mp-title{font-size:12px;color:#333;text-shadow:1px 1px 0 rgba(255,255,255,0.6)}
+#mp-msg{font-size:8px;color:#444;line-height:1.7;margin:0}
+#mp-server-row{display:flex;gap:6px;width:100%}
+#mp-address{flex:1;font-family:'Press Start 2P',monospace;font-size:7px;padding:6px 8px;background:#222;color:#eee;border:2px solid #000;outline:none}
+#mp-status{font-size:7px;color:#c04040;min-height:10px}
 /* ── WORLD CREATE SCREEN ── */
 /* ── SHARED: full-screen dirt-background menu ── */
 .mc-dirt-screen{
@@ -675,6 +683,7 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
   </div>
   <div id="main-menu">
     <button class="mc-btn" id="play-btn" data-i18n="btn_play">Singleplayer</button>
+    <button class="mc-btn" id="multiplayer-btn" onclick="openMultiplayer()" data-i18n="btn_multiplayer">Multiplayer</button>
     <div class="mc-btn-row">
       <button class="mc-btn open-options" data-i18n="btn_options">Options...</button>
       <button class="mc-btn" onclick="openControlsTab()" data-i18n="btn_controls_lbl">Controls</button>
@@ -682,6 +691,21 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
     <button class="mc-btn" style="margin-top:4px;background:#5a3a3a;border-top-color:#8a5a5a;border-left-color:#8a5a5a;border-right-color:#2a1a1a;border-bottom-color:#2a1a1a" onclick="window.close()" data-i18n="btn_quit">Quit Game</button>
   </div>
 </div>
+
+<!-- ── MULTIPLAYER DIALOG (coming soon) ── -->
+<div id="mp-screen">
+  <div id="mp-panel">
+    <div id="mp-title">Multiplayer</div>
+    <p id="mp-msg">Multiplayer isn't available yet.<br>Servers &amp; LAN play are coming in a future update!</p>
+    <div id="mp-server-row">
+      <input id="mp-address" type="text" placeholder="server address (e.g. play.example.com)" spellcheck="false" autocomplete="off">
+      <button class="mc-btn" id="mp-connect" style="font-size:7px;min-width:0;padding:6px 10px">Connect</button>
+    </div>
+    <div id="mp-status"></div>
+    <button class="mc-btn" style="width:120px;font-size:7px;margin-top:4px" onclick="closeMultiplayer()">Back</button>
+  </div>
+</div>
+
 <div id="overlay-footer">
   <span class="footer-l">Cube Craft v0.01</span>
   <span class="footer-r">Copyright Copilot &amp; Patryk. Nie kopiować!</span>
@@ -6980,6 +7004,24 @@ document.getElementById('wc-cancel').addEventListener('click',()=>{
 
 document.getElementById('play-btn').addEventListener('click', openWorldSelect);
 
+// ── MULTIPLAYER (placeholder — no server backend yet) ──
+const mpScreenEl = document.getElementById('mp-screen');
+function openMultiplayer(){
+  const st=document.getElementById('mp-status'); if(st) st.textContent='';
+  const addr=document.getElementById('mp-address'); if(addr) addr.value='';
+  mpScreenEl.style.display='flex';
+}
+function closeMultiplayer(){ mpScreenEl.style.display='none'; }
+document.getElementById('mp-connect').addEventListener('click',()=>{
+  const addr=document.getElementById('mp-address').value.trim();
+  const st=document.getElementById('mp-status');
+  st.textContent = addr ? 'Could not reach "'+addr+'" — servers are not online yet.'
+                        : 'Enter a server address. (Multiplayer servers are coming soon!)';
+});
+document.getElementById('mp-address').addEventListener('keydown',e=>{
+  if(e.code==='Enter'){ e.preventDefault(); document.getElementById('mp-connect').click(); }
+});
+
 // Migrate any old single save on startup
 migrateOldSave();
 
@@ -7257,7 +7299,7 @@ requestAnimationFrame(loop);
 const LANGUAGES = {
   pl:{ name:'Polski',         flag:'🇵🇱', strings:{
     options_title:'OPCJE', tab_language:'🌐 Język', tab_controls:'🎮 Sterowanie', tab_about:'ℹ️ O grze', tab_video:'🖥️ Grafika', opt_render_dist:'Dystans widzenia',
-    btn_done:'Gotowe', btn_play:'Jednoosobowa', btn_quit:'Zakończ grę', btn_back:'Wróć do Gry',
+    btn_done:'Gotowe', btn_play:'Jednoosobowa', btn_multiplayer:'Wieloosobowa', btn_quit:'Zakończ grę', btn_back:'Wróć do Gry',
     btn_new_world:'Nowy Świat', btn_save_quit:'Zapisz i Wyjdź', btn_options:'Opcje...', btn_controls_lbl:'Sterowanie',
     btn_seed:'Seed Świata', pause_title:'Menu Gry', click_to_play:'KLIKNIJ ABY PRZECHWYCIĆ MYSZ',
     loading_txt:'GENEROWANIE ŚWIATA...', dbg_hand:'Blok w ręce:', btn_back_opts:'← Powrót',
@@ -7297,7 +7339,7 @@ const LANGUAGES = {
   ]},
   en:{ name:'English',        flag:'🇬🇧', strings:{
     options_title:'OPTIONS', tab_language:'🌐 Language', tab_controls:'🎮 Controls', tab_about:'ℹ️ About', tab_video:'🖥️ Video', opt_render_dist:'Render Distance',
-    btn_done:'Done', btn_play:'Singleplayer', btn_quit:'Quit Game', btn_back:'Back to Game',
+    btn_done:'Done', btn_play:'Singleplayer', btn_multiplayer:'Multiplayer', btn_quit:'Quit Game', btn_back:'Back to Game',
     btn_new_world:'New World', btn_save_quit:'Save and Quit', btn_options:'Options...', btn_controls_lbl:'Controls',
     btn_seed:'World Seed', pause_title:'Game Menu', click_to_play:'CLICK TO CAPTURE MOUSE',
     loading_txt:'GENERATING WORLD...', dbg_hand:'Block in hand:', btn_back_opts:'← Back',
@@ -7337,7 +7379,7 @@ const LANGUAGES = {
   ]},
   de:{ name:'Deutsch',        flag:'🇩🇪', strings:{
     options_title:'OPTIONEN', tab_language:'🌐 Sprache', tab_controls:'🎮 Steuerung', tab_about:'ℹ️ Über',
-    btn_done:'Fertig', btn_play:'Einzelspieler', btn_quit:'Spiel beenden', btn_back:'Zurück',
+    btn_done:'Fertig', btn_play:'Einzelspieler', btn_multiplayer:'Mehrspieler', btn_quit:'Spiel beenden', btn_back:'Zurück',
     btn_new_world:'Neue Welt', btn_save_quit:'Speichern & Beenden', btn_options:'Optionen...', btn_controls_lbl:'Steuerung',
     btn_seed:'Welt-Seed', pause_title:'Spielmenü', click_to_play:'KLICKEN ZUM SPIELEN',
     ctrl_move:'WASD — Bewegen', ctrl_jump:'SPACE — Springen', ctrl_sprint:'SHIFT — Sprinten',
@@ -7349,7 +7391,7 @@ const LANGUAGES = {
   }},
   fr:{ name:'Français',       flag:'🇫🇷', strings:{
     options_title:'OPTIONS', tab_language:'🌐 Langue', tab_controls:'🎮 Commandes', tab_about:'ℹ️ À propos',
-    btn_done:'Terminé', btn_play:'Solo', btn_quit:'Quitter', btn_back:'Retour',
+    btn_done:'Terminé', btn_play:'Solo', btn_multiplayer:'Multijoueur', btn_quit:'Quitter', btn_back:'Retour',
     btn_new_world:'Nouveau monde', btn_save_quit:'Sauvegarder & Quitter', btn_options:'Options...', btn_controls_lbl:'Commandes',
     btn_seed:'Graine du monde', pause_title:'Menu du jeu', click_to_play:'CLIQUER POUR JOUER',
     ctrl_move:'WASD — Déplacer', ctrl_jump:'ESPACE — Sauter', ctrl_sprint:'SHIFT — Sprint',
@@ -7361,7 +7403,7 @@ const LANGUAGES = {
   }},
   es:{ name:'Español',        flag:'🇪🇸', strings:{
     options_title:'OPCIONES', tab_language:'🌐 Idioma', tab_controls:'🎮 Controles', tab_about:'ℹ️ Acerca de',
-    btn_done:'Hecho', btn_play:'Un jugador', btn_quit:'Salir', btn_back:'Volver',
+    btn_done:'Hecho', btn_play:'Un jugador', btn_multiplayer:'Multijugador', btn_quit:'Salir', btn_back:'Volver',
     btn_new_world:'Nuevo mundo', btn_save_quit:'Guardar y salir', btn_options:'Opciones...', btn_controls_lbl:'Controles',
     btn_seed:'Semilla', pause_title:'Menú del juego', click_to_play:'CLICK PARA JUGAR',
     ctrl_move:'WASD — Mover', ctrl_jump:'ESPACIO — Saltar', ctrl_sprint:'SHIFT — Correr',
@@ -7373,7 +7415,7 @@ const LANGUAGES = {
   }},
   it:{ name:'Italiano',       flag:'🇮🇹', strings:{
     options_title:'OPZIONI', tab_language:'🌐 Lingua', tab_controls:'🎮 Controlli', tab_about:'ℹ️ Info',
-    btn_done:'Fatto', btn_play:'Giocatore singolo', btn_quit:'Esci', btn_back:'Indietro',
+    btn_done:'Fatto', btn_play:'Giocatore singolo', btn_multiplayer:'Multigiocatore', btn_quit:'Esci', btn_back:'Indietro',
     btn_new_world:'Nuovo mondo', btn_save_quit:'Salva ed esci', btn_options:'Opzioni...', btn_controls_lbl:'Controlli',
     btn_seed:'Seed mondo', pause_title:'Menu di gioco', click_to_play:'CLICCA PER GIOCARE',
     ctrl_move:'WASD — Muovi', ctrl_jump:'SPAZIO — Salta', ctrl_sprint:'SHIFT — Sprint',
@@ -7385,7 +7427,7 @@ const LANGUAGES = {
   }},
   pt:{ name:'Português',      flag:'🇧🇷', strings:{
     options_title:'OPÇÕES', tab_language:'🌐 Idioma', tab_controls:'🎮 Controles', tab_about:'ℹ️ Sobre',
-    btn_done:'Concluído', btn_play:'Um jogador', btn_quit:'Sair', btn_back:'Voltar',
+    btn_done:'Concluído', btn_play:'Um jogador', btn_multiplayer:'Multijogador', btn_quit:'Sair', btn_back:'Voltar',
     btn_new_world:'Novo mundo', btn_save_quit:'Salvar e sair', btn_options:'Opções...', btn_controls_lbl:'Controles',
     btn_seed:'Semente', pause_title:'Menu do jogo', click_to_play:'CLIQUE PARA JOGAR',
     ctrl_move:'WASD — Mover', ctrl_jump:'ESPAÇO — Pular', ctrl_sprint:'SHIFT — Correr',
@@ -7397,7 +7439,7 @@ const LANGUAGES = {
   }},
   ru:{ name:'Русский',        flag:'🇷🇺', strings:{
     options_title:'НАСТРОЙКИ', tab_language:'🌐 Язык', tab_controls:'🎮 Управление', tab_about:'ℹ️ О игре',
-    btn_done:'Готово', btn_play:'Одиночная', btn_quit:'Выйти', btn_back:'Назад',
+    btn_done:'Готово', btn_play:'Одиночная', btn_multiplayer:'Сетевая игра', btn_quit:'Выйти', btn_back:'Назад',
     btn_new_world:'Новый мир', btn_save_quit:'Сохранить и выйти', btn_options:'Настройки...', btn_controls_lbl:'Управление',
     btn_seed:'Семя мира', pause_title:'Меню игры', click_to_play:'НАЖМИТЕ ДЛЯ ИГРЫ',
     ctrl_move:'WASD — Движение', ctrl_jump:'ПРОБЕЛ — Прыжок', ctrl_sprint:'SHIFT — Бег',
@@ -7409,7 +7451,7 @@ const LANGUAGES = {
   }},
   uk:{ name:'Українська',     flag:'🇺🇦', strings:{
     options_title:'НАЛАШТУВАННЯ', tab_language:'🌐 Мова', tab_controls:'🎮 Керування', tab_about:'ℹ️ Про гру',
-    btn_done:'Готово', btn_play:'Одиночна', btn_quit:'Вийти', btn_back:'Назад',
+    btn_done:'Готово', btn_play:'Одиночна', btn_multiplayer:'Мережева гра', btn_quit:'Вийти', btn_back:'Назад',
     btn_new_world:'Новий світ', btn_save_quit:'Зберегти і вийти', btn_options:'Налаштування...', btn_controls_lbl:'Керування',
     btn_seed:'Насіння світу', pause_title:'Меню гри', click_to_play:'КЛІКНІТЬ ДЛЯ ГРИ',
     ctrl_move:'WASD — Рух', ctrl_jump:'ПРОБІЛ — Стрибок', ctrl_sprint:'SHIFT — Спринт',
@@ -7421,7 +7463,7 @@ const LANGUAGES = {
   }},
   ja:{ name:'日本語',          flag:'🇯🇵', strings:{
     options_title:'オプション', tab_language:'🌐 言語', tab_controls:'🎮 操作', tab_about:'ℹ️ について',
-    btn_done:'完了', btn_play:'シングルプレイ', btn_quit:'終了', btn_back:'戻る',
+    btn_done:'完了', btn_play:'シングルプレイ', btn_multiplayer:'マルチプレイ', btn_quit:'終了', btn_back:'戻る',
     btn_new_world:'新しいワールド', btn_save_quit:'保存して終了', btn_options:'オプション...', btn_controls_lbl:'操作方法',
     btn_seed:'ワールドシード', pause_title:'ゲームメニュー', click_to_play:'クリックしてプレイ',
     ctrl_move:'WASD — 移動', ctrl_jump:'スペース — ジャンプ', ctrl_sprint:'SHIFT — ダッシュ',
