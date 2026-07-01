@@ -1492,6 +1492,41 @@ class Chunk{
       }
     }
 
+    // ── DUNGEONS (rare underground cobblestone room + loot chest) ──
+    {
+      const dn=noise2(this.cx*2.7+91.3, this.cz*2.7+17.9);
+      if(dn>0.86){
+        const rx=2+Math.floor((noise2(this.cx*5.1+1,this.cz*5.1+2)*0.5+0.5)*(CHUNK-9));
+        const rz=2+Math.floor((noise2(this.cx*5.7+3,this.cz*5.7+4)*0.5+0.5)*(CHUNK-9));
+        const surfH=hmap[rx*CHUNK+rz];
+        const ry=8+Math.floor((noise2(this.cx*3.3+5,this.cz*3.3+6)*0.5+0.5)*Math.max(1,surfH-24));
+        const W=5,H=4,D=5;
+        if(ry>4 && ry+H<surfH-3){
+          for(let dx=0;dx<W;dx++) for(let dy=0;dy<H;dy++) for(let dz=0;dz<D;dz++){
+            const x=rx+dx, y=ry+dy, z=rz+dz;
+            if(x>=CHUNK||z>=CHUNK) continue;
+            const shell=dx===0||dx===W-1||dy===0||dy===H-1||dz===0||dz===D-1;
+            if(shell){
+              const mn=noise2((ox+x)*0.5+y, (oz+z)*0.5+y);
+              this.data[this.idx(x,y,z)]= mn>0.35 ? MOSSY_COBBLE : COBBLESTONE;
+            } else {
+              this.data[this.idx(x,y,z)]=AIR;
+            }
+          }
+          // Loot chest on the floor near the centre
+          const cxp=rx+2, cyp=ry+1, czp=rz+2;
+          if(cxp<CHUNK && czp<CHUNK){
+            this.data[this.idx(cxp,cyp,czp)]=CHEST;
+            const key=`${ox+cxp},${cyp},${oz+czp}`;
+            if(!seededChests.has(key) && !chestData.has(key)){
+              seededChests.add(key);
+              chestData.set(key, _dungeonLoot());
+            }
+          }
+        }
+      }
+    }
+
     // ── TREES ────────────────────────────────────────────────
     for(let x=2;x<=CHUNK-3;x++) for(let z=2;z<=CHUNK-3;z++){
       const h     = hmap[x*CHUNK+z];
@@ -4591,6 +4626,25 @@ const chestDur=new Array(CHEST_SIZE).fill(0);
 const cropSet=new Set();
 let _cropTimer=0;
 let _castPending=false; // true while a fishing cast is waiting for a bite
+// Dungeon chests that have already been given loot (prevents refilling on reload)
+const seededChests=new Set();
+// Roll random loot for a dungeon chest → returns a 27-slot array
+function _dungeonLoot(){
+  const pool=[
+    {id:IRON_INGOT,min:1,max:4},{id:GOLD_INGOT,min:1,max:2},{id:COAL,min:2,max:6},
+    {id:BONE,min:1,max:4},{id:BREAD,min:1,max:3},{id:COOKED_BEEF,min:1,max:2},
+    {id:WHEAT,min:1,max:3},{id:SEEDS,min:2,max:5},{id:TORCH,min:2,max:6},
+    {id:IRON_BUCKET,min:1,max:1},{id:GOLD_ORE,min:1,max:3},
+  ];
+  const arr=new Array(CHEST_SIZE).fill(null);
+  const n=3+Math.floor(Math.random()*4); // 3–6 stacks
+  const slots=[...Array(CHEST_SIZE).keys()].sort(()=>Math.random()-0.5).slice(0,n);
+  for(const s of slots){
+    const p=pool[Math.floor(Math.random()*pool.length)];
+    arr[s]={id:p.id, cnt:p.min+Math.floor(Math.random()*(p.max-p.min+1)), dur:0};
+  }
+  return arr;
+}
 const CREATIVE_PAGE_SIZE=27;
 const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,PINE_LOG,LEAVES,PINE_LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS,SNOW,
   FLOWER_RED,FLOWER_YELLOW,PLANK,PINE_PLANK,CRAFT_TABLE,STICK,WOOD_PICK,STONE_PICK,
@@ -5879,7 +5933,8 @@ function saveWorld(){
       hp:player.hp, hunger:player.hunger, worldTime
     },
     mods:Object.fromEntries(worldMods),
-    chests:Object.fromEntries(chestData)
+    chests:Object.fromEntries(chestData),
+    seeded:[...seededChests]
   };
   try{
     localStorage.setItem('cubecraft_world_'+currentWorldId, JSON.stringify(data));
@@ -5898,6 +5953,14 @@ async function startFromSave(save, worldId){
   cheatsEnabled=!!save.cheats;
   trackingMods=false;
   worldMods=new Map();
+  // Restore chest state BEFORE generating, so freshly-generated dungeon chests
+  // in the spawn area see the correct seeded/loot state and don't refill.
+  chestData.clear();
+  seededChests.clear();
+  if(save.chests){
+    for(const [key,arr] of Object.entries(save.chests)) chestData.set(key,arr);
+  }
+  if(save.seeded){ for(const k of save.seeded) seededChests.add(k); }
   await generateWorld();
   if(save.mods){
     for(const [key,id] of Object.entries(save.mods)){
@@ -5905,10 +5968,6 @@ async function startFromSave(save, worldId){
       world.setBlock(wx,wy,wz,id);
     }
     for(const [key,id] of Object.entries(save.mods)) worldMods.set(key,id);
-  }
-  chestData.clear();
-  if(save.chests){
-    for(const [key,arr] of Object.entries(save.chests)) chestData.set(key,arr);
   }
   // Resume growth for any immature crops recorded in the world's block edits
   cropSet.clear();
@@ -6841,6 +6900,7 @@ document.getElementById('wc-create').addEventListener('click', async()=>{
   cheatsEnabled = _wcCheats;
   player.flying=false;
   trackingMods=false; worldMods=new Map();
+  chestData.clear(); seededChests.clear(); cropSet.clear();
   // Create new world entry
   const wName = document.getElementById('wc-name').value.trim() || 'New World';
   const wId = 'w'+Date.now();
