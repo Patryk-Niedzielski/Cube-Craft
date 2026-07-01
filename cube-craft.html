@@ -1059,16 +1059,18 @@ const HOE=72, FARMLAND=73, WHEAT1=74, WHEAT2=75, WHEAT3=76, WHEAT4=77;
 const WHEAT=78, SEEDS=79, BREAD=80;
 const WHEAT_STAGES=[WHEAT1,WHEAT2,WHEAT3,WHEAT4];
 const FISHING_ROD=81, RAW_FISH=82, COOKED_FISH=83;
+const SHEARS=84, SHEEP_EGG=85;
+const BONE=86, ROTTEN_FLESH=87, ZOMBIE_EGG=88, SKELETON_EGG=89;
 
 // ── TOOL SYSTEM CONSTANTS ─────────────────────────────────
 const NEEDS_PICK  = new Set([STONE, COBBLESTONE, MOSSY_COBBLE, CRACKED_STONE, COAL_ORE, IRON_ORE, GOLD_ORE, FURNACE]); // blocks that require a pickaxe
 const IS_PICK     = new Set([WOOD_PICK, STONE_PICK]);
 const TOOL_SPEED  = {[WOOD_PICK]:1.0, [STONE_PICK]:1.5}; // speed mult vs base stone hardness
 const TOOL_MAX_DUR= {[WOOD_PICK]:60,  [STONE_PICK]:130};
-const UNSTACKABLE = new Set([WOOD_PICK, STONE_PICK, HOE, FISHING_ROD]);    // these never stack
-const FLAT_ITEMS  = new Set([STICK, WOOD_PICK, STONE_PICK, IRON_INGOT, GOLD_INGOT, COAL, RAW_PORKCHOP, RAW_BEEF, COOKED_PORKCHOP, COOKED_BEEF, TORCH, HOE, WHEAT, SEEDS, BREAD, FISHING_ROD, RAW_FISH, COOKED_FISH]); // rendered as 2D sprites
-const SPAWN_EGG_MOB={[PIG_EGG]:'pig',[COW_EGG]:'cow',[WOLF_EGG]:'wolf',[CAT_EGG]:'cat',[CHICKEN_EGG]:'chicken',[FISH_EGG]:'fish'};
-const NON_PLACEABLE = new Set([IRON_INGOT,IRON_BUCKET,WATER_BUCKET,RAW_PORKCHOP,RAW_BEEF,COAL,GOLD_INGOT,COOKED_PORKCHOP,COOKED_BEEF,HOE,WHEAT,SEEDS,BREAD,FISHING_ROD,RAW_FISH,COOKED_FISH]);
+const UNSTACKABLE = new Set([WOOD_PICK, STONE_PICK, HOE, FISHING_ROD, SHEARS]);    // these never stack
+const FLAT_ITEMS  = new Set([STICK, WOOD_PICK, STONE_PICK, IRON_INGOT, GOLD_INGOT, COAL, RAW_PORKCHOP, RAW_BEEF, COOKED_PORKCHOP, COOKED_BEEF, TORCH, HOE, WHEAT, SEEDS, BREAD, FISHING_ROD, RAW_FISH, COOKED_FISH, SHEARS, BONE, ROTTEN_FLESH]); // rendered as 2D sprites
+const SPAWN_EGG_MOB={[PIG_EGG]:'pig',[COW_EGG]:'cow',[WOLF_EGG]:'wolf',[CAT_EGG]:'cat',[CHICKEN_EGG]:'chicken',[FISH_EGG]:'fish',[SHEEP_EGG]:'sheep',[ZOMBIE_EGG]:'zombie',[SKELETON_EGG]:'skeleton'};
+const NON_PLACEABLE = new Set([IRON_INGOT,IRON_BUCKET,WATER_BUCKET,RAW_PORKCHOP,RAW_BEEF,COAL,GOLD_INGOT,COOKED_PORKCHOP,COOKED_BEEF,HOE,WHEAT,SEEDS,BREAD,FISHING_ROD,RAW_FISH,COOKED_FISH,SHEARS,BONE,ROTTEN_FLESH]);
 // What a block drops when mined (defaults to the block itself if absent)
 const BLOCK_DROP = {[COAL_ORE]:COAL};
 // Furnace smelting recipes: input block/item id → output id
@@ -1092,7 +1094,8 @@ const BLOCK_NAME=['Air','Grass','Dirt','Stone','Oak Log','Leaves','Sand','Bedroc
   'Furnace','Cooked Porkchop','Cooked Beef','Torch','Chest','Campfire','Bed',
   'Wooden Hoe','Farmland','Wheat Crop','Wheat Crop','Wheat Crop','Wheat Crop',
   'Wheat','Seeds','Bread',
-  'Fishing Rod','Raw Fish','Cooked Fish'];
+  'Fishing Rod','Raw Fish','Cooked Fish',
+  'Shears','Sheep Egg','Bone','Rotten Flesh','Zombie Egg','Skeleton Egg'];
 const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3, 0,0,0,0,0,0, 0.2, 0.25, 0.0, 0.0, 0.7, 1.0, 0,0,0, 0.6, 1.0, 1.0, 1.1,
   0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4, // wool 30-45
   1.2, 0.7, 0.8, 0.8, 0.8, 0.8, // pine log, pine plank, oak door×2, pine door×2
@@ -1104,7 +1107,8 @@ const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.
   0,0.5, // hoe(item), farmland
   0.02,0.02,0.02,0.02, // wheat crop stages 1-4
   0,0,0, // wheat, seeds, bread (items)
-  0,0,0]; // fishing rod, raw fish, cooked fish (items)
+  0,0,0, // fishing rod, raw fish, cooked fish (items)
+  0,0,0,0,0,0]; // shears, sheep egg, bone, rotten flesh, zombie egg, skeleton egg
 const TEX_IDX={
   [GRASS]:   [0,2,1],
   [DIRT]:    [2,2,2],
@@ -1189,6 +1193,12 @@ const TEX_IDX={
   [FISHING_ROD]:     [85,85,85],
   [RAW_FISH]:        [86,86,86],
   [COOKED_FISH]:     [87,87,87],
+  [SHEARS]:          [88,88,88],
+  [SHEEP_EGG]:       [89,89,89],
+  [BONE]:            [90,90,90],
+  [ROTTEN_FLESH]:    [91,91,91],
+  [ZOMBIE_EGG]:      [92,92,92],
+  [SKELETON_EGG]:    [93,93,93],
 };
 // SOLID: player collides with these
 const SOLID=new Uint8Array(256);
@@ -2445,7 +2455,7 @@ hlMesh.visible=false;
 scene.add(hlMesh);
 
 // ── TEXTURE ATLAS (16×16 pixel art, 16 tiles → 256×16 px, power-of-2) ───────
-const N_TILES = 88;
+const N_TILES = 94;
 const TS      = 16;
 const atlasCvs = document.createElement('canvas');
 atlasCvs.width  = TS * N_TILES;  // 256
@@ -3152,6 +3162,33 @@ for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
   else if(tail){ tsp(87,x,y, 160,118,64); }
   if(body&&x===5&&y===7) tsp(87,x,y, 40,28,20); // eye
 }
+// Tile 88 — SHEARS (two open metal blades)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  // two diagonal blades meeting near centre
+  const bladeA=Math.abs((x)-(y))<=1 && x>=3&&x<=11;
+  const bladeB=Math.abs((x)-(15-y))<=1 && x>=3&&x<=11;
+  if(bladeA||bladeB){ const g=Math.round((th(88*TS+x,y)-0.5)*18); tsp(88,x,y, 176+g,178+g,186+g); }
+  // pivot rivet
+  if(x>=7&&x<=8&&y>=7&&y<=8) tsp(88,x,y, 90,90,96);
+}
+// Tile 89 — SHEEP_EGG (white with tan spots)
+_eggTile(89, '#e8e8e8', '#c0ad97');
+// Tile 90 — BONE (white bone with knobbed ends)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const shaft=x>=6&&x<=9&&y>=3&&y<=12;
+  const knob=(y<=4||y>=11)&&((x>=4&&x<=6)||(x>=9&&x<=11));
+  if(shaft||knob){ const s=Math.round((th(90*TS+x,y)-0.5)*12); tsp(90,x,y, 238+Math.min(0,s),236+Math.min(0,s),222+Math.min(0,s)); }
+}
+// Tile 91 — ROTTEN_FLESH (greenish-brown ragged blob)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const dx=x-8, dy=y-8; const r=Math.sqrt(dx*dx+dy*dy);
+  const edge=r<5.5+ (th(91*TS+x*2,y*2)-0.5)*2.5;
+  if(edge){ const s=Math.round((th(91*TS+x,y)-0.5)*22); tsp(91,x,y, 120+s,96+s,64+s); if(th(91*TS+x+3,y+1)>0.7) tsp(91,x,y, 96,110,58); }
+}
+// Tile 92 — ZOMBIE_EGG (green with dark spots)
+_eggTile(92, '#4c8a3a', '#2f5f28');
+// Tile 93 — SKELETON_EGG (bone-white with grey spots)
+_eggTile(93, '#dcdcdc', '#9a9a9a');
 
 const atlasTexture = new THREE.CanvasTexture(atlasCvs);
 atlasTexture.magFilter     = THREE.NearestFilter;  // crisp pixels, no blurring
@@ -3224,7 +3261,7 @@ const HAND_FLAT = new Set([STICK, WOOD_PICK, STONE_PICK,
   FOLIAGE, FLOWER_RED, FLOWER_YELLOW,
   OAK_DOOR, PINE_DOOR, OAK_DOOR_TOP, PINE_DOOR_TOP,
   IRON_INGOT, IRON_BUCKET, WATER_BUCKET,
-  RAW_PORKCHOP, RAW_BEEF, COAL, GOLD_INGOT, COOKED_PORKCHOP, COOKED_BEEF, TORCH, HOE, WHEAT, SEEDS, BREAD, FISHING_ROD, RAW_FISH, COOKED_FISH]);
+  RAW_PORKCHOP, RAW_BEEF, COAL, GOLD_INGOT, COOKED_PORKCHOP, COOKED_BEEF, TORCH, HOE, WHEAT, SEEDS, BREAD, FISHING_ROD, RAW_FISH, COOKED_FISH, SHEARS, BONE, ROTTEN_FLESH]);
 
 function updateHandUVs(){
   const id = player ? player.selectedBlock : GRASS;
@@ -3557,7 +3594,7 @@ const player=new Player(camera,world);
 // ── MOBS ──────────────────────────────────────────────────
 const MOB_GRAV = -22;
 const mobs = [];
-const MOB_MAX   = { pig:6, cow:4, wolf:4, cat:4, chicken:6, fish:6 };
+const MOB_MAX   = { pig:6, cow:4, wolf:4, cat:4, chicken:6, fish:6, sheep:5, zombie:6, skeleton:5 };
 const MOB_SPAWN_RMIN = 14, MOB_SPAWN_RMAX = 48;
 const MOB_DESPAWN_R2 = 64 * 64;
 const MOB_SPAWN_IV   = 5.0;   // seconds between spawn batches
@@ -3570,6 +3607,9 @@ const MOB_CFG = {
   cat:     { h: 0.90, w: 0.38, spd: 1.5, hp: 12 },
   chicken: { h: 1.00, w: 0.28, spd: 1.3, hp: 8  },
   fish:    { h: 0.25, w: 0.22, spd: 1.0, hp: 8  },
+  sheep:   { h: 1.20, w: 0.50, spd: 1.1, hp: 16 },
+  zombie:  { h: 1.80, w: 0.42, spd: 1.5, hp: 20, hostile:true, atk:3 },
+  skeleton:{ h: 1.80, w: 0.42, spd: 1.7, hp: 16, hostile:true, atk:2 },
 };
 
 // Draw pixel-art onto a 64×64 canvas (8 columns × 8 rows, each cell = 8px)
@@ -3972,6 +4012,17 @@ const MOB_SKIN = (() => {
     S.fish_orange = makeFishSkin('#CC5500', '#FF8822', '#994400');
   }
 
+  // ── SHEEP / ZOMBIE / SKELETON (solid-colour blocky mobs) ──
+  S.sheep = {
+    wool: _FM(0xEDECE8), woolShorn:_FM(0xE7B8B0), head:_FM(0xDAD2C4), leg:_FM(0xB9AFA0),
+  };
+  S.zombie = {
+    skin:_FM(0x4C8A3A), shirt:_FM(0x3A5F8A), pants:_FM(0x3B3A6A), head:_FM(0x5AA047),
+  };
+  S.skeleton = {
+    bone:_FM(0xDDDCD6), boneDark:_FM(0xB6B5AE), head:_FM(0xE6E5DE),
+  };
+
   return S;
 })();
 
@@ -4052,6 +4103,34 @@ function buildMobGroup(type) {
     _box(g, sk.beak, 0.12, 0.10, 0.20,  0,    0.96, -0.51);
     _box(g, sk.comb, 0.08, 0.12, 0.06,  0,    0.90, -0.50);  // wattle
   }
+  else if (type === 'sheep') {
+    const sk = MOB_SKIN.sheep;
+    const body=_box(g, sk.wool, 1.02, 0.62, 0.72, 0, 0.80, 0.00); // fluffy wool body
+    g.userData.woolBody=body;
+    g.userData.legs.push(_box(g, sk.leg, 0.18, 0.44, 0.18, -0.34, 0.22, -0.24));
+    g.userData.legs.push(_box(g, sk.leg, 0.18, 0.44, 0.18,  0.34, 0.22, -0.24));
+    g.userData.legs.push(_box(g, sk.leg, 0.18, 0.44, 0.18, -0.34, 0.22,  0.24));
+    g.userData.legs.push(_box(g, sk.leg, 0.18, 0.44, 0.18,  0.34, 0.22,  0.24));
+    g.userData.head = _box(g, sk.head, 0.42, 0.44, 0.44, 0, 1.02, -0.52);
+  }
+  else if (type === 'zombie' || type === 'skeleton') {
+    const zom = type === 'zombie';
+    const sk = zom ? MOB_SKIN.zombie : MOB_SKIN.skeleton;
+    const bodyMat = zom ? sk.shirt : sk.bone;
+    const limbMat = zom ? sk.skin  : sk.bone;
+    const legMat  = zom ? sk.pants : sk.boneDark;
+    // torso
+    _box(g, bodyMat, 0.44, 0.66, 0.26, 0, 1.02, 0);
+    // head
+    g.userData.head = _box(g, sk.head, 0.44, 0.44, 0.44, 0, 1.56, 0);
+    // arms held out forward (static, iconic pose)
+    const armL=_box(g, limbMat, 0.14, 0.58, 0.16, -0.30, 1.18, -0.30);
+    const armR=_box(g, limbMat, 0.14, 0.58, 0.16,  0.30, 1.18, -0.30);
+    armL.rotation.x=-1.4; armR.rotation.x=-1.4;
+    // legs (these swing when walking)
+    g.userData.legs.push(_box(g, legMat, 0.16, 0.66, 0.18, -0.12, 0.36, 0));
+    g.userData.legs.push(_box(g, legMat, 0.16, 0.66, 0.18,  0.12, 0.36, 0));
+  }
   else if (type === 'fish') {
     const sk = Math.random() < 0.5 ? MOB_SKIN.fish_blue : MOB_SKIN.fish_orange;
     // Body along Z (nose at -Z, tail at +Z)
@@ -4090,7 +4169,10 @@ class Mob {
       this._bowlPos   = null;     // {bx,by,bz} of targeted bowl
       this._eatTimer  = 0;
       this._scanCd    = 1 + Math.random(); // stagger initial scans
+      this.tamed      = false;    // becomes a pet when fed bones
     }
+    if (this.cfg.hostile) { this._attackCd = 0; this._burnCd = 0; }
+    if (this.type === 'sheep') { this._wool = true; this._woolRegrow = 0; }
   }
 
   _syncTransform() {
@@ -4105,10 +4187,26 @@ class Mob {
   update(dt) {
     if (this.type === 'fish') { this._updateFish(dt); return; }
 
-    const wolfOverride = this.type === 'wolf' && this._updateWolfNeeds(dt);
+    // Sheep wool regrows a while after shearing
+    if (this.type === 'sheep' && !this._wool) {
+      this._woolRegrow -= dt;
+      if (this._woolRegrow <= 0) { this._wool = true; if (this.group.userData.woolBody) this.group.userData.woolBody.material = MOB_SKIN.sheep.wool; }
+    }
 
-    // Wander AI — skip when wolf is seeking/eating/drinking
-    if (!wolfOverride) {
+    const wolfOverride = this.type === 'wolf' && this._updateWolfNeeds(dt);
+    const hostileOverride = this.cfg.hostile ? this._updateHostile(dt) : false;
+    if (this._dead) return;
+
+    // Tamed wolves follow the player when they wander too far
+    let tamedFollow = false;
+    if (this.type === 'wolf' && this.tamed && !wolfOverride) {
+      const dx = player.pos.x - this.pos.x, dz = player.pos.z - this.pos.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist > 6) { this.yaw = Math.atan2(-dx, -dz); this.idle = false; tamedFollow = true; }
+    }
+
+    // Wander AI — skip when wolf is seeking/eating/drinking, following, or a hostile is chasing
+    if (!wolfOverride && !hostileOverride && !tamedFollow) {
       this.wanderTimer -= dt;
       if (this.wanderTimer <= 0) {
         if (this.idle) {
@@ -4364,13 +4462,38 @@ class Mob {
     return false; // 'wander' — let normal wander AI run
   }
 
+  _updateHostile(dt) {
+    // Burn away in daylight
+    this._burnCd -= dt;
+    if (!isNight() && this._burnCd <= 0) { this._burnCd = 1.0; this.hurt(2); if (this._dead) return true; }
+    // Chase the player when reasonably close; otherwise wander
+    const dx = player.pos.x - this.pos.x, dz = player.pos.z - this.pos.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist > 18) return false;
+    this.yaw  = Math.atan2(-dx, -dz);
+    this.idle = false;
+    // Attack on contact (with cooldown)
+    this._attackCd -= dt;
+    if (dist < 1.4 && this._attackCd <= 0 && gamemode === 'survival') {
+      this._attackCd = 1.0;
+      player.hp = Math.max(0, player.hp - this.cfg.atk);
+      buildHealth();
+      _screenShakeT = 0.2; _screenShakeMag = 0.55;
+    }
+    return true;
+  }
+
   hurt(dmg) {
     this.hp -= dmg;
     if (this.hp <= 0) {
       this._dead = true;
       playMobDeath(this.type);
-      const drop = this.type==='pig' ? RAW_PORKCHOP : this.type==='cow' ? RAW_BEEF : null;
-      if (drop) spawnDroppedItem(drop, this.pos.x, this.pos.y + 0.5, this.pos.z);
+      const DROPS = {pig:RAW_PORKCHOP, cow:RAW_BEEF, zombie:ROTTEN_FLESH, skeleton:BONE, sheep:WHITE_WOOL};
+      const drop = DROPS[this.type] ?? null;
+      if (drop){
+        const n = (this.type==='skeleton'||this.type==='zombie') ? 1+Math.floor(Math.random()*2) : 1;
+        for(let k=0;k<n;k++) spawnDroppedItem(drop, this.pos.x, this.pos.y + 0.5, this.pos.z);
+      }
     } else {
       playMobHurt(this.type);
     }
@@ -4411,7 +4534,9 @@ function updateMobs(dt) {
   if (_mobSpawnT < MOB_SPAWN_IV) return;
   _mobSpawnT = 0;
 
-  const allTypes = ['pig','cow','wolf','cat','chicken','fish'];
+  // Passive mobs spawn any time; hostile zombies/skeletons only spawn at night
+  const passiveTypes = ['pig','cow','wolf','cat','chicken','fish','sheep'];
+  const allTypes = isNight() ? passiveTypes.concat(['zombie','skeleton']) : passiveTypes;
   // Try up to 3 spawns per interval so the world populates quickly at first
   for (let attempt = 0; attempt < 3; attempt++) {
     const counts = {};
@@ -4490,10 +4615,10 @@ const CREATIVE_CATEGORIES=[
     PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
     BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL]},
   {name:'Decor', blocks:[TORCH,CAMPFIRE,BOWL,WATER_BOWL,FOOD_BOWL]},
-  {name:'Tools', blocks:[WOOD_PICK,STONE_PICK,HOE,FISHING_ROD,IRON_BUCKET,WATER_BUCKET,
-    STICK,COAL,IRON_INGOT,GOLD_INGOT,SEEDS]},
-  {name:'Food', blocks:[RAW_PORKCHOP,RAW_BEEF,COOKED_PORKCHOP,COOKED_BEEF,RAW_FISH,COOKED_FISH,WHEAT,BREAD]},
-  {name:'Eggs', blocks:[PIG_EGG,COW_EGG,WOLF_EGG,CAT_EGG,CHICKEN_EGG,FISH_EGG]},
+  {name:'Tools', blocks:[WOOD_PICK,STONE_PICK,HOE,FISHING_ROD,SHEARS,IRON_BUCKET,WATER_BUCKET,
+    STICK,COAL,IRON_INGOT,GOLD_INGOT,SEEDS,BONE]},
+  {name:'Food', blocks:[RAW_PORKCHOP,RAW_BEEF,COOKED_PORKCHOP,COOKED_BEEF,RAW_FISH,COOKED_FISH,WHEAT,BREAD,ROTTEN_FLESH]},
+  {name:'Eggs', blocks:[PIG_EGG,COW_EGG,WOLF_EGG,CAT_EGG,CHICKEN_EGG,FISH_EGG,SHEEP_EGG,ZOMBIE_EGG,SKELETON_EGG]},
 ];
 let creativeCat=0;
 const DEFAULT_HOTBAR=new Array(9).fill(AIR);
@@ -5407,6 +5532,8 @@ const CT_RECIPES=[
   {pattern:[AIR,AIR,AIR, AIR,AIR,AIR, WHEAT,WHEAT,WHEAT], out:BREAD, outCount:1},
   // Fishing Rod: 3 sticks in a diagonal
   {pattern:[AIR,AIR,STICK, AIR,STICK,AIR, STICK,AIR,AIR], out:FISHING_ROD, outCount:1},
+  // Shears: 2 iron ingots offset diagonally
+  {pattern:[AIR,IRON_INGOT,AIR, IRON_INGOT,AIR,AIR, AIR,AIR,AIR], out:SHEARS, outCount:1},
 ];
 
 function computeCtOutput(){
@@ -5991,7 +6118,7 @@ function consumeItem(id,n=1){
 const FOOD_VALUE = {
   [RAW_PORKCHOP]:3, [RAW_BEEF]:3,
   [COOKED_PORKCHOP]:8, [COOKED_BEEF]:8,
-  [BREAD]:5, [RAW_FISH]:2, [COOKED_FISH]:6,
+  [BREAD]:5, [RAW_FISH]:2, [COOKED_FISH]:6, [ROTTEN_FLESH]:2,
 };
 // Try to eat the held item; returns true if eaten
 function tryEatHeld(){
@@ -6274,6 +6401,49 @@ function hitMob(){
   return false;
 }
 
+// Find the mob the player is looking at within reach (optionally of a type)
+function aimedMob(type){
+  const REACH=3.5, EYE=1.6;
+  const dir=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion).normalize();
+  let best=null, bestDist=REACH;
+  for(const m of mobs){
+    if(type && m.type!==type) continue;
+    const dx=m.pos.x-player.pos.x;
+    const dy=(m.pos.y+m.cfg.h*0.5)-(player.pos.y+EYE);
+    const dz=m.pos.z-player.pos.z;
+    const dist=Math.sqrt(dx*dx+dy*dy+dz*dz);
+    if(dist>REACH) continue;
+    const dot=(dx*dir.x+dy*dir.y+dz*dir.z)/dist;
+    if(dot>0.6&&dist<bestDist){ best=m; bestDist=dist; }
+  }
+  return best;
+}
+
+// Shear a sheep the player is looking at → drops wool, coat regrows later
+function shearSheep(){
+  const s=aimedMob('sheep');
+  if(!s||!s._wool) return false;
+  s._wool=false; s._woolRegrow=25+Math.random()*15;
+  if(s.group.userData.woolBody) s.group.userData.woolBody.material=MOB_SKIN.sheep.woolShorn;
+  const n=1+Math.floor(Math.random()*2);
+  for(let k=0;k<n;k++) spawnDroppedItem(WHITE_WOOL, s.pos.x, s.pos.y+0.6, s.pos.z);
+  playPlaceSound(LEAVES);
+  return true;
+}
+
+// Feed a bone to a wild wolf to tame it (becomes a friendly pet)
+function tameWolf(){
+  const w=aimedMob('wolf');
+  if(!w||w.tamed) return false;
+  w.tamed=true;
+  if(gamemode==='survival') consumeItem(BONE,1);
+  // little celebratory bob
+  if(w.group.userData.tail) w.group.userData.tail.rotation.x=-0.9;
+  addChatMsg('The wolf has been tamed!','ok');
+  playPlaceSound(GRASS);
+  return true;
+}
+
 canvas.addEventListener('mousedown',e=>{
   if(!locked||paused) return;
   if(gamemode==='spectator') return;
@@ -6310,6 +6480,11 @@ canvas.addEventListener('mousedown',e=>{
     hitMob();
   } else if(e.button===2){
     const t=getAim();
+
+    // Shear a sheep with shears
+    if(player.selectedBlock===SHEARS){ if(shearSheep()){ handSwingT=0; return; } }
+    // Tame a wolf by feeding it a bone
+    if(player.selectedBlock===BONE){ if(tameWolf()){ handPlaceT=0; return; } }
 
     // Interact with crafting table
     if(t && world.getBlock(t.bx,t.by,t.bz)===CRAFT_TABLE){
