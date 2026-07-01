@@ -1024,16 +1024,19 @@ const OAK_DOOR=48, OAK_DOOR_TOP=49, PINE_DOOR=50, PINE_DOOR_TOP=51;
 const IRON_INGOT=52, IRON_BUCKET=53, WATER_BUCKET=54;
 const RAW_PORKCHOP=55, RAW_BEEF=56;
 const BOWL=57, WATER_BOWL=58, FOOD_BOWL=59;
+const COAL_ORE=60, IRON_ORE=61, GOLD_ORE=62, COAL=63, GOLD_INGOT=64;
 
 // ── TOOL SYSTEM CONSTANTS ─────────────────────────────────
-const NEEDS_PICK  = new Set([STONE, COBBLESTONE, MOSSY_COBBLE, CRACKED_STONE]); // blocks that require a pickaxe
+const NEEDS_PICK  = new Set([STONE, COBBLESTONE, MOSSY_COBBLE, CRACKED_STONE, COAL_ORE, IRON_ORE, GOLD_ORE]); // blocks that require a pickaxe
 const IS_PICK     = new Set([WOOD_PICK, STONE_PICK]);
 const TOOL_SPEED  = {[WOOD_PICK]:1.0, [STONE_PICK]:1.5}; // speed mult vs base stone hardness
 const TOOL_MAX_DUR= {[WOOD_PICK]:60,  [STONE_PICK]:130};
 const UNSTACKABLE = new Set([WOOD_PICK, STONE_PICK]);    // these never stack
-const FLAT_ITEMS  = new Set([STICK, WOOD_PICK, STONE_PICK]); // rendered as 2D sprites
+const FLAT_ITEMS  = new Set([STICK, WOOD_PICK, STONE_PICK, IRON_INGOT, GOLD_INGOT, COAL, RAW_PORKCHOP, RAW_BEEF]); // rendered as 2D sprites
 const SPAWN_EGG_MOB={[PIG_EGG]:'pig',[COW_EGG]:'cow',[WOLF_EGG]:'wolf',[CAT_EGG]:'cat',[CHICKEN_EGG]:'chicken',[FISH_EGG]:'fish'};
-const NON_PLACEABLE = new Set([IRON_INGOT,IRON_BUCKET,WATER_BUCKET,RAW_PORKCHOP,RAW_BEEF]);
+const NON_PLACEABLE = new Set([IRON_INGOT,IRON_BUCKET,WATER_BUCKET,RAW_PORKCHOP,RAW_BEEF,COAL,GOLD_INGOT]);
+// What a block drops when mined (defaults to the block itself if absent)
+const BLOCK_DROP = {[COAL_ORE]:COAL};
 // key = "wx,botY,wz" (bottom block position); value = {open:bool, hingeRight:bool}
 const doorStates = new Map();
 
@@ -1045,12 +1048,14 @@ const BLOCK_NAME=['Air','Grass','Dirt','Stone','Oak Log','Leaves','Sand','Bedroc
   'Brown Wool','Green Wool','Red Wool','Black Wool',
   'Pine Log','Pine Plank','Oak Door','Oak Door','Pine Door','Pine Door',
   'Iron Ingot','Iron Bucket','Water Bucket','Raw Porkchop','Raw Beef',
-  'Bowl','Water Bowl','Food Bowl'];
+  'Bowl','Water Bowl','Food Bowl',
+  'Coal Ore','Iron Ore','Gold Ore','Coal','Gold Ingot'];
 const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3, 0,0,0,0,0,0, 0.2, 0.25, 0.0, 0.0, 0.7, 1.0, 0,0,0, 0.6, 1.0, 1.0, 1.1,
   0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4, // wool 30-45
   1.2, 0.7, 0.8, 0.8, 0.8, 0.8, // pine log, pine plank, oak door×2, pine door×2
   0,0,0,0,0, // iron ingot, iron bucket, water bucket, raw porkchop, raw beef
-  0.2,0.2,0.2]; // bowl, water bowl, food bowl
+  0.2,0.2,0.2, // bowl, water bowl, food bowl
+  3.0,3.0,3.0,0,0]; // coal ore, iron ore, gold ore, coal(item), gold ingot(item)
 const TEX_IDX={
   [GRASS]:   [0,2,1],
   [DIRT]:    [2,2,2],
@@ -1111,6 +1116,11 @@ const TEX_IDX={
   [BOWL]:            [58,58,58],
   [WATER_BOWL]:      [59,59,59],
   [FOOD_BOWL]:       [60,60,60],
+  [COAL_ORE]:        [61,61,61],
+  [IRON_ORE]:        [62,62,62],
+  [GOLD_ORE]:        [63,63,63],
+  [COAL]:            [64,64,64],
+  [GOLD_INGOT]:      [65,65,65],
 };
 // SOLID: player collides with these
 const SOLID=new Uint8Array(256);
@@ -1118,14 +1128,15 @@ const SOLID=new Uint8Array(256);
   WHITE_WOOL,ORANGE_WOOL,MAGENTA_WOOL,LIGHT_BLUE_WOOL,YELLOW_WOOL,LIME_WOOL,
   PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
   BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL,
-  PINE_LOG,PINE_PLANK,OAK_DOOR,OAK_DOOR_TOP,PINE_DOOR,PINE_DOOR_TOP].forEach(id=>SOLID[id]=1);
+  PINE_LOG,PINE_PLANK,OAK_DOOR,OAK_DOOR_TOP,PINE_DOOR,PINE_DOOR_TOP,
+  COAL_ORE,IRON_ORE,GOLD_ORE].forEach(id=>SOLID[id]=1);
 // OPAQUE: completely hides adjacent faces (no leaves, no water)
 const OPAQUE=new Uint8Array(256);
 [GRASS,DIRT,STONE,WOOD,SAND,BEDROCK,SNOW,PLANK,CRAFT_TABLE,GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE,
   WHITE_WOOL,ORANGE_WOOL,MAGENTA_WOOL,LIGHT_BLUE_WOOL,YELLOW_WOOL,LIME_WOOL,
   PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
   BROWN_WOOL,GREEN_WOOL,RED_WOOL,BLACK_WOOL,
-  PINE_LOG,PINE_PLANK].forEach(id=>OPAQUE[id]=1);
+  PINE_LOG,PINE_PLANK,COAL_ORE,IRON_ORE,GOLD_ORE].forEach(id=>OPAQUE[id]=1);
 // Doors are solid but NOT opaque — they render as thin panels, not full cubes
 
 // ── FACE GEOMETRY ─────────────────────────────────────────
@@ -1379,6 +1390,27 @@ class Chunk{
       }
       if(h < SEA){
         for(let y=h+1;y<=SEA;y++) this.data[this.idx(x,y,z)]=WATER;
+      }
+    }
+
+    // ── CAVES + ORE VEINS ────────────────────────────────────
+    for(let x=0;x<CHUNK;x++) for(let z=0;z<CHUNK;z++){
+      const wx2=ox+x, wz2=oz+z;
+      const h=hmap[x*CHUNK+z];
+      for(let y=2;y<h-2;y++){
+        const cur=this.data[this.idx(x,y,z)];
+        if(cur!==STONE && cur!==DIRT && cur!==GRAVEL && cur!==COBBLESTONE && cur!==SAND) continue;
+        // Winding tunnels: carve where two offset noise fields both cross zero
+        const c1=noise2(wx2*0.055+y*0.05, wz2*0.055-y*0.045);
+        const c2=noise2(wx2*0.05-y*0.04+412.1, wz2*0.05+y*0.05+88.3);
+        if(Math.abs(c1)<0.07 && Math.abs(c2)<0.09){ this.data[this.idx(x,y,z)]=AIR; continue; }
+        // Ore veins (in stone only) — depth-gated rarity
+        if(cur!==STONE) continue;
+        const rH=Math.sin(wx2*127.1+y*311.7+wz2*74.7)*43758.5453;
+        const r=rH-Math.floor(rH);
+        if(y<24 && r>0.9955)      this.data[this.idx(x,y,z)]=GOLD_ORE;
+        else if(y<h-8 && r>0.986) this.data[this.idx(x,y,z)]=IRON_ORE;
+        else if(r>0.972)          this.data[this.idx(x,y,z)]=COAL_ORE;
       }
     }
 
@@ -2281,7 +2313,7 @@ hlMesh.visible=false;
 scene.add(hlMesh);
 
 // ── TEXTURE ATLAS (16×16 pixel art, 16 tiles → 256×16 px, power-of-2) ───────
-const N_TILES = 61;
+const N_TILES = 66;
 const TS      = 16;
 const atlasCvs = document.createElement('canvas');
 atlasCvs.width  = TS * N_TILES;  // 256
@@ -2781,6 +2813,39 @@ for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
     tsp(60,x,y, 158+Math.round((n-0.5)*20), 78+Math.round((n-0.5)*15), 38+Math.round((n-0.5)*10));
   }
 }
+// Tile 61 — COAL_ORE (stone base + black coal specks)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const n=th(61*TS+x,y);
+  tsp(61,x,y, 128+Math.round((n-0.5)*22), 128+Math.round((n-0.5)*22), 130+Math.round((n-0.5)*22));
+  const on=th(61*TS+x*3.1+7,y*2.7+3);
+  if(on>0.80){ const s=Math.round((th(61*TS+x+50,y+9)-0.5)*20); tsp(61,x,y, 34+s,34+s,36+s); }
+}
+// Tile 62 — IRON_ORE (stone base + tan/orange specks)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const n=th(62*TS+x,y);
+  tsp(62,x,y, 128+Math.round((n-0.5)*22), 128+Math.round((n-0.5)*22), 130+Math.round((n-0.5)*22));
+  const on=th(62*TS+x*3.1+7,y*2.7+3);
+  if(on>0.80){ const s=Math.round((th(62*TS+x+50,y+9)-0.5)*24); tsp(62,x,y, 206+s,158+s,120+s); }
+}
+// Tile 63 — GOLD_ORE (stone base + bright yellow specks)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const n=th(63*TS+x,y);
+  tsp(63,x,y, 128+Math.round((n-0.5)*22), 128+Math.round((n-0.5)*22), 130+Math.round((n-0.5)*22));
+  const on=th(63*TS+x*3.1+7,y*2.7+3);
+  if(on>0.80){ const s=Math.round((th(63*TS+x+50,y+9)-0.5)*24); tsp(63,x,y, 236+s,196+s,44+s); }
+}
+// Tile 64 — COAL (black lump item)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const dx=x-8, dy=y-8; const r=Math.sqrt(dx*dx+dy*dy);
+  if(r<5.5){ const s=Math.round((th(64*TS+x,y)-0.5)*30); const hl=(x<8&&y<8&&r<4)?26:0; tsp(64,x,y, 34+s+hl,34+s+hl,38+s+hl); }
+}
+// Tile 65 — GOLD_INGOT (yellow bar item)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  if(x>=3&&x<=12&&y>=5&&y<=10){
+    const top=y<=6; const s=Math.round((th(65*TS+x,y)-0.5)*16);
+    tsp(65,x,y, (top?250:214)+s, (top?214:174)+s, (top?70:40)+s);
+  }
+}
 
 const atlasTexture = new THREE.CanvasTexture(atlasCvs);
 atlasTexture.magFilter     = THREE.NearestFilter;  // crisp pixels, no blurring
@@ -2853,7 +2918,7 @@ const HAND_FLAT = new Set([STICK, WOOD_PICK, STONE_PICK,
   FOLIAGE, FLOWER_RED, FLOWER_YELLOW,
   OAK_DOOR, PINE_DOOR, OAK_DOOR_TOP, PINE_DOOR_TOP,
   IRON_INGOT, IRON_BUCKET, WATER_BUCKET,
-  RAW_PORKCHOP, RAW_BEEF]);
+  RAW_PORKCHOP, RAW_BEEF, COAL, GOLD_INGOT]);
 
 function updateHandUVs(){
   const id = player ? player.selectedBlock : GRASS;
@@ -4038,8 +4103,9 @@ const CREATIVE_PAGE_SIZE=27;
 const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,PINE_LOG,LEAVES,PINE_LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS,SNOW,
   FLOWER_RED,FLOWER_YELLOW,PLANK,PINE_PLANK,CRAFT_TABLE,STICK,WOOD_PICK,STONE_PICK,
   GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE,
+  COAL_ORE,IRON_ORE,GOLD_ORE,COAL,IRON_INGOT,GOLD_INGOT,
   OAK_DOOR,PINE_DOOR,
-  IRON_INGOT,IRON_BUCKET,WATER_BUCKET,RAW_PORKCHOP,RAW_BEEF,
+  IRON_BUCKET,WATER_BUCKET,RAW_PORKCHOP,RAW_BEEF,
   BOWL,WATER_BOWL,FOOD_BOWL,
   WHITE_WOOL,ORANGE_WOOL,MAGENTA_WOOL,LIGHT_BLUE_WOOL,YELLOW_WOOL,LIME_WOOL,
   PINK_WOOL,GRAY_WOOL,LIGHT_GRAY_WOOL,CYAN_WOOL,PURPLE_WOOL,BLUE_WOOL,
@@ -6021,7 +6087,7 @@ function loop(t){
           playBreakSound(id);
           world.setBlock(aim.bx,aim.by,aim.bz,AIR);
           // Door tops drop their bottom-half item; door bottoms silently remove top
-          let dropId = id;
+          let dropId = BLOCK_DROP[id] ?? id;
           if(id===OAK_DOOR_TOP)  { dropId=OAK_DOOR;  world.setBlock(aim.bx,aim.by-1,aim.bz,AIR); }
           if(id===PINE_DOOR_TOP) { dropId=PINE_DOOR; world.setBlock(aim.bx,aim.by-1,aim.bz,AIR); }
           if(id===OAK_DOOR||id===PINE_DOOR) world.setBlock(aim.bx,aim.by+1,aim.bz,AIR);
