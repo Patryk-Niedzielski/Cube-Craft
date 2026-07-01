@@ -1050,7 +1050,7 @@ const RAW_PORKCHOP=55, RAW_BEEF=56;
 const BOWL=57, WATER_BOWL=58, FOOD_BOWL=59;
 const COAL_ORE=60, IRON_ORE=61, GOLD_ORE=62, COAL=63, GOLD_INGOT=64;
 const FURNACE=65, COOKED_PORKCHOP=66, COOKED_BEEF=67;
-const TORCH=68, CHEST=69;
+const TORCH=68, CHEST=69, CAMPFIRE=70;
 
 // ── TOOL SYSTEM CONSTANTS ─────────────────────────────────
 const NEEDS_PICK  = new Set([STONE, COBBLESTONE, MOSSY_COBBLE, CRACKED_STONE, COAL_ORE, IRON_ORE, GOLD_ORE, FURNACE]); // blocks that require a pickaxe
@@ -1066,6 +1066,8 @@ const BLOCK_DROP = {[COAL_ORE]:COAL};
 // Furnace smelting recipes: input block/item id → output id
 const SMELT = {[IRON_ORE]:IRON_INGOT, [GOLD_ORE]:GOLD_INGOT, [SAND]:GLASS,
   [RAW_PORKCHOP]:COOKED_PORKCHOP, [RAW_BEEF]:COOKED_BEEF};
+// Campfire cooks raw food for free (no fuel): input → cooked output
+const FIRE_COOK = {[RAW_PORKCHOP]:COOKED_PORKCHOP, [RAW_BEEF]:COOKED_BEEF};
 // key = "wx,botY,wz" (bottom block position); value = {open:bool, hingeRight:bool}
 const doorStates = new Map();
 
@@ -1079,7 +1081,7 @@ const BLOCK_NAME=['Air','Grass','Dirt','Stone','Oak Log','Leaves','Sand','Bedroc
   'Iron Ingot','Iron Bucket','Water Bucket','Raw Porkchop','Raw Beef',
   'Bowl','Water Bowl','Food Bowl',
   'Coal Ore','Iron Ore','Gold Ore','Coal','Gold Ingot',
-  'Furnace','Cooked Porkchop','Cooked Beef','Torch','Chest'];
+  'Furnace','Cooked Porkchop','Cooked Beef','Torch','Chest','Campfire'];
 const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.3, 0,0,0,0,0,0, 0.2, 0.25, 0.0, 0.0, 0.7, 1.0, 0,0,0, 0.6, 1.0, 1.0, 1.1,
   0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4, // wool 30-45
   1.2, 0.7, 0.8, 0.8, 0.8, 0.8, // pine log, pine plank, oak door×2, pine door×2
@@ -1087,7 +1089,7 @@ const BLOCK_HARD=[0, 0.4, 0.4, 0.9, 1.2, 0.25, 0.5, Infinity, Infinity, 0.05, 0.
   0.2,0.2,0.2, // bowl, water bowl, food bowl
   3.0,3.0,3.0,0,0, // coal ore, iron ore, gold ore, coal(item), gold ingot(item)
   3.5,0,0, // furnace, cooked porkchop(item), cooked beef(item)
-  0.05,2.0]; // torch, chest
+  0.05,2.0,0.4]; // torch, chest, campfire
 const TEX_IDX={
   [GRASS]:   [0,2,1],
   [DIRT]:    [2,2,2],
@@ -1158,6 +1160,7 @@ const TEX_IDX={
   [COOKED_BEEF]:     [69,69,69],
   [TORCH]:           [70,70,70],
   [CHEST]:           [72,72,71],
+  [CAMPFIRE]:        [73,73,73],
 };
 // SOLID: player collides with these
 const SOLID=new Uint8Array(256);
@@ -1767,6 +1770,31 @@ class World{
         continue;
       }
 
+      if(id===CAMPFIRE){
+        // Flat log/ember base (over-bright embers) + a glowing flame cross
+        const bi=73, sh=2.4;                 // base tile, brightened embers
+        const b0x=ox+x+0.05, b1x=ox+x+0.95, b0z=oz+z+0.05, b1z=oz+z+0.95, by=y+0.14;
+        fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
+        fpos.push(b0x,by,b0z, b1x,by,b0z, b1x,by,b1z, b0x,by,b1z);
+        fuv.push(bi/N_TILES,0, (bi+1)/N_TILES,0, (bi+1)/N_TILES,1, bi/N_TILES,1);
+        fcol.push(sh,sh,sh, sh,sh,sh, sh,sh,sh, sh,sh,sh);
+        fvi+=4;
+        // flame cross (reuse torch flame tile 70), over-bright so it glows at night
+        const fi=70, fsh=4.2, fh=0.75;
+        const cx0=ox+x+0.22, cx1=ox+x+0.78, cz0=oz+z+0.22, cz1=oz+z+0.78;
+        fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
+        fpos.push(cx0,by,cz0, cx1,by,cz1, cx1,by+fh,cz1, cx0,by+fh,cz0);
+        fuv.push(fi/N_TILES,0, (fi+1)/N_TILES,0, (fi+1)/N_TILES,1, fi/N_TILES,1);
+        fcol.push(fsh,fsh,fsh, fsh,fsh,fsh, fsh,fsh,fsh, fsh,fsh,fsh);
+        fvi+=4;
+        fidx.push(fvi,fvi+1,fvi+2, fvi,fvi+2,fvi+3);
+        fpos.push(cx1,by,cz0, cx0,by,cz1, cx0,by+fh,cz1, cx1,by+fh,cz0);
+        fuv.push(fi/N_TILES,0, (fi+1)/N_TILES,0, (fi+1)/N_TILES,1, fi/N_TILES,1);
+        fcol.push(fsh,fsh,fsh, fsh,fsh,fsh, fsh,fsh,fsh, fsh,fsh,fsh);
+        fvi+=4;
+        continue;
+      }
+
       if(id===FOLIAGE||id===FLOWER_RED||id===FLOWER_YELLOW){
         // X-cross billboard: two diagonal quads
         const ci=TEX_IDX[id][0], bh=0.9, sh=1.0;
@@ -1977,7 +2005,7 @@ class World{
       if(dist>maxDist) break;
       const id=this.getBlock(x,y,z);
       if(SOLID[id]||id===FOLIAGE||id===FLOWER_RED||id===FLOWER_YELLOW||
-         id===WATER||id===BOWL||id===WATER_BOWL||id===FOOD_BOWL||id===TORCH) return {bx:x,by:y,bz:z,nx,ny,nz};
+         id===WATER||id===BOWL||id===WATER_BOWL||id===FOOD_BOWL||id===TORCH||id===CAMPFIRE) return {bx:x,by:y,bz:z,nx,ny,nz};
       if(tmx<tmy&&tmx<tmz){dist=tmx;tmx+=tdx;nx=-sx;ny=0;nz=0;x+=sx;}
       else if(tmy<tmz)    {dist=tmy;tmy+=tdy;nx=0;ny=-sy;nz=0;y+=sy;}
       else                {dist=tmz;tmz+=tdz;nx=0;ny=0;nz=-sz;z+=sz;}
@@ -2370,7 +2398,7 @@ hlMesh.visible=false;
 scene.add(hlMesh);
 
 // ── TEXTURE ATLAS (16×16 pixel art, 16 tiles → 256×16 px, power-of-2) ───────
-const N_TILES = 73;
+const N_TILES = 74;
 const TS      = 16;
 const atlasCvs = document.createElement('canvas');
 atlasCvs.width  = TS * N_TILES;  // 256
@@ -2973,6 +3001,22 @@ for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
   // latch nub at front edge
   if(y>=7&&y<=8&&x>=7&&x<=8){ const g=Math.round((th(72*TS+x+3,y)-0.5)*16); tsp(72,x,y, 150+g,150+g,158+g); }
 }
+// Tile 73 — CAMPFIRE base (crossed logs with glowing embers, top view)
+for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
+  const s=Math.round((th(73*TS+x,y)-0.5)*16);
+  // two crossed logs (horizontal band + vertical band)
+  const hLog=(y>=3&&y<=5)||(y>=10&&y<=12);
+  const vLog=(x>=3&&x<=5)||(x>=10&&x<=12);
+  if(hLog||vLog){ tsp(73,x,y, 118+s,80+s,38+s); }
+  else { tsp(73,x,y, 40+Math.max(0,s),30,24); } // ash bed
+  // glowing embers in the centre
+  const dx=x-7.5, dy=y-7.5; const r=Math.sqrt(dx*dx+dy*dy);
+  if(r<3.4 && !(hLog||vLog)){
+    const e=th(73*TS+x*2+1,y*2);
+    if(e>0.6) tsp(73,x,y, 255,180+Math.round(e*50),40);
+    else tsp(73,x,y, 220,90,24);
+  }
+}
 
 const atlasTexture = new THREE.CanvasTexture(atlasCvs);
 atlasTexture.magFilter     = THREE.NearestFilter;  // crisp pixels, no blurring
@@ -3143,6 +3187,7 @@ const BREAK_SND = {
   [GOLD_ORE]:  [{f:'bandpass',hz:1700,q:3.5,v:0.55,d:0.08},{f:'lowpass',hz:200,q:0.5,v:0.28,d:0.06}],
   [FURNACE]:   [{f:'bandpass',hz:1500,q:3.0,v:0.50,d:0.09},{f:'lowpass',hz:220,q:0.5,v:0.26,d:0.07}],
   [CHEST]:     [{f:'bandpass',hz:420, q:1.0, v:0.32, d:0.14}],
+  [CAMPFIRE]:  [{f:'bandpass',hz:600, q:1.4, v:0.30, d:0.12},{f:'lowpass',hz:160,q:0.5,v:0.20,d:0.10}],
 };
 
 function playBreakSound(blockId){
@@ -3200,6 +3245,7 @@ const PLACE_SND = {
   [WATER]:      {f:'lowpass',  hz:380, q:0.6, v:0.32, d:0.16},
   [TORCH]:      {f:'bandpass', hz:520, q:0.9, v:0.20, d:0.07},
   [CHEST]:      {f:'bandpass', hz:360, q:0.8, v:0.30, d:0.13},
+  [CAMPFIRE]:   {f:'bandpass', hz:520, q:1.0, v:0.28, d:0.12},
 };
 function playPlaceSound(blockId){
   const sp = PLACE_SND[blockId] || PLACE_SND[STONE];
@@ -4283,7 +4329,7 @@ const CREATIVE_PAGE_SIZE=27;
 const CREATIVE_BLOCKS=[GRASS,DIRT,STONE,WOOD,PINE_LOG,LEAVES,PINE_LEAVES,SAND,BEDROCK,WATER,FOLIAGE,GLASS,SNOW,
   FLOWER_RED,FLOWER_YELLOW,PLANK,PINE_PLANK,CRAFT_TABLE,STICK,WOOD_PICK,STONE_PICK,
   GRAVEL,COBBLESTONE,MOSSY_COBBLE,CRACKED_STONE,
-  COAL_ORE,IRON_ORE,GOLD_ORE,COAL,IRON_INGOT,GOLD_INGOT,FURNACE,TORCH,CHEST,
+  COAL_ORE,IRON_ORE,GOLD_ORE,COAL,IRON_INGOT,GOLD_INGOT,FURNACE,TORCH,CHEST,CAMPFIRE,
   OAK_DOOR,PINE_DOOR,
   IRON_BUCKET,WATER_BUCKET,RAW_PORKCHOP,RAW_BEEF,COOKED_PORKCHOP,COOKED_BEEF,
   BOWL,WATER_BOWL,FOOD_BOWL,
@@ -5174,6 +5220,8 @@ const CT_RECIPES=[
   {pattern:[AIR,AIR,AIR, COAL,AIR,AIR, STICK,AIR,AIR], out:TORCH, outCount:4},
   {pattern:[AIR,AIR,AIR, AIR,COAL,AIR, AIR,STICK,AIR], out:TORCH, outCount:4},
   {pattern:[AIR,AIR,AIR, AIR,AIR,COAL, AIR,AIR,STICK], out:TORCH, outCount:4},
+  // Campfire: 3 sticks over coal over 3 logs
+  {pattern:[AIR,STICK,AIR, STICK,COAL,STICK, WOOD,WOOD,WOOD], out:CAMPFIRE, outCount:1},
 ];
 
 function computeCtOutput(){
@@ -6115,6 +6163,18 @@ canvas.addEventListener('mousedown',e=>{
         if(!consumeItem(held,1)) return;
         consumeItem(COAL,1);
       }
+      giveBlock(out);
+      playSmeltSound();
+      handPlaceT=0;
+      return;
+    }
+
+    // Interact with campfire — cook raw food for free
+    if(t && world.getBlock(t.bx,t.by,t.bz)===CAMPFIRE){
+      const held=player.selectedBlock;
+      const out=FIRE_COOK[held];
+      if(out===undefined){ addChatMsg('Hold raw food to cook it on the fire','err'); return; }
+      if(gamemode==='survival'){ if(!consumeItem(held,1)) return; }
       giveBlock(out);
       playSmeltSound();
       handPlaceT=0;
