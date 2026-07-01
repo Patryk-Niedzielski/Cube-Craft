@@ -95,7 +95,7 @@ server.on('upgrade', (req, socket) => {
   let buf = Buffer.alloc(0);
 
   // Send world seed + all current edits so this player loads the same world
-  send(socket, { t: 'welcome', id, seed: WORLD_SEED, edits: Object.fromEntries(edits) });
+  send(socket, { t: 'welcome', id, seed: WORLD_SEED, players: clients.size, edits: Object.fromEntries(edits) });
   console.log(`+ ${id} joined (${clients.size} online)`);
 
   socket.on('data', (chunk) => {

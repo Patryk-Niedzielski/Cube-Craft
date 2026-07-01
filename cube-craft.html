@@ -231,21 +231,14 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
 #chest-grid{display:grid;grid-template-columns:repeat(9,40px);gap:4px}
 #chest-inv-grid{display:grid;grid-template-columns:repeat(9,40px);gap:4px}
 #chest-hotbar-row{display:grid;grid-template-columns:repeat(9,40px);gap:4px}
-/* ── MULTIPLAYER DIALOG ── */
-#mp-screen{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:60;background:rgba(0,0,0,0.6)}
-#mp-panel{background:#c6c6c6;padding:20px 24px;border:3px solid;border-top-color:#fff;border-left-color:#fff;border-bottom-color:#555;border-right-color:#555;font-family:'Press Start 2P',monospace;display:flex;flex-direction:column;align-items:center;gap:10px;width:440px;max-width:90vw;text-align:center}
-#mp-title{font-size:12px;color:#333;text-shadow:1px 1px 0 rgba(255,255,255,0.6)}
-#mp-msg{font-size:7px;color:#444;line-height:1.7;margin:0}
-.mp-sep{height:1px;background:#999;width:100%;margin:2px 0}
-#mp-list{width:100%;max-height:170px;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
-.mp-entry{display:flex;align-items:center;gap:6px;background:#8b8b8b;border:2px solid;border-top-color:#a8a8a8;border-left-color:#a8a8a8;border-bottom-color:#555;border-right-color:#555;padding:5px 6px}
-.mp-entry .mp-en{flex:1;text-align:left;overflow:hidden}
-.mp-entry .mp-en b{font-size:7px;color:#111;display:block}
-.mp-entry .mp-en span{font-size:6px;color:#333}
-#mp-add-row{display:flex;gap:5px;width:100%}
-#mp-name{width:88px;font-family:'Press Start 2P',monospace;font-size:7px;padding:6px;background:#222;color:#eee;border:2px solid #000;outline:none}
-#mp-address{flex:1;font-family:'Press Start 2P',monospace;font-size:7px;padding:6px 8px;background:#222;color:#eee;border:2px solid #000;outline:none}
-#mp-status{font-size:7px;color:#c04040;min-height:10px}
+/* ── MULTIPLAYER / SERVER LIST (dirt-screen style, reuses .ws-* rows) ── */
+#mp-list{width:100%;max-height:44vh;overflow-y:auto;margin-bottom:10px}
+.mp-dot{width:12px;height:12px;flex-shrink:0;border-radius:50%;background:#777;box-shadow:0 0 0 2px rgba(0,0,0,0.5)}
+.mp-dot.on{background:#4caf3a;box-shadow:0 0 6px #6f6,0 0 0 2px rgba(0,0,0,0.5)}
+.mp-dot.off{background:#b03a3a}
+.mp-dot.checking{background:#c9a030}
+.mp-entry-btn{font-size:7px !important;min-width:0;padding:8px 12px;flex-shrink:0}
+#mp-status{font-size:7px;color:#ffd24a;text-shadow:1px 1px 0 #000;min-height:12px;margin-bottom:8px;text-align:center}
 /* ── WORLD CREATE SCREEN ── */
 /* ── SHARED: full-screen dirt-background menu ── */
 .mc-dirt-screen{
@@ -699,22 +692,31 @@ html,body{width:100%;height:100%;background:#b8deff;overflow:hidden;font-family:
   </div>
 </div>
 
-<!-- ── MULTIPLAYER DIALOG (coming soon) ── -->
-<div id="mp-screen">
-  <div id="mp-panel">
-    <div id="mp-title">Multiplayer</div>
-    <button class="mc-btn" id="mp-local-btn" style="width:100%;font-size:8px" onclick="startLocalGame()">Host Local Game (this PC)</button>
-    <p id="mp-msg">To host for friends: run <b>node&nbsp;server.js</b> on your PC and share your <b>IP:port</b>. Others add it below and click Join.</p>
-    <div class="mp-sep"></div>
-    <div style="font-size:8px;color:#333;align-self:flex-start">Server List</div>
+<!-- ── MULTIPLAYER / SERVER LIST SCREEN ── -->
+<div id="mp-screen" class="mc-dirt-screen">
+  <div class="mc-screen-inner">
+    <div class="mc-screen-title">Play Multiplayer</div>
     <div id="mp-list"></div>
-    <div id="mp-add-row">
-      <input id="mp-name" type="text" placeholder="name" spellcheck="false" autocomplete="off" maxlength="24">
-      <input id="mp-address" type="text" placeholder="address:port (e.g. 192.168.1.5:25565)" spellcheck="false" autocomplete="off">
-      <button class="mc-btn" id="mp-add" style="font-size:7px;min-width:0;padding:6px 10px">Add</button>
-    </div>
     <div id="mp-status"></div>
-    <button class="mc-btn" style="width:120px;font-size:7px;margin-top:4px" onclick="closeMultiplayer()">Back</button>
+    <div class="mc-field-wrap" style="margin-bottom:10px">
+      <span class="mc-field-lbl">Add a server (address:port)</span>
+      <div style="display:flex;gap:6px">
+        <input id="mp-name" class="mc-field-inp" style="flex:0 0 150px" type="text" placeholder="name" spellcheck="false" autocomplete="off" maxlength="24">
+        <input id="mp-address" class="mc-field-inp" style="flex:1" type="text" placeholder="192.168.1.5:25565" spellcheck="false" autocomplete="off">
+        <button class="mc-btn" id="mp-add" style="min-width:0;padding:0 16px;font-size:8px">Add</button>
+      </div>
+    </div>
+    <div class="mc-btn-row-2">
+      <button class="mc-btn mc-btn-full" id="mp-refresh">Refresh</button>
+      <button class="mc-btn mc-btn-full" id="mp-host" onclick="startLocalGame()">Host Local Game</button>
+    </div>
+    <div class="mc-btn-row-2">
+      <button class="mc-btn mc-btn-full" id="mp-back" onclick="closeMultiplayer()">Back</button>
+    </div>
+    <p style="font-size:6px;color:#bbb;text-shadow:1px 1px 0 #000;line-height:1.7;margin-top:12px;text-align:center">
+      To host for friends: run <b>node&nbsp;server.js</b> on your PC and share the IP:port it prints.<br>
+      Host Local Game links windows on this computer (no server needed).
+    </p>
   </div>
 </div>
 
@@ -7033,37 +7035,72 @@ let _mpSendT = 0;
 
 function openMultiplayer(){
   const st=document.getElementById('mp-status'); if(st) st.textContent='';
+  overlayEl.style.display='none';
   buildServerList();
   mpScreenEl.style.display='flex';
+  if(getServers().length) mpRefreshServers();   // auto-check who's online
 }
-function closeMultiplayer(){ mpScreenEl.style.display='none'; }
+function closeMultiplayer(){ mpScreenEl.style.display='none'; overlayEl.style.display='flex'; }
 
 // ── Saved server list (localStorage) ──
 const MP_SERVERS_KEY='cubecraft_servers';
 function getServers(){ try{ return JSON.parse(localStorage.getItem(MP_SERVERS_KEY))||[]; }catch(e){ return []; } }
 function saveServers(list){ localStorage.setItem(MP_SERVERS_KEY, JSON.stringify(list)); }
+const mpStatus=new Map(); // addr → {state:'unknown'|'checking'|'online'|'offline', players}
 function buildServerList(){
   const el=document.getElementById('mp-list'); if(!el) return;
   el.innerHTML='';
   const servers=getServers();
   if(!servers.length){
-    const d=document.createElement('div'); d.style.cssText='font-size:6px;color:#555;padding:6px';
-    d.textContent='No servers yet — add one below.'; el.appendChild(d); return;
+    const d=document.createElement('div');
+    d.style.cssText="font-size:7px;color:#bbb;text-shadow:1px 1px 0 #000;text-align:center;padding:18px";
+    d.textContent='No servers added yet. Add one below, or Host Local Game.';
+    el.appendChild(d); return;
   }
   servers.forEach((s,i)=>{
-    const row=document.createElement('div'); row.className='mp-entry';
-    const info=document.createElement('div'); info.className='mp-en';
-    info.innerHTML='<b></b><span></span>';
-    info.querySelector('b').textContent=s.name||s.addr;
-    info.querySelector('span').textContent=s.addr;
-    const join=document.createElement('button'); join.className='mc-btn'; join.style.cssText='font-size:6px;min-width:0;padding:5px 8px'; join.textContent='Join';
-    join.addEventListener('click',()=>mpJoinServer(s.addr));
-    const del=document.createElement('button'); del.className='mc-btn'; del.style.cssText='font-size:6px;min-width:0;padding:5px 7px;background:#5a3a3a'; del.textContent='✕';
-    del.addEventListener('click',()=>{ const l=getServers(); l.splice(i,1); saveServers(l); buildServerList(); });
-    row.append(info,join,del);
+    const st=mpStatus.get(s.addr)||{state:'unknown'};
+    const row=document.createElement('div'); row.className='ws-entry';
+    const dot=document.createElement('div'); dot.className='mp-dot '+(st.state==='online'?'on':st.state==='offline'?'off':st.state==='checking'?'checking':'');
+    const info=document.createElement('div'); info.className='ws-info';
+    const nm=document.createElement('div'); nm.className='ws-name'; nm.textContent=s.name||s.addr;
+    const meta=document.createElement('div'); meta.className='ws-meta';
+    meta.textContent = s.addr+'  ·  '+(
+      st.state==='online' ? ('Online — '+st.players+' player'+(st.players===1?'':'s')) :
+      st.state==='offline' ? 'Offline' :
+      st.state==='checking' ? 'Checking…' : 'Unknown — press Refresh');
+    info.append(nm,meta);
+    const join=document.createElement('button'); join.className='mc-btn mp-entry-btn'; join.textContent='Join';
+    join.addEventListener('click',(e)=>{ e.stopPropagation(); mpJoinServer(s.addr); });
+    const del=document.createElement('button'); del.className='mc-btn mp-entry-btn'; del.style.background='#5a3a3a'; del.textContent='✕';
+    del.addEventListener('click',(e)=>{ e.stopPropagation(); const l=getServers(); l.splice(i,1); saveServers(l); buildServerList(); });
+    row.append(dot,info,join,del);
     el.appendChild(row);
   });
 }
+// Briefly connect to a server to check if it's online + read its player count
+function pingServer(addr){
+  return new Promise(resolve=>{
+    let url=addr.trim(); if(!/^wss?:\/\//.test(url)) url='ws://'+url;
+    let done=false, ws;
+    const finish=(res)=>{ if(done) return; done=true; try{ws&&ws.close();}catch(e){} resolve(res); };
+    try{ ws=new WebSocket(url); }catch(e){ return finish({state:'offline'}); }
+    const to=setTimeout(()=>finish({state:'offline'}), 2800);
+    ws.onmessage=(ev)=>{ let m; try{m=JSON.parse(ev.data);}catch(e){return;} if(m.t==='welcome'){ clearTimeout(to); finish({state:'online', players:m.players||1}); } };
+    ws.onerror=()=>{ clearTimeout(to); finish({state:'offline'}); };
+    ws.onclose=()=>{ clearTimeout(to); finish({state:'offline'}); };
+  });
+}
+async function mpRefreshServers(){
+  const servers=getServers();
+  const stEl=document.getElementById('mp-status');
+  if(!servers.length){ if(stEl) stEl.textContent='Add a server first.'; return; }
+  if(stEl) stEl.textContent='Refreshing…';
+  for(const s of servers) mpStatus.set(s.addr,{state:'checking'});
+  buildServerList();
+  await Promise.all(servers.map(async s=>{ mpStatus.set(s.addr, await pingServer(s.addr)); buildServerList(); }));
+  if(stEl) stEl.textContent='';
+}
+document.getElementById('mp-refresh').addEventListener('click', mpRefreshServers);
 document.getElementById('mp-add').addEventListener('click',()=>{
   const addr=document.getElementById('mp-address').value.trim();
   const name=document.getElementById('mp-name').value.trim();
@@ -7072,6 +7109,7 @@ document.getElementById('mp-add').addEventListener('click',()=>{
   document.getElementById('mp-name').value=''; document.getElementById('mp-address').value='';
   document.getElementById('mp-status').textContent='';
   buildServerList();
+  pingServer(addr).then(res=>{ mpStatus.set(addr,res); buildServerList(); }); // auto-check the new one
 });
 document.getElementById('mp-address').addEventListener('keydown',e=>{ if(e.code==='Enter'){ e.preventDefault(); document.getElementById('mp-add').click(); } });
 
